@@ -19,31 +19,62 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       res.status(400).json({ error: 'name and r2_key required' });
       return;
     }
+    const folderKey = folder || '';
 
-    // Dedup: if an 'available' file with the same name+folder already exists, skip
-    const existing = db.prepare(`
+    // Skip if already available
+    const available = db.prepare(`
       SELECT id FROM files WHERE name=? AND folder=? AND status='available' LIMIT 1
-    `).get(name, folder || '');
-    if (existing) {
-      console.log(`[upload] Skipping duplicate: ${name} in ${folder || '(root)'}`);
-      return res.json({ id: existing.id, skip: true });
+    `).get(name, folderKey);
+    if (available) {
+      console.log(`[upload] Skip (available): ${name}`);
+      return res.json({ id: available.id, skip: true });
+    }
+
+    // Skip if already uploading with a recent heartbeat (within 5 min = still alive)
+    const activeUpload = db.prepare(`
+      SELECT id FROM files
+      WHERE name=? AND folder=? AND status='uploading'
+        AND last_seen_at >= datetime('now', '-5 minutes')
+      LIMIT 1
+    `).get(name, folderKey);
+    if (activeUpload) {
+      console.log(`[upload] Skip (active upload): ${name}`);
+      return res.json({ id: activeUpload.id, skip: true });
+    }
+
+    // Kill any stale uploading entries for this name+folder (no heartbeat for 5+ min)
+    const stale = db.prepare(`
+      SELECT id FROM files
+      WHERE name=? AND folder=? AND status='uploading'
+        AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))
+    `).all(name, folderKey);
+    for (const s of stale) {
+      db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(s.id);
+      sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(s.id));
+      console.log(`[upload] Cleared stale upload before re-register: ${s.id}`);
     }
 
     const id = uuid();
     db.prepare(`
-      INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
-      VALUES (?, ?, ?, ?, ?, 'uploading', 0)
-    `).run(id, name, r2_key, size || 0, folder || '');
+      INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at)
+      VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'))
+    `).run(id, name, r2_key, size || 0, folderKey);
 
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(id);
     sseBus.broadcast('file', file);
     res.json({ id });
   });
 
-  // Update upload progress
+  // Heartbeat — agent pings this every 30s to prove the upload is still alive
+  router.patch('/:id/heartbeat', agentAuth, (req, res) => {
+    db.prepare(`UPDATE files SET last_seen_at=datetime('now') WHERE id=? AND status='uploading'`).run(req.params.id);
+    res.json({ ok: true });
+  });
+
+  // Update upload progress (also acts as heartbeat)
   router.patch('/:id/progress', agentAuth, (req, res) => {
     const { progress } = req.body || {};
-    db.prepare(`UPDATE files SET upload_progress=? WHERE id=?`).run(progress, req.params.id);
+    db.prepare(`UPDATE files SET upload_progress=?, last_seen_at=datetime('now') WHERE id=?`).run(progress, req.params.id);
     sseBus.broadcast('progress', { id: req.params.id, progress });
     res.json({ ok: true });
   });

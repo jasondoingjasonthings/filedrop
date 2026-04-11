@@ -16,6 +16,7 @@ function getDb() {
     _db.pragma('journal_mode = WAL');
     _db.pragma('foreign_keys = ON');
     migrate(_db);
+    migrateAlter(_db);
   }
   return _db;
 }
@@ -44,6 +45,7 @@ function migrate(db) {
       downloaded_at TEXT,
       delete_at    TEXT,
       deleted_at   TEXT,
+      last_seen_at TEXT,
       created_at   TEXT DEFAULT (datetime('now'))
     );
 
@@ -82,6 +84,14 @@ function migrate(db) {
       created_at TEXT DEFAULT (datetime('now'))
     );
   `);
+}
+
+function migrateAlter(db) {
+  // Add columns that didn't exist in earlier schema versions
+  const cols = db.prepare(`PRAGMA table_info(files)`).all().map(c => c.name);
+  if (!cols.includes('last_seen_at')) {
+    db.exec(`ALTER TABLE files ADD COLUMN last_seen_at TEXT`);
+  }
 }
 
 function ownerExists(db) {

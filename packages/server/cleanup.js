@@ -11,17 +11,16 @@ function startCleanup(db, sseBus) {
 }
 
 async function runCleanup(db, sseBus) {
-  // ── Sweep stale 'uploading' entries (interrupted uploads) ─────────────────
-  // Any file stuck in 'uploading' for > 2 hours is treated as failed
+  // ── Sweep stale 'uploading' entries (no heartbeat for > 5 minutes = dead) ──
   const stale = db.prepare(`
     SELECT id FROM files
     WHERE status = 'uploading'
-      AND created_at <= datetime('now', '-2 hours')
+      AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))
   `).all();
   for (const f of stale) {
     db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(f.id);
     sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(f.id));
-    console.log(`[cleanup] Cleared stale upload: ${f.id}`);
+    console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);
   }
 
   const now = new Date().toISOString();

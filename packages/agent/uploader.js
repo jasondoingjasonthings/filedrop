@@ -47,33 +47,50 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   }
 }
 
+// ── Heartbeat helper ─────────────────────────────────────────────────────────
+
+function startHeartbeat(serverUrl, agentToken, id) {
+  const interval = setInterval(() => {
+    api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/heartbeat`, {})
+      .catch(() => {}); // fire-and-forget
+  }, 30_000);
+  return () => clearInterval(interval);
+}
+
 // ── Simple upload (small files) ──────────────────────────────────────────────
 
 async function simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size }) {
-  // Get a presigned PUT URL from server
   const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/presign', { r2_key: r2Key });
 
-  const stream = fs.createReadStream(filePath);
-  const res = await fetch(url, {
-    method: 'PUT',
-    body: stream,
-    headers: { 'Content-Length': String(size) },
-    duplex: 'half',
-  });
-  if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
-
-  await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress: 100 });
+  const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
+  try {
+    const stream = fs.createReadStream(filePath);
+    const res = await fetch(url, {
+      method: 'PUT',
+      body: stream,
+      headers: { 'Content-Length': String(size) },
+      duplex: 'half',
+    });
+    if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+    await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress: 100 });
+  } finally {
+    stopHeartbeat();
+  }
 }
 
 // ── Multipart upload (large files) ──────────────────────────────────────────
 
 async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, size }) {
-  // Create multipart upload session via server
   const { uploadId } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/create', { r2_key: r2Key });
 
   const parts    = [];
   const numParts = Math.ceil(size / PART_SIZE);
   const fd       = fs.openSync(filePath, 'r');
+
+  // Progress updates already act as heartbeats on the server side.
+  // But between part uploads (presign + PUT) we might go quiet for a while
+  // on very large parts, so also run an explicit heartbeat timer.
+  const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
 
   try {
     for (let i = 0; i < numParts; i++) {
@@ -81,16 +98,13 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
       const offset     = i * PART_SIZE;
       const partSize   = Math.min(PART_SIZE, size - offset);
 
-      // Get presigned URL for this part
       const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
         r2_key: r2Key, uploadId, partNumber,
       });
 
-      // Read part into buffer
       const buf = Buffer.alloc(partSize);
       fs.readSync(fd, buf, 0, partSize, offset);
 
-      // Upload part
       const res = await fetch(url, {
         method: 'PUT',
         body: buf,
@@ -106,10 +120,10 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
       console.log(`[uploader] Part ${partNumber}/${numParts} (${progress}%)`);
     }
   } finally {
+    stopHeartbeat();
     fs.closeSync(fd);
   }
 
-  // Complete multipart upload
   await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/complete', {
     r2_key: r2Key, uploadId, parts,
   });
