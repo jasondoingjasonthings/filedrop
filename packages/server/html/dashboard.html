@@ -376,7 +376,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
   user-select: none;
 }
 .folder-group-header:hover { background: #eaf6fb; }
-.folder-group-icon { font-size: 22px; flex-shrink: 0; }
+.folder-group-icon { font-size: 22px; flex-shrink: 0; display:flex; align-items:center; }
 .folder-group-info { flex: 1; }
 .folder-group-name { font-weight: 800; font-size: 15px; letter-spacing: -.01em; }
 .folder-group-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
@@ -888,6 +888,9 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 'use strict';
 
 // ── State ─────────────────────────────────────────────────────────────────────
+const ICON_FOLDER_CLOSED = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3 7C3 5.89543 3.89543 5 5 5H10.5858C10.851 5 11.1054 5.10536 11.2929 5.29289L12.7071 6.70711C12.8946 6.89464 13.149 7 13.4142 7H19C20.1046 7 21 7.89543 21 9V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7Z" fill="#5bc8e8"/></svg>`;
+const ICON_FOLDER_OPEN   = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 9C2 7.89543 2.89543 7 4 7H9.58579C9.851 7 10.1054 7.10536 10.2929 7.29289L11.7071 8.70711C11.8946 8.89464 12.149 9 12.4142 9H20C21.1046 9 22 9.89543 22 11V18C22 19.1046 21.1046 20 20 20H4C2.89543 20 2 19.1046 2 18V9Z" fill="#5bc8e8" fill-opacity="0.3" stroke="#5bc8e8" stroke-width="1.5"/><path d="M2 11H22" stroke="#5bc8e8" stroke-width="1.5"/></svg>`;
+
 let token  = localStorage.getItem('fd_token');
 let role   = localStorage.getItem('fd_role') || '';
 let uname  = localStorage.getItem('fd_uname') || '';
@@ -1200,7 +1203,7 @@ function renderLibrary(all) {
     return `
       <div class="folder-group" style="margin-bottom:12px">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
-          <span class="folder-group-icon">${isExpanded ? '📂' : '📁'}</span>
+          <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
             <div class="folder-group-name">${key ? esc(key) : '<span style="color:var(--muted)">No folder</span>'}</div>
             <div class="folder-group-meta">${gFiles.length} file${gFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
@@ -1356,7 +1359,7 @@ function renderEditor() {
     return `
       <div class="folder-group">
         <div class="folder-group-header" onclick="toggleFolder('${safeFolder}')">
-          <span class="folder-group-icon">${editorExpandedFolders.has(folder) ? '📂' : '📁'}</span>
+          <span class="folder-group-icon">${editorExpandedFolders.has(folder) ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
             <div class="folder-group-name">${esc(folder)}</div>
             <div class="folder-group-meta">${ffiles.length} file${ffiles.length!==1?'s':''} · ${fmtBytes(totalSize)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}</div>
