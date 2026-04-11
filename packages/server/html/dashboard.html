@@ -205,7 +205,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 }
 .file-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(91,200,232,0.12); }
 .file-card.uploading { border-color: #93c5fd; }
-.file-card.available { border-color: #86efac; }
+.file-card.available { border-color: #2dd4bf; }
 .file-card.downloaded { border-color: #fcd34d; }
 .file-card.deleting, .file-card.deleted { opacity: .5; }
 
@@ -222,7 +222,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
   padding: 3px 9px; border-radius: 20px;
 }
 .status-badge.uploading { background: #dbeafe; color: #1d4ed8; border: 1.5px solid #93c5fd; }
-.status-badge.available { background: #dcfce7; color: #15803d; border: 1.5px solid #86efac; }
+.status-badge.available { background: #99f6e4; color: #134e4a; border: 1.5px solid #2dd4bf; }
 .status-badge.downloaded { background: #fef9c3; color: #a16207; border: 1.5px solid #fcd34d; }
 .status-badge.deleting   { background: #fee2e2; color: #b91c1c; border: 1.5px solid #fca5a5; }
 .status-badge.deleted    { background: #f1f5f9; color: var(--muted2); border: 1.5px solid var(--border); }
@@ -994,7 +994,7 @@ function renderLibrary(all) {
             <div class="folder-group-meta">${gFiles.length} file${gFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
-          <button class="btn-sm" style="flex-shrink:0;background:#1d4ed8;color:#fff;border-color:#1d4ed8" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
+          <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
