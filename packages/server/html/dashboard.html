@@ -1139,7 +1139,7 @@ function renderEditor() {
             <div class="folder-group-meta">${ffiles.length} file${ffiles.length!==1?'s':''} · ${fmtBytes(totalSize)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}</div>
           </div>
           <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
-          <button class="btn-sm ${autoDownloadFolders.has(folder)?'btn-get':'btn-ghost'}" style="${autoDownloadFolders.has(folder)?'background:#166534;border-color:#166534;color:#fff':''}" onclick="event.stopPropagation();toggleAutoDownload('${safeFolder}',this)">${autoDownloadFolders.has(folder)?'⬇ Auto ON':'⬇ Auto'}</button>
+          <button class="btn-sm" style="${autoDownloadFolders.has(folder)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeFolder}',this)">${autoDownloadFolders.has(folder)?'⬇ Auto ON':'⬇ Auto'}</button>
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeFolder}',this)">↓ All</button>` : ''}
           <span class="folder-chevron">${editorExpandedFolders.has(folder)?'▲':'▼'}</span>
         </div>
