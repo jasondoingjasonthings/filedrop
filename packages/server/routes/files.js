@@ -53,6 +53,18 @@ function makeFilesRouter(db, sseBus) {
     }
   });
 
+  // Owner downloads a file — presigned URL only, no status change
+  router.post('/:id/presign', requireOwner, async (req, res) => {
+    const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
+    if (!file || file.status === 'deleted') { res.status(404).json({ error: 'Not found' }); return; }
+    try {
+      const url = await presignDownload(file.r2_key, 3600);
+      res.json({ url, name: file.name });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to generate download URL' });
+    }
+  });
+
   // Owner deletes a file from R2 immediately
   router.delete('/:id', requireOwner, async (req, res) => {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);

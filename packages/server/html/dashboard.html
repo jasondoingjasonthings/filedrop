@@ -1138,6 +1138,9 @@ function renderLibrary(all) {
     return a.localeCompare(b);
   });
 
+  // Auto-expand folders the first time they appear
+  keys.forEach(k => { if (!expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); } });
+
   grid.innerHTML = keys.map(key => {
     const gFiles    = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     const totalSize = gFiles.reduce((s, f) => s + (f.size || 0), 0);
@@ -1173,7 +1176,7 @@ function renderLibrary(all) {
           <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
           <td class="lib-status"><span class="status-badge ${f.status}">${f.status}${f.upload_progress > 0 && f.status==='uploading' ? ' ' + f.upload_progress + '%' : ''}</span>${countdown}</td>
           <td class="lib-actions">
-            ${canDownload ? `<button class="btn-sm btn-get" onclick="downloadSingleFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
+            ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
             ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
             ${f.status !== 'deleted' ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
           </td>
@@ -1278,11 +1281,27 @@ async function cancelUpload(id) {
   await api(`/api/files/${id}`, { method: 'DELETE' }).catch(() => {});
 }
 
+async function ownerDownloadFile(id, name, btn) {
+  const orig = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
+  try {
+    const data = await api(`/api/files/${id}/presign`, { method: 'POST' });
+    if (!data) { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+    const a = document.createElement('a');
+    a.href = data.url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    if (btn) { btn.textContent = '✓'; setTimeout(() => { btn.disabled = false; btn.textContent = orig; }, 2000); }
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = orig; }
+    toast(e.message, 'error');
+  }
+}
+
 async function downloadFolderOwner(folder) {
   const toDownload = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'available');
   if (!toDownload.length) return;
   const urls = await Promise.all(toDownload.map(f =>
-    api(`/api/files/${f.id}/download`, { method: 'POST' }).then(d => ({ url: d.url, name: f.name })).catch(() => null)
+    api(`/api/files/${f.id}/presign`, { method: 'POST' }).then(d => ({ url: d.url, name: f.name })).catch(() => null)
   ));
   urls.filter(Boolean).forEach((d, i) => {
     setTimeout(() => {
