@@ -592,6 +592,30 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
     <!-- ── Owner: Browse & Upload ── -->
     <div class="tab-panel" id="tab-browse" style="display:none">
+
+      <!-- Upload from this device (always visible, works on phone/any machine) -->
+      <div class="settings-section" style="margin-bottom:20px">
+        <h3 style="margin-bottom:4px">Upload from this device</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Works on any device — phone, laptop, anything. No agent needed.</p>
+        <div class="field" style="margin-bottom:12px">
+          <label>Folder</label>
+          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root">
+        </div>
+        <div id="ownerDropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:36px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:12px">
+          <div style="font-size:32px;margin-bottom:8px">📂</div>
+          <div style="font-weight:600;margin-bottom:4px">Drag files here or click to select</div>
+          <div style="font-size:12px;color:var(--muted)">Any file type, any size</div>
+          <input type="file" id="ownerFilePickerInput" multiple style="display:none">
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+          <button class="btn-ghost" id="ownerCancelAllUploads" style="font-size:12px;display:none" onclick="document.querySelectorAll('.owner-upload-cancel').forEach(b=>b.click())">Cancel all</button>
+        </div>
+        <div id="ownerUploadQueue" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <div style="border-top:1.5px solid var(--border);margin-bottom:20px"></div>
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px">Browse &amp; upload from office PC</div>
+
       <div id="browseAgentWarn" style="display:none">
         <strong>Agent not running</strong>
         Start the FileDrop agent on your Windows machine, then refresh this tab.
@@ -958,6 +982,7 @@ async function showApp() {
     loadUsers();
     loadUploadLinks();
     loadRequests();
+    initOwnerUpload();
   } else {
     document.getElementById('ownerTabs').style.display = 'none';
     document.getElementById('editorTabs').style.display = 'flex';
@@ -1459,40 +1484,68 @@ async function deleteUser(id, name) {
   } catch(e) { toast(e.message,'error'); }
 }
 
-// ── Browser upload (editor) ───────────────────────────────────────────────────
+// ── Browser upload ────────────────────────────────────────────────────────────
 function initBrowserUpload() {
-  const zone  = document.getElementById('dropZone');
-  const input = document.getElementById('filePickerInput');
+  setupDropZone({
+    zoneId:       'dropZone',
+    inputId:      'filePickerInput',
+    folderInputId:'uploadFolderLabel',
+    queueId:      'uploadQueue',
+    cancelAllId:  'cancelAllUploads',
+    cancelClass:  'upload-cancel',
+  });
+}
+
+function initOwnerUpload() {
+  setupDropZone({
+    zoneId:       'ownerDropZone',
+    inputId:      'ownerFilePickerInput',
+    folderInputId:'ownerUploadFolder',
+    queueId:      'ownerUploadQueue',
+    cancelAllId:  'ownerCancelAllUploads',
+    cancelClass:  'owner-upload-cancel',
+  });
+}
+
+function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, cancelClass }) {
+  const zone  = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
   if (!zone || !input) return;
 
+  const ctx = { queueId, cancelAllId, cancelClass };
+
   zone.addEventListener('click', () => input.click());
-  input.addEventListener('change', () => handleBrowserFiles([...input.files]));
+  input.addEventListener('change', () => {
+    const folder = document.getElementById(folderInputId)?.value.trim() || '';
+    for (const file of [...input.files]) uploadBrowserFile(file, folder, ctx);
+    input.value = '';
+  });
 
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
   zone.addEventListener('dragleave', () => { zone.style.borderColor = 'var(--border2)'; });
   zone.addEventListener('drop', e => {
     e.preventDefault();
     zone.style.borderColor = 'var(--border2)';
-    const folder = document.getElementById('uploadFolderLabel')?.value.trim() || '';
+    const folder = document.getElementById(folderInputId)?.value.trim() || '';
     const items = [...e.dataTransfer.items];
     for (const item of items) {
       const entry = item.webkitGetAsEntry?.();
-      if (entry) readEntry(entry, folder);
-      else if (item.getAsFile) uploadBrowserFile(item.getAsFile(), folder);
+      if (entry) readEntry(entry, folder, ctx);
+      else if (item.getAsFile) uploadBrowserFile(item.getAsFile(), folder, ctx);
     }
   });
 }
 
-function readEntry(entry, folderPrefix) {
+function readEntry(entry, folderPrefix, ctx) {
   if (entry.isFile) {
-    entry.file(file => uploadBrowserFile(file, folderPrefix));
+    entry.file(file => uploadBrowserFile(file, folderPrefix, ctx));
   } else if (entry.isDirectory) {
     const dirName = folderPrefix ? folderPrefix + '/' + entry.name : entry.name;
     const reader  = entry.createReader();
     const readAll = () => reader.readEntries(entries => {
       if (!entries.length) return;
-      for (const e of entries) readEntry(e, dirName);
-      readAll(); // readEntries only returns up to 100 at a time
+      for (const e of entries) readEntry(e, dirName, ctx);
+      readAll();
     });
     readAll();
   }
@@ -1500,29 +1553,30 @@ function readEntry(entry, folderPrefix) {
 
 function handleBrowserFiles(fileList) {
   const folder = document.getElementById('uploadFolderLabel')?.value.trim() || '';
-  for (const file of fileList) uploadBrowserFile(file, folder);
+  const ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' };
+  for (const file of fileList) uploadBrowserFile(file, folder, ctx);
   document.getElementById('filePickerInput').value = '';
 }
 
 const PART_SIZE           = 64 * 1024 * 1024;  // 64 MB per part
 const MULTIPART_THRESHOLD = 64 * 1024 * 1024;  // use multipart above 64 MB
 
-async function uploadBrowserFile(file, folder) {
-  const queue = document.getElementById('uploadQueue');
+async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' }) {
+  const queue = document.getElementById(ctx.queueId);
   const row   = document.createElement('div');
   row.className = 'upload-item';
   row.innerHTML = `
     <div class="upload-name">${esc(file.name)}</div>
     <div class="upload-pct">0%</div>
     <div class="upload-detail">${fmtBytes(file.size)}${folder ? ' · ' + esc(folder) : ''}</div>
-    <button class="btn-ghost upload-cancel" style="font-size:12px;padding:4px 10px">Cancel</button>
+    <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
     <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
   queue.prepend(row);
-  document.getElementById('cancelAllUploads').style.display = 'block';
+  document.getElementById(ctx.cancelAllId).style.display = 'block';
 
   const bar       = row.querySelector('.progress-bar');
   const pctEl     = row.querySelector('.upload-pct');
-  const cancelBtn = row.querySelector('.upload-cancel');
+  const cancelBtn = row.querySelector('.' + ctx.cancelClass);
 
   let fileId    = null;
   let cancelled = false;
@@ -1533,8 +1587,8 @@ async function uploadBrowserFile(file, folder) {
     abortFn();
     if (fileId) await api(`/api/upload/browser/fail/${fileId}`, { method: 'POST' }).catch(() => {});
     row.remove();
-    if (!document.querySelectorAll('.upload-cancel').length)
-      document.getElementById('cancelAllUploads').style.display = 'none';
+    if (!document.querySelectorAll('.' + ctx.cancelClass).length)
+      document.getElementById(ctx.cancelAllId).style.display = 'none';
   });
 
   const setProgress = pct => { bar.style.width = pct + '%'; pctEl.textContent = pct + '%'; };
@@ -1623,8 +1677,8 @@ async function uploadBrowserFile(file, folder) {
     cancelBtn.style.display = 'none';
     setTimeout(() => {
       row.remove();
-      if (!document.querySelectorAll('.upload-cancel').length)
-        document.getElementById('cancelAllUploads').style.display = 'none';
+      if (!document.querySelectorAll('.' + ctx.cancelClass).length)
+        document.getElementById(ctx.cancelAllId).style.display = 'none';
     }, 3000);
 
   } catch (err) {
