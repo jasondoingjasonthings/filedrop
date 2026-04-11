@@ -1,0 +1,8 @@
+node_modules/
+dist/
+*.exe
+config/filedrop.config.json
+*.db
+*.db-wal
+*.db-shm
+.env

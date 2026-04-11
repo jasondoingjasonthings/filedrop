@@ -1,0 +1,10 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/peer" },
+    { "path": "packages/notify" },
+    { "path": "packages/dashboard" },
+    { "path": "packages/installer" }
+  ]
+}

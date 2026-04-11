@@ -1,0 +1,29 @@
+{
+  "name": "@filedrop/dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc && node -e \"const fs=require('fs'); fs.mkdirSync('dist/html',{recursive:true}); fs.readdirSync('src/html').filter(f=>f.endsWith('.html')).forEach(f=>fs.copyFileSync('src/html/'+f,'dist/html/'+f))\"",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@filedrop/core": "*",
+    "@filedrop/peer": "*",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.3",
+    "express": "^4.19.0",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^5.0.2",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
+}

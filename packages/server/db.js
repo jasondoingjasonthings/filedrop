@@ -1,0 +1,72 @@
+'use strict';
+
+const Database = require('better-sqlite3');
+const path = require('path');
+const fs = require('fs');
+
+const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '../../data');
+const DB_PATH = path.join(DATA_DIR, 'filedrop.db');
+
+let _db;
+
+function getDb() {
+  if (!_db) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    _db = new Database(DB_PATH);
+    _db.pragma('journal_mode = WAL');
+    _db.pragma('foreign_keys = ON');
+    migrate(_db);
+  }
+  return _db;
+}
+
+function migrate(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id   INTEGER PRIMARY KEY AUTOINCREMENT,
+      username     TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK(role IN ('owner','editor')),
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS files (
+      id           TEXT PRIMARY KEY,
+      name         TEXT NOT NULL,
+      r2_key       TEXT NOT NULL UNIQUE,
+      size         INTEGER DEFAULT 0,
+      folder       TEXT DEFAULT '',
+      status       TEXT NOT NULL DEFAULT 'uploading'
+                     CHECK(status IN ('uploading','available','downloaded','deleting','deleted')),
+      upload_progress INTEGER DEFAULT 0,
+      uploaded_at  TEXT,
+      downloaded_by INTEGER REFERENCES users(id),
+      downloaded_at TEXT,
+      delete_at    TEXT,
+      deleted_at   TEXT,
+      created_at   TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_tokens (
+      id    INTEGER PRIMARY KEY AUTOINCREMENT,
+      token TEXT UNIQUE NOT NULL,
+      label TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS share_links (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      token      TEXT UNIQUE NOT NULL,
+      folder     TEXT NOT NULL DEFAULT '',
+      label      TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+  `);
+}
+
+function ownerExists(db) {
+  return db.prepare(`SELECT COUNT(*) as n FROM users WHERE role='owner'`).get().n > 0;
+}
+
+module.exports = { getDb, ownerExists };

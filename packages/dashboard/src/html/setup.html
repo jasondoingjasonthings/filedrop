@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop — Setup</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: system-ui, sans-serif; background: #0f0f0f; color: #e8e8e8; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; }
+  .card { background: #1a1a1a; border: 1px solid #2e2e2e; border-radius: 12px; padding: 2rem; width: 100%; max-width: 600px; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .subtitle { color: #888; font-size: 0.875rem; margin-bottom: 2rem; }
+  h2 { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 0.07em; margin: 1.5rem 0 0.75rem; border-bottom: 1px solid #222; padding-bottom: 0.4rem; }
+  label { display: block; font-size: 0.85rem; color: #bbb; margin-bottom: 0.25rem; }
+  input[type=text], input[type=password], input[type=email], input[type=number], select {
+    width: 100%; padding: 0.5rem 0.75rem; background: #111; border: 1px solid #333;
+    border-radius: 6px; color: #e8e8e8; font-size: 0.875rem; margin-bottom: 0.9rem; outline: none;
+  }
+  input:focus, select:focus { border-color: #4f9eff; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .hint { font-size: 0.75rem; color: #555; margin-top: -0.7rem; margin-bottom: 0.9rem; }
+  .toggle { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; font-size: 0.875rem; color: #bbb; }
+  .toggle input { width: auto; margin: 0; accent-color: #4f9eff; }
+  button[type=submit] { width: 100%; padding: 0.75rem; background: #4f9eff; border: none; border-radius: 6px; color: #fff; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 1rem; }
+  button[type=submit]:hover { background: #3a88ee; }
+  #error   { color: #ff6b6b; font-size: 0.85rem; margin-top: 0.75rem; display: none; }
+  #success { color: #51cf66; font-size: 0.85rem; margin-top: 0.75rem; display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>FileDrop Setup</h1>
+  <p class="subtitle">Configure this machine. This wizard is locked after first run.</p>
+
+  <form id="setupForm">
+
+    <h2>This Machine</h2>
+    <div class="row">
+      <div>
+        <label>Role</label>
+        <select name="role" required>
+          <option value="">Select…</option>
+          <option value="hub">Hub (Jason's office — shares files)</option>
+          <option value="spoke">Spoke (laptop or editor — pulls files)</option>
+        </select>
+      </div>
+      <div>
+        <label>Machine Name</label>
+        <input type="text" name="name" placeholder="e.g. Jason-Office, Mitch-PC, Jason-Laptop" required>
+      </div>
+    </div>
+
+    <h2>Folders</h2>
+    <div class="row">
+      <div>
+        <label>Share Folder (files you share with peers)</label>
+        <input type="text" name="watchFolder" placeholder="C:/FileDrop/share or /Users/jason/FileDrop/share" required>
+      </div>
+      <div>
+        <label>Download Folder (where incoming files land)</label>
+        <input type="text" name="downloadFolder" placeholder="C:/FileDrop/incoming or /Users/jason/FileDrop/incoming" required>
+      </div>
+    </div>
+
+    <h2>Network</h2>
+    <label>Shared Secret</label>
+    <input type="text" name="secret" placeholder="Paste the same secret on all machines (min 16 chars)" required>
+    <p class="hint">Every machine in your group must use the same secret. Generate one at random.org or just type a long random string.</p>
+
+    <div id="peersSection">
+      <label>Hub IP Address (Tailscale IP of the hub machine)</label>
+      <input type="text" name="hubHost" placeholder="100.x.x.x">
+      <p class="hint">Spoke only — leave blank if this machine is the hub.</p>
+    </div>
+
+    <h2>Dashboard</h2>
+    <div class="row">
+      <div>
+        <label>Port</label>
+        <input type="number" name="port" value="5050" required>
+      </div>
+      <div>
+        <label>JWT Secret (min 32 chars)</label>
+        <input type="text" name="jwtSecret" placeholder="Long random string for session tokens" required>
+      </div>
+    </div>
+
+    <h2>Notifications</h2>
+    <div class="toggle"><input type="checkbox" name="notifyDesktop" checked><label>Desktop notifications</label></div>
+    <div class="toggle"><input type="checkbox" name="notifyEmail" id="emailToggle"><label>Email notifications</label></div>
+    <div id="emailFields" style="display:none">
+      <div class="row">
+        <div><label>SMTP Host</label><input type="text" name="smtpHost" placeholder="smtp.gmail.com"></div>
+        <div><label>SMTP Port</label><input type="number" name="smtpPort" value="587"></div>
+      </div>
+      <div class="row">
+        <div><label>SMTP User</label><input type="text" name="smtpUser"></div>
+        <div><label>SMTP Password</label><input type="password" name="smtpPass"></div>
+      </div>
+      <div class="row">
+        <div><label>From</label><input type="email" name="emailFrom"></div>
+        <div><label>To</label><input type="email" name="emailTo"></div>
+      </div>
+    </div>
+
+    <h2>Your Account</h2>
+    <div class="row">
+      <div><label>Username</label><input type="text" name="username" required></div>
+      <div><label>Password (min 8 chars)</label><input type="password" name="password" required></div>
+    </div>
+
+    <button type="submit">Complete Setup</button>
+    <div id="error"></div>
+    <div id="success"></div>
+  </form>
+</div>
+
+<script>
+  // Inject baked role if present
+  const builtRole = document.querySelector('input[name=role]')?.getAttribute('value') || '';
+  if (builtRole) {
+    const sel = document.querySelector('select[name=role]');
+    if (sel) sel.value = builtRole;
+  }
+
+  document.getElementById('emailToggle').addEventListener('change', function() {
+    document.getElementById('emailFields').style.display = this.checked ? 'block' : 'none';
+  });
+
+  document.getElementById('setupForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const f = new FormData(this);
+    const get = (k) => (f.get(k) || '').toString().trim();
+
+    const role = get('role');
+    const hubHost = get('hubHost');
+
+    const peers = (role === 'spoke' && hubHost)
+      ? [{ name: 'hub', host: hubHost, port: 5050 }]
+      : [];
+
+    const body = {
+      config: {
+        role,
+        name: get('name'),
+        watchFolder: get('watchFolder'),
+        downloadFolder: get('downloadFolder'),
+        secret: get('secret'),
+        peers,
+        concurrency: 2,
+        dashboard: {
+          port: parseInt(get('port'), 10),
+          host: '0.0.0.0',
+          jwtSecret: get('jwtSecret'),
+        },
+        notify: {
+          desktop: f.get('notifyDesktop') === 'on',
+          email: {
+            enabled: f.get('notifyEmail') === 'on',
+            smtp: { host: get('smtpHost'), port: parseInt(get('smtpPort') || '587', 10), user: get('smtpUser'), pass: get('smtpPass') },
+            from: get('emailFrom') || 'filedrop@example.com',
+            to: get('emailTo') || 'user@example.com',
+          },
+        },
+      },
+      owner: {
+        username: get('username'),
+        password: get('password'),
+      },
+    };
+
+    const errEl = document.getElementById('error');
+    const okEl  = document.getElementById('success');
+    errEl.style.display = 'none';
+    okEl.style.display  = 'none';
+
+    try {
+      const res  = await fetch('/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = JSON.stringify(data.error); errEl.style.display = 'block'; return; }
+      okEl.textContent = 'Setup complete! FileDrop is restarting — this page will reload in 5 seconds…';
+      okEl.style.display = 'block';
+      setTimeout(() => window.location.href = '/', 5000);
+    } catch (err) {
+      errEl.textContent = 'Network error: ' + err.message;
+      errEl.style.display = 'block';
+    }
+  });
+</script>
+</body>
+</html>

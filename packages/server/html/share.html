@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop · Shared Files</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#080808;color:#efefef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:40px 20px}
+.wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
+.logo{font-size:22px;font-weight:800;letter-spacing:-.04em}.logo em{color:#f97316;font-style:normal}
+.header{display:flex;flex-direction:column;gap:6px}
+.folder-name{font-size:26px;font-weight:800;letter-spacing:-.03em}
+.meta{font-size:13px;color:#666}
+.file-list{display:flex;flex-direction:column;gap:8px}
+.file-row{
+  background:#111;border:1px solid #232323;border-radius:10px;
+  padding:16px 18px;display:flex;align-items:center;gap:14px;
+}
+.file-icon{font-size:22px;flex-shrink:0}
+.file-info{flex:1;min-width:0}
+.file-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-size{font-size:12px;color:#666;margin-top:2px}
+.btn{
+  background:#f97316;color:#fff;border:none;border-radius:8px;
+  padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
+  transition:background .15s;white-space:nowrap;flex-shrink:0;
+  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+}
+.btn:hover{background:#c2550d}
+.btn.downloading{background:#374151;cursor:default}
+.empty{text-align:center;padding:60px 20px;color:#444}
+.expiry{background:#1a1000;border:1px solid #f9731630;border-radius:8px;padding:10px 14px;font-size:12px;color:#f97316}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">File<em>Drop</em></div>
+  <div class="header">
+    <div class="folder-name" id="folderName">Loading…</div>
+    <div class="meta" id="meta"></div>
+  </div>
+  <div class="expiry" id="expiry"></div>
+  <div class="file-list" id="fileList"></div>
+</div>
+<script>
+const token = location.pathname.split('/').filter(Boolean).pop();
+
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+function fmtDate(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleDateString([], { dateStyle: 'medium' });
+}
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function init() {
+  const res = await fetch(`/share/${token}/files`);
+  if (!res.ok) {
+    document.getElementById('folderName').textContent = 'Link expired or not found';
+    document.getElementById('fileList').innerHTML = '<div class="empty">This download link is no longer valid.</div>';
+    return;
+  }
+  const data = await res.json();
+
+  document.title = `FileDrop · ${data.label}`;
+  document.getElementById('folderName').textContent = data.label;
+  document.getElementById('meta').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''}`;
+  document.getElementById('expiry').textContent = `🔗 Link expires ${fmtDate(data.expiresAt)}`;
+
+  if (!data.files.length) {
+    document.getElementById('fileList').innerHTML = '<div class="empty">No files available yet.</div>';
+    return;
+  }
+
+  document.getElementById('fileList').innerHTML = data.files.map(f => `
+    <div class="file-row">
+      <span class="file-icon">📄</span>
+      <div class="file-info">
+        <div class="file-name">${esc(f.name)}</div>
+        <div class="file-size">${fmtBytes(f.size)}</div>
+      </div>
+      <button class="btn" id="dl-${esc(f.id)}" onclick="download('${esc(f.id)}', '${esc(f.name)}', this)">
+        ↓ Download
+      </button>
+    </div>
+  `).join('');
+}
+
+async function download(fileId, name, btn) {
+  btn.className = 'btn downloading';
+  btn.textContent = 'Preparing…';
+  try {
+    const res = await fetch(`/share/${token}/download/${fileId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    const a = document.createElement('a');
+    a.href = data.url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    btn.className = 'btn';
+    btn.textContent = '↓ Download';
+  } catch(e) {
+    btn.className = 'btn';
+    btn.textContent = '↓ Download';
+    alert('Download failed: ' + e.message);
+  }
+}
+
+init();
+</script>
+</body>
+</html>

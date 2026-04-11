@@ -1,0 +1,24 @@
+{
+  "name": "@filedrop/notify",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@filedrop/core": "*",
+    "node-notifier": "^10.0.1",
+    "nodemailer": "^6.9.14"
+  },
+  "devDependencies": {
+    "@types/node-notifier": "^8.0.5",
+    "@types/nodemailer": "^6.4.15",
+    "@types/node": "^20.14.0",
+    "tsx": "^4.15.0",
+    "typescript": "^5.5.0"
+  }
+}

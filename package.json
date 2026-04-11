@@ -1,0 +1,24 @@
+{
+  "name": "filedrop",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "build"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.json",
+    "build:exe": "npm run build && npm run pkg:all -w build",
+    "typecheck": "tsc --build --dry tsconfig.json",
+    "clean": "tsc --build --clean tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3"
+  }
+}

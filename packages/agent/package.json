@@ -1,0 +1,25 @@
+{
+  "name": "@filedrop/agent",
+  "version": "1.0.0",
+  "description": "FileDrop upload agent — watches a folder and syncs to server",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build:win": "pkg index.js --target node20-win-x64 --output dist/filedrop-agent-win.exe",
+    "build:mac": "pkg index.js --target node20-macos-arm64 --output dist/filedrop-agent-mac"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.600.0",
+    "@aws-sdk/s3-request-presigner": "^3.600.0",
+    "chokidar": "^3.6.0",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "pkg": "^5.8.1"
+  },
+  "pkg": {
+    "assets": [],
+    "targets": ["node20-win-x64", "node20-macos-arm64"]
+  }
+}

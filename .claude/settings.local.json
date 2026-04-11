@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(./node_modules/.bin/tsc --build tsconfig.json)",
+      "Bash(../node_modules/.bin/pkg ../packages/installer/dist/role-editor.js --target node20-win-x64 --output FileDrop-Editor-Setup.exe --config pkg.editor.json)",
+      "Read(//c/Program Files \\(x86\\)/**)",
+      "Bash(curl -L \"https://jrsoftware.org/download.php/is.exe\" -o \"/c/Users/jason/Downloads/innosetup-installer.exe\")",
+      "Bash(curl -L --ssl-no-revoke \"https://jrsoftware.org/download.php/is.exe\" -o \"/c/Users/jason/Downloads/innosetup-installer.exe\")",
+      "Bash(\"/c/Users/jason/Downloads/innosetup-installer.exe\" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(\"/c/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" \"c:/Users/jason/Documents/Claude Code/filedrop/installer-scripts/FileDrop-Editor.iss\")",
+      "Bash(../node_modules/.bin/pkg ../packages/installer/dist/role-jason.js --target node20-win-x64 --output FileDrop-Jason-Setup.exe --config pkg.jason.json)",
+      "Bash(sc query:*)",
+      "Bash(\"/c/Program Files/FileDrop-Jason/FileDrop.exe\" --install)",
+      "Bash(cmd.exe /c '\"C:\\\\Program Files\\\\FileDrop-Jason\\\\FileDrop.exe\" --install')",
+      "Bash(cmd.exe /c '\"C:\\\\Program Files\\\\FileDrop-Jason\\\\FileDrop.exe\" --install 2>&1')",
+      "Bash(\"/c/Program Files \\(x86\\)/Inno Setup 6/ISCC.exe\" \"c:/Users/jason/Documents/Claude Code/filedrop/installer-scripts/FileDrop-Jason.iss\")",
+      "Bash(cmd.exe /c '\"C:\\\\Program Files\\\\FileDrop-Jason\\\\unins000.exe\" /VERYSILENT')",
+      "Bash(cmd.exe /c '\"c:\\\\Users\\\\jason\\\\Documents\\\\Claude Code\\\\filedrop\\\\build\\\\FileDrop-Jason-Installer.exe\" /VERYSILENT /SUPPRESSMSGBOXES')",
+      "Bash(powershell.exe -Command '& \"C:\\\\Program Files\\\\FileDrop-Jason\\\\FileDrop.exe\" --install 2>&1 | Tee-Object C:\\\\Users\\\\jason\\\\filedrop-install.log; Write-Host \"Exit: $LASTEXITCODE\"')",
+      "Bash(powershell.exe -Command \"Stop-Process -Name 'FileDrop-Jason-Setup' -ErrorAction SilentlyContinue\")",
+      "Bash(powershell.exe -Command \"Start-Process 'c:\\\\Users\\\\jason\\\\Documents\\\\Claude Code\\\\filedrop\\\\build\\\\FileDrop-Jason-Setup.exe'\")",
+      "Bash(powershell.exe -Command 'Test-NetConnection -ComputerName localhost -Port 5050 | Select-Object TcpTestSucceeded')",
+      "Bash(powershell.exe -Command \"& 'c:\\\\Users\\\\jason\\\\Documents\\\\Claude Code\\\\filedrop\\\\build\\\\FileDrop-Jason-Setup.exe' 2>&1 | Select-Object -First 20\")",
+      "Bash(powershell.exe -Command \"& 'c:\\\\Users\\\\jason\\\\Documents\\\\Claude Code\\\\filedrop\\\\build\\\\FileDrop-Jason-Setup.exe' 2>&1\")",
+      "Bash(powershell.exe -Command 'Test-NetConnection -ComputerName 127.0.0.1 -Port 5050 | Select-Object TcpTestSucceeded')",
+      "Bash(powershell.exe -Command \"& 'c:\\\\Users\\\\jason\\\\Documents\\\\Claude Code\\\\filedrop\\\\build\\\\FileDrop-Jason-Setup.exe'\")"
+    ]
+  }
+}

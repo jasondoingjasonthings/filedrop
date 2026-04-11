@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop</title>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,sans-serif;background:#0f0f0f;color:#e8e8e8}
+  /* ── Login ── */
+  #loginScreen{position:fixed;inset:0;background:#0f0f0f;display:flex;align-items:center;justify-content:center;z-index:100}
+  .login-card{background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;padding:2rem;width:320px}
+  .login-card h2{margin-bottom:1.5rem}
+  .login-card input{width:100%;padding:.5rem .75rem;background:#111;border:1px solid #333;border-radius:6px;color:#e8e8e8;font-size:.875rem;margin-bottom:1rem;outline:none}
+  .login-card button{width:100%;padding:.65rem;background:#4f9eff;border:none;border-radius:6px;color:#fff;font-weight:600;cursor:pointer}
+  #loginError{color:#ff6b6b;font-size:.8rem;margin-top:.5rem;display:none}
+  /* ── Header ── */
+  header{display:flex;align-items:center;gap:1rem;padding:.75rem 1.5rem;border-bottom:1px solid #2e2e2e;flex-wrap:wrap}
+  header h1{font-size:1.05rem;font-weight:600;flex-shrink:0}
+  /* Peer status pill */
+  .peer-pill{display:flex;align-items:center;gap:.35rem;background:#161616;border:1px solid #2a2a2a;border-radius:20px;padding:.25rem .75rem;font-size:.75rem}
+  .peer-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+  .dot-online{background:#51cf66}.dot-offline{background:#555}.dot-drive{background:#fcc419}
+  .peer-name{color:#aaa;font-weight:500}
+  .peer-detail{color:#555}
+  /* Stats */
+  #stats{display:flex;gap:1.25rem;font-size:.78rem;color:#666;margin-left:auto}
+  #stats span b{color:#e8e8e8}
+  .sign-out{font-size:.78rem;color:#666;background:none;border:none;cursor:pointer}
+  .sign-out:hover{color:#e8e8e8}
+  /* ── Tabs ── */
+  .tabs{display:flex;border-bottom:1px solid #2e2e2e;padding:0 1.5rem}
+  .tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:#555;padding:.5rem 1rem;font-size:.85rem;cursor:pointer;margin-bottom:-1px}
+  .tab-btn.active{color:#e8e8e8;border-bottom-color:#4f9eff}
+  .tab-btn:hover:not(.active){color:#aaa}
+  .tab-panel{display:none;padding:1.25rem 1.5rem}
+  .tab-panel.active{display:block}
+  /* ── Tables ── */
+  table{width:100%;border-collapse:collapse;font-size:.83rem}
+  thead th{text-align:left;padding:.45rem .7rem;color:#555;font-weight:500;border-bottom:1px solid #222;white-space:nowrap}
+  tbody tr{border-bottom:1px solid #1a1a1a}
+  tbody tr:hover{background:#141414}
+  td{padding:.55rem .7rem;vertical-align:middle}
+  .badge{display:inline-block;padding:.12rem .45rem;border-radius:4px;font-size:.72rem;font-weight:500}
+  .badge-active{background:#1a3a5c;color:#4f9eff}.badge-done{background:#1a3a2a;color:#51cf66}
+  .badge-error{background:#3a1a1a;color:#ff6b6b}.badge-queued{background:#1e1e1e;color:#777}
+  .badge-paused{background:#2e2a1a;color:#fcc419}.badge-sub{background:#1a2a3a;color:#74c0fc}
+  .progress-bar{width:70px;height:5px;background:#222;border-radius:3px;overflow:hidden;display:inline-block;vertical-align:middle}
+  .progress-fill{height:100%;background:#4f9eff;border-radius:3px;transition:width .3s}
+  .dir-up{color:#4f9eff}.dir-down{color:#51cf66}
+  .act-btn{background:none;border:1px solid #2e2e2e;color:#666;padding:.15rem .45rem;border-radius:4px;font-size:.72rem;cursor:pointer;margin-left:.2rem}
+  .act-btn:hover{border-color:#4f9eff;color:#4f9eff}
+  .act-btn.danger:hover{border-color:#ff6b6b;color:#ff6b6b}
+  /* ── Toolbar ── */
+  .toolbar{display:flex;gap:.6rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap}
+  .btn-primary{background:#4f9eff;border:none;color:#fff;padding:.38rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer}
+  .btn-primary:disabled{opacity:.35;cursor:not-allowed}
+  .btn-ghost{background:none;border:1px solid #2e2e2e;color:#777;padding:.38rem .75rem;border-radius:6px;font-size:.8rem;cursor:pointer}
+  .btn-ghost:hover{border-color:#4f9eff;color:#4f9eff}
+  select.filter{background:#161616;border:1px solid #2e2e2e;color:#e8e8e8;padding:.38rem .7rem;border-radius:6px;font-size:.8rem}
+  .count-label{font-size:.78rem;color:#555}
+  /* ── Folder tree ── */
+  .folder-group{margin-bottom:.3rem}
+  .folder-header{display:flex;align-items:center;gap:.45rem;padding:.38rem .5rem;background:#141414;border-radius:6px;cursor:pointer;user-select:none}
+  .folder-header:hover{background:#1a1a1a}
+  .folder-icon{font-size:.85rem}
+  .folder-name{font-size:.83rem;color:#aaa;font-weight:500;flex:1}
+  .folder-meta{font-size:.72rem;color:#555}
+  .folder-arr{font-size:.65rem;color:#444;transition:transform .15s}
+  .folder-arr.open{transform:rotate(90deg)}
+  .folder-files{padding-left:1.1rem}
+  .file-row{display:flex;align-items:center;gap:.55rem;padding:.4rem .45rem;border-bottom:1px solid #1a1a1a}
+  .file-row:hover{background:#141414}
+  .file-row input[type=checkbox]{accent-color:#4f9eff;width:13px;height:13px;flex-shrink:0}
+  .file-name{flex:1;font-size:.83rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file-size{font-size:.72rem;color:#555;white-space:nowrap}
+  .file-date{font-size:.7rem;color:#444;white-space:nowrap}
+  /* ── Library ── */
+  .lib-row{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-bottom:1px solid #1a1a1a;font-size:.82rem}
+  .lib-path{flex:1;color:#aaa;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lib-size{font-size:.72rem;color:#555;white-space:nowrap}
+  .lib-check{font-size:.8rem;padding:.1rem .35rem;border-radius:3px}
+  .lib-yes{background:#1a3a2a;color:#51cf66}
+  .lib-no{background:#1e1e1e;color:#555}
+  .lib-partial{background:#2e2a1a;color:#fcc419}
+  /* ── Settings ── */
+  .settings-section{max-width:540px}
+  .settings-section h3{font-size:.85rem;color:#888;text-transform:uppercase;letter-spacing:.06em;margin:1.25rem 0 .75rem;border-bottom:1px solid #222;padding-bottom:.35rem}
+  .field-row{display:flex;gap:.5rem;align-items:flex-end;margin-bottom:.75rem}
+  .field-row label{display:block;font-size:.8rem;color:#bbb;margin-bottom:.25rem}
+  .field-row input{flex:1;padding:.45rem .7rem;background:#111;border:1px solid #333;border-radius:6px;color:#e8e8e8;font-size:.83rem;outline:none}
+  .field-row input:focus{border-color:#4f9eff}
+  .save-btn{background:#4f9eff;border:none;color:#fff;padding:.45rem .9rem;border-radius:6px;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+  .warn-banner{background:#3a2a1a;border:1px solid #5a3a1a;border-radius:6px;padding:.6rem 1rem;font-size:.8rem;color:#fcc419;margin-bottom:1rem;display:none}
+  /* ── Misc ── */
+  .empty{text-align:center;color:#333;padding:3rem;font-size:.9rem}
+  #connBadge{font-size:.7rem;padding:.15rem .45rem;border-radius:4px;background:#222;color:#555}
+  #connBadge.live{background:#1a3a2a;color:#51cf66}
+  /* ── My Files ── */
+  .myfiles-folder{margin-bottom:.3rem}
+  .myfiles-folder-header{display:flex;align-items:center;gap:.45rem;padding:.38rem .5rem;background:#141414;border-radius:6px;cursor:pointer;user-select:none}
+  .myfiles-folder-header:hover{background:#1a1a1a}
+  .myfiles-folder-children{padding-left:1.1rem}
+  .myfiles-file-row{display:flex;align-items:center;gap:.55rem;padding:.38rem .45rem;border-bottom:1px solid #1a1a1a;font-size:.82rem}
+  .myfiles-file-row:hover{background:#141414}
+  /* ── Folder picker modal ── */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;display:flex;align-items:center;justify-content:center}
+  .modal{background:#1a1a1a;border:1px solid #2e2e2e;border-radius:12px;width:520px;max-height:70vh;display:flex;flex-direction:column}
+  .modal-header{padding:1rem 1.25rem;border-bottom:1px solid #2e2e2e;display:flex;align-items:center;gap:.75rem}
+  .modal-header h3{flex:1;font-size:.95rem}
+  .modal-path{font-size:.75rem;color:#555;font-family:monospace;padding:.35rem .75rem;background:#111;border-radius:4px;word-break:break-all}
+  .modal-body{overflow-y:auto;flex:1;padding:.5rem}
+  .modal-footer{padding:.75rem 1.25rem;border-top:1px solid #2e2e2e;display:flex;gap:.5rem;justify-content:flex-end}
+  .picker-entry{display:flex;align-items:center;gap:.5rem;padding:.4rem .5rem;border-radius:5px;cursor:pointer;font-size:.85rem}
+  .picker-entry:hover{background:#222}
+  .picker-entry.up{color:#666;font-style:italic}
+  .picker-entry.dir{color:#aaa}
+  .picker-entry.file{color:#555;cursor:default}
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginScreen">
+  <div class="login-card">
+    <h2>FileDrop</h2>
+    <input type="text" id="loginUser" placeholder="Username" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password">
+    <button id="loginBtn">Sign in</button>
+    <div id="loginError"></div>
+  </div>
+</div>
+
+<!-- Header -->
+<header style="display:none" id="appHeader">
+  <h1>FileDrop <span id="connBadge">connecting…</span></h1>
+  <div id="peerPills"></div>
+  <div id="stats">
+    <span>Active: <b id="sActive">0</b></span>
+    <span>Done: <b id="sDone">0</b></span>
+    <span>Errors: <b id="sErrors">0</b></span>
+    <span>Transferred: <b id="sBytes">0 B</b></span>
+  </div>
+  <button class="sign-out" id="logoutBtn">Sign out</button>
+</header>
+
+<!-- Tabs -->
+<div class="tabs" style="display:none" id="appTabs">
+  <button class="tab-btn active" data-tab="transfers">Transfers</button>
+  <button class="tab-btn" data-tab="myfiles">My Files</button>
+  <button class="tab-btn" data-tab="browse">Browse <span id="browseBadge"></span></button>
+  <button class="tab-btn" data-tab="library">Library</button>
+  <button class="tab-btn" data-tab="settings">Settings</button>
+</div>
+
+<!-- ═══════════ TRANSFERS TAB ═══════════ -->
+<div class="tab-panel active" id="tab-transfers" style="display:none">
+  <div class="toolbar">
+    <select class="filter" id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="active">Active</option>
+      <option value="queued">Queued</option>
+      <option value="paused">Paused</option>
+      <option value="done">Done</option>
+      <option value="error">Error</option>
+    </select>
+    <select class="filter" id="filterDir">
+      <option value="">All directions</option>
+      <option value="download">Downloads</option>
+    </select>
+  </div>
+  <table>
+    <thead><tr><th>File</th><th>From</th><th>Size</th><th>Progress</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+  <div class="empty" id="emptyTransfers" style="display:none">No transfers yet.</div>
+</div>
+
+<!-- ═══════════ MY FILES TAB ═══════════ -->
+<div class="tab-panel" id="tab-myfiles">
+  <div class="toolbar">
+    <button class="btn-ghost" id="refreshMyFiles">Refresh</button>
+    <span class="count-label" id="myFilesCount"></span>
+  </div>
+  <div id="myFilesList"></div>
+  <div class="empty" id="emptyMyFiles" style="display:none">Share folder is empty or not found.</div>
+</div>
+
+<!-- ═══════════ BROWSE TAB ═══════════ -->
+<div class="tab-panel" id="tab-browse">
+  <div class="toolbar">
+    <select class="filter" id="browsePeerSelect"></select>
+    <button class="btn-primary" id="getSelectedBtn" disabled>Get Selected</button>
+    <button class="btn-ghost" id="selectAllBrowse">Select All</button>
+    <button class="btn-ghost" id="refreshBrowse">Refresh</button>
+    <span class="count-label" id="browseCount"></span>
+  </div>
+  <div id="browseTree"></div>
+  <div class="empty" id="emptyBrowse" style="display:none">Select a peer above to browse their files.</div>
+</div>
+
+<!-- ═══════════ LIBRARY TAB ═══════════ -->
+<div class="tab-panel" id="tab-library">
+  <div class="toolbar">
+    <select class="filter" id="libraryPeerSelect">
+      <option value="">All peers</option>
+    </select>
+    <button class="btn-ghost" id="refreshLibrary">Refresh</button>
+    <span class="count-label" id="libraryCount"></span>
+  </div>
+  <div id="libraryList"></div>
+  <div class="empty" id="emptyLibrary" style="display:none">Nothing downloaded yet.</div>
+</div>
+
+<!-- ═══════════ SETTINGS TAB ═══════════ -->
+<div class="tab-panel" id="tab-settings">
+  <div class="settings-section">
+    <div class="warn-banner" id="driveMissingBanner">⚠ Share folder not found — check your drive is connected.</div>
+
+    <h3>Folders</h3>
+    <div class="field-row">
+      <div style="flex:1">
+        <label>Share Folder (files you share with peers)</label>
+        <input type="text" id="watchFolderInput">
+      </div>
+      <button class="btn-ghost" onclick="openFolderPicker('watchFolderInput')">Browse…</button>
+      <button class="save-btn" onclick="saveFolder('watch')">Save</button>
+    </div>
+    <div class="field-row">
+      <div style="flex:1">
+        <label>Download Folder (where incoming files land)</label>
+        <input type="text" id="downloadFolderInput">
+      </div>
+      <button class="btn-ghost" onclick="openFolderPicker('downloadFolderInput')">Browse…</button>
+      <button class="save-btn" onclick="saveFolder('download')">Save</button>
+    </div>
+
+    <h3>Subscriptions</h3>
+    <table id="subTable">
+      <thead><tr><th>Peer</th><th>Remote Folder</th><th>Local Folder</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="subTbody"></tbody>
+    </table>
+    <div class="empty" id="emptySubs" style="display:none">No subscriptions. Use the Browse tab to subscribe to a folder.</div>
+  </div>
+</div>
+
+<!-- Folder picker modal -->
+<div class="modal-backdrop" id="folderPickerModal" style="display:none">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Select Folder</h3>
+      <button class="btn-ghost" onclick="closeFolderPicker()">Cancel</button>
+    </div>
+    <div class="modal-path" id="pickerPath"></div>
+    <div class="modal-body" id="pickerBody"></div>
+    <div class="modal-footer">
+      <button class="save-btn" id="pickerSelectBtn" onclick="confirmFolderPicker()">Select This Folder</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let token = localStorage.getItem('fd_token');
+let role  = localStorage.getItem('fd_role') || 'viewer';
+let transfers = {};
+let peerStatuses = {};
+let availableFiles = [];
+let libraryData = [];
+let es = null;
+let currentBrowsePeer = '';
+let browseCache = {}; // peer → entries
+
+// ── Utils ────────────────────────────────────────────────────────────────────
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+}
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { ...(opts.headers||{}), Authorization:'Bearer '+token, 'Content-Type':'application/json' }});
+  if (res.status === 401) { logout(); return null; }
+  return res.json();
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab-panel').forEach(p => {
+    p.classList.toggle('active', p.id === 'tab-' + name);
+    p.style.display = p.id === 'tab-' + name ? 'block' : 'none';
+  });
+  if (name === 'myfiles')  loadMyFiles();
+  if (name === 'browse')   loadBrowse();
+  if (name === 'library')  loadLibrary();
+  if (name === 'settings') loadSettings();
+}
+document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+// ── Peer pills (header) ───────────────────────────────────────────────────────
+function renderPeerPills() {
+  const el = document.getElementById('peerPills');
+  el.innerHTML = Object.values(peerStatuses).map(p => {
+    const dotClass = p.status === 'online' ? 'dot-online' : p.status === 'drive_missing' ? 'dot-drive' : 'dot-offline';
+    const detail = p.status === 'online'
+      ? (p.file_count + ' files' + (p.drive_free_bytes ? ' · ' + fmtBytes(p.drive_free_bytes) + ' free' : ''))
+      : p.status === 'drive_missing' ? 'drive missing'
+      : p.last_seen ? 'last seen ' + fmtDate(p.last_seen) : 'never seen';
+    return `<div class="peer-pill"><div class="peer-dot ${dotClass}"></div><span class="peer-name">${esc(p.name)}</span><span class="peer-detail">${esc(detail)}</span></div>`;
+  }).join('');
+}
+
+// ── Transfers tab ─────────────────────────────────────────────────────────────
+function renderTransfers() {
+  const status = document.getElementById('filterStatus').value;
+  const dir    = document.getElementById('filterDir').value;
+  const rows = Object.values(transfers)
+    .filter(t => (!status || t.status === status) && (!dir || t.direction === dir))
+    .sort((a,b) => b.id - a.id);
+
+  document.getElementById('tbody').innerHTML = rows.map(t => {
+    const prog = `<div class="progress-bar"><div class="progress-fill" id="pf${t.id}" style="width:${t.progress}%"></div></div> ${t.progress}%`;
+    let acts = '';
+    if (t.status === 'active') acts += `<button class="act-btn" onclick="doAction(${t.id},'pause')">Pause</button>`;
+    if (t.status === 'paused') acts += `<button class="act-btn" onclick="doAction(${t.id},'resume')">Resume</button>`;
+    if (t.status === 'error')  acts += `<button class="act-btn" onclick="doAction(${t.id},'resume')">Retry</button>`;
+    if (role==='owner') acts += `<button class="act-btn danger" onclick="doAction(${t.id},'cancel')">Cancel</button>`;
+    return `<tr id="row${t.id}">
+      <td title="${esc(t.local_path)}">${esc(t.filename)}</td>
+      <td>${esc(t.peer_name||'—')}</td>
+      <td>${fmtBytes(t.size_bytes)}</td>
+      <td>${prog}</td>
+      <td><span class="badge badge-${t.status}">${t.status}</span></td>
+      <td>${acts}</td></tr>`;
+  }).join('');
+
+  document.getElementById('emptyTransfers').style.display = rows.length ? 'none' : 'block';
+}
+
+async function doAction(id, type) {
+  if (type==='pause')  await api('/api/transfers/'+id+'/pause',  {method:'POST'});
+  if (type==='resume') await api('/api/transfers/'+id+'/resume', {method:'POST'});
+  if (type==='cancel') await api('/api/transfers/'+id,           {method:'DELETE'});
+  await loadTransfers();
+}
+
+async function loadTransfers() {
+  const status = document.getElementById('filterStatus').value;
+  const dir    = document.getElementById('filterDir').value;
+  const qs = new URLSearchParams({limit:'500'});
+  if (status) qs.set('status', status);
+  if (dir)    qs.set('direction', dir);
+  const data = await api('/api/transfers?' + qs);
+  if (!data) return;
+  transfers = {};
+  for (const t of data) transfers[t.id] = t;
+  renderTransfers();
+}
+
+async function loadStats() {
+  const data = await api('/api/stats');
+  if (!data) return;
+  document.getElementById('sActive').textContent = data.active;
+  document.getElementById('sDone').textContent   = data.done;
+  document.getElementById('sErrors').textContent = data.errors;
+  document.getElementById('sBytes').textContent  = fmtBytes(data.bytes_transferred);
+}
+
+// ── Browse tab ────────────────────────────────────────────────────────────────
+function buildPeerSelect(selectId) {
+  const sel = document.getElementById(selectId);
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">Select peer…</option>' +
+    Object.values(peerStatuses).map(p =>
+      `<option value="${esc(p.name)}" ${p.status!=='online'?'disabled':''}>${esc(p.name)} ${p.status!=='online'?'(offline)':''}</option>`
+    ).join('');
+  if (prev) sel.value = prev;
+}
+
+async function loadBrowse() {
+  buildPeerSelect('browsePeerSelect');
+  const peer = document.getElementById('browsePeerSelect').value;
+  if (!peer) { document.getElementById('browseTree').innerHTML = ''; document.getElementById('emptyBrowse').style.display='block'; return; }
+  currentBrowsePeer = peer;
+  const data = await api('/api/browse/' + encodeURIComponent(peer));
+  if (!data) return;
+  browseCache[peer] = data.entries || [];
+  renderBrowseTree(browseCache[peer]);
+}
+
+function renderBrowseTree(entries) {
+  const tree = document.getElementById('browseTree');
+  const empty = document.getElementById('emptyBrowse');
+  if (!entries || !entries.length) { tree.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display = 'none';
+  tree.innerHTML = renderEntries(entries, 0);
+  updateGetBtn();
+}
+
+function renderEntries(entries, depth) {
+  return entries.map(entry => {
+    if (entry.type === 'folder') {
+      const id = 'f_' + entry.relative_path.replace(/[^a-z0-9]/gi,'_');
+      const childHtml = entry.children?.length ? renderEntries(entry.children, depth+1) : '';
+      const totalSize = sumSize(entry);
+      return `<div class="folder-group">
+        <div class="folder-header" onclick="tog('${id}')">
+          <span class="folder-icon">📁</span>
+          <span class="folder-name">${esc(entry.name)}</span>
+          <span class="folder-meta">${fmtBytes(totalSize)}</span>
+          <span class="folder-arr open" id="arr_${id}">▶</span>
+        </div>
+        <div class="folder-files" id="${id}">${childHtml}</div>
+      </div>`;
+    } else {
+      return `<div class="file-row" style="cursor:pointer" onclick="var ck=this.querySelector('.browse-ck');ck.checked=!ck.checked;updateGetBtn()">
+        <input type="checkbox" class="browse-ck" data-path="${esc(entry.relative_path)}" data-size="${entry.size_bytes}" data-name="${esc(entry.name)}" onclick="event.stopPropagation()" onchange="updateGetBtn()">
+        <span class="file-name" title="${esc(entry.relative_path)}">${esc(entry.name)}</span>
+        <span class="file-size">${fmtBytes(entry.size_bytes)}</span>
+        <span class="file-date">${fmtDate(entry.modified_at)}</span>
+      </div>`;
+    }
+  }).join('');
+}
+
+function sumSize(entry) {
+  if (entry.type === 'file') return entry.size_bytes;
+  return (entry.children||[]).reduce((s,c) => s + sumSize(c), 0);
+}
+
+function tog(id) {
+  const el = document.getElementById(id);
+  const arr = document.getElementById('arr_'+id);
+  if (!el || !arr) return;
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : '';
+  arr.classList.toggle('open', !open);
+}
+
+function updateGetBtn() {
+  const count = document.querySelectorAll('.browse-ck:checked').length;
+  const btn = document.getElementById('getSelectedBtn');
+  btn.disabled = count === 0;
+  btn.textContent = count > 0 ? `Get Selected (${count})` : 'Get Selected';
+}
+
+function selectAllBrowse() {
+  document.querySelectorAll('.browse-ck').forEach(c => c.checked = true);
+  updateGetBtn();
+}
+
+async function getSelected() {
+  const peer = currentBrowsePeer;
+  if (!peer) return;
+  const checked = [...document.querySelectorAll('.browse-ck:checked')];
+  if (!checked.length) return;
+
+  const btn = document.getElementById('getSelectedBtn');
+  btn.disabled = true;
+  btn.textContent = 'Queuing…';
+
+  // Build subscriptions for each selected folder or one-off for files
+  // For simplicity: subscribe to each unique top-level folder; single files enqueue directly
+  const folders = new Set();
+  const singleFiles = [];
+
+  for (const ck of checked) {
+    const p = ck.dataset.path;
+    if (p.includes('/')) {
+      // file inside a folder — subscribe to the top folder
+      folders.add(p.split('/')[0]);
+    } else {
+      singleFiles.push({ path: p, size: parseInt(ck.dataset.size||'0',10), name: ck.dataset.name });
+    }
+  }
+
+  // Subscribe to folders (persistent sync)
+  for (const folder of folders) {
+    const peerStatus = peerStatuses[peer];
+    await api('/api/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify({
+        peer_name: peer,
+        remote_path: folder,
+        local_path: '', // server will use default downloadFolder + folder
+      }),
+    });
+  }
+
+  btn.textContent = 'Get Selected';
+  updateGetBtn();
+
+  // Switch to transfers to see progress
+  switchTab('transfers');
+  await loadTransfers();
+}
+
+// ── Library tab ───────────────────────────────────────────────────────────────
+async function loadLibrary() {
+  const peer = document.getElementById('libraryPeerSelect').value;
+  const url = peer ? '/api/library/' + encodeURIComponent(peer) : '/api/library';
+  const data = await api(url);
+  if (!data) return;
+  libraryData = data;
+  renderLibrary();
+}
+
+function renderLibrary() {
+  const list = document.getElementById('libraryList');
+  const empty = document.getElementById('emptyLibrary');
+  document.getElementById('libraryCount').textContent = libraryData.length + ' records';
+
+  if (!libraryData.length) { list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+
+  list.innerHTML = libraryData.map(r => {
+    const statusClass = r.downloaded_at ? 'lib-yes' : 'lib-no';
+    const statusLabel = r.downloaded_at ? '✓ Downloaded' : 'Not yet';
+    return `<div class="lib-row">
+      <span class="lib-path" title="${esc(r.relative_path)}">${esc(r.relative_path)}</span>
+      <span class="lib-size">${fmtBytes(r.size_bytes)}</span>
+      <span style="font-size:.72rem;color:#555">${esc(r.peer_name)}</span>
+      <span class="lib-check ${statusClass}">${statusLabel}</span>
+      ${r.downloaded_at ? '<span class="file-date">'+fmtDate(r.downloaded_at)+'</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// ── Settings tab ──────────────────────────────────────────────────────────────
+async function loadSettings() {
+  const data = await api('/api/settings');
+  if (!data) return;
+  document.getElementById('watchFolderInput').value    = data.watchFolder    || '';
+  document.getElementById('downloadFolderInput').value = data.downloadFolder || '';
+  loadSubscriptions();
+}
+
+async function loadSubscriptions() {
+  const data = await api('/api/subscriptions');
+  if (!data) return;
+  const tbody = document.getElementById('subTbody');
+  document.getElementById('emptySubs').style.display = data.length ? 'none' : 'block';
+  tbody.innerHTML = data.map(s => `<tr>
+    <td>${esc(s.peer_name)}</td>
+    <td>${esc(s.remote_path)}</td>
+    <td>${esc(s.local_path)}</td>
+    <td><span class="badge badge-${s.status==='active'?'sub':'paused'}">${s.status}</span></td>
+    <td>
+      ${s.status==='active'
+        ? `<button class="act-btn" onclick="subAction(${s.id},'pause')">Pause</button>`
+        : `<button class="act-btn" onclick="subAction(${s.id},'resume')">Resume</button>`}
+      <button class="act-btn danger" onclick="subAction(${s.id},'delete')">Remove</button>
+    </td>
+  </tr>`).join('');
+}
+
+async function subAction(id, type) {
+  if (type==='pause')  await api('/api/subscriptions/'+id+'/pause',  {method:'POST'});
+  if (type==='resume') await api('/api/subscriptions/'+id+'/resume', {method:'POST'});
+  if (type==='delete') await api('/api/subscriptions/'+id,           {method:'DELETE'});
+  loadSubscriptions();
+}
+
+async function saveFolder(type) {
+  const val = type === 'watch'
+    ? document.getElementById('watchFolderInput').value.trim()
+    : document.getElementById('downloadFolderInput').value.trim();
+  if (!val) return;
+  const body = type === 'watch' ? { watchFolder: val } : { downloadFolder: val };
+  const res = await api('/api/settings/folders', { method:'PATCH', body: JSON.stringify(body) });
+  if (res?.ok) {
+    // Brief visual confirmation
+    const btn = event.target;
+    btn.textContent = 'Saved ✓';
+    setTimeout(() => btn.textContent = 'Save', 2000);
+  }
+}
+
+// ── SSE ───────────────────────────────────────────────────────────────────────
+function connectSSE() {
+  if (es) es.close();
+  es = new EventSource('/api/events?token=' + encodeURIComponent(token));
+
+  es.addEventListener('connected', () => {
+    const b = document.getElementById('connBadge');
+    b.textContent = 'live'; b.className = 'live';
+  });
+
+  es.addEventListener('transfer', (e) => {
+    const t = JSON.parse(e.data);
+    transfers[t.id] = t;
+    renderTransfers();
+    loadStats();
+  });
+
+  es.addEventListener('progress', (e) => {
+    const { id, progress } = JSON.parse(e.data);
+    if (transfers[id]) transfers[id].progress = progress;
+    const pf = document.getElementById('pf'+id);
+    if (pf) { pf.style.width = progress+'%'; }
+  });
+
+  es.addEventListener('transfer:cancelled', (e) => {
+    delete transfers[JSON.parse(e.data).id];
+    renderTransfers();
+  });
+
+  es.addEventListener('peer_status', (e) => {
+    const s = JSON.parse(e.data);
+    peerStatuses[s.name] = s;
+    renderPeerPills();
+    // Show drive warning in Settings if this machine's own folder went missing
+    if (s.drive_missing) {
+      document.getElementById('driveMissingBanner').style.display = 'block';
+    }
+  });
+
+  es.addEventListener('peer_downloaded', (e) => {
+    // Someone downloaded a file — refresh library if open
+    if (document.getElementById('tab-library').classList.contains('active')) loadLibrary();
+  });
+
+  es.addEventListener('drive_status', (e) => {
+    const { ok } = JSON.parse(e.data);
+    document.getElementById('driveMissingBanner').style.display = ok ? 'none' : 'block';
+  });
+
+  es.addEventListener('folder_changed', () => {
+    // New file added to our share folder — rebuild browse cache
+    browseCache = {};
+  });
+
+  es.onerror = () => {
+    es.close();
+    // Check if the token is still valid before retrying
+    fetch('/api/stats', { headers: { Authorization: 'Bearer ' + token } })
+      .then(r => {
+        if (r.ok) {
+          const b = document.getElementById('connBadge');
+          b.textContent = 'disconnected'; b.className = '';
+          setTimeout(connectSSE, 5000);
+        } else {
+          logout();
+        }
+      })
+      .catch(() => {
+        const b = document.getElementById('connBadge');
+        b.textContent = 'disconnected'; b.className = '';
+        setTimeout(connectSSE, 5000);
+      });
+  };
+}
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+async function login() {
+  const username = document.getElementById('loginUser').value;
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginError');
+  errEl.style.display = 'none';
+  try {
+    const res  = await fetch('/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username,password})});
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error||'Login failed'; errEl.style.display='block'; return; }
+    token = data.token; role = data.role;
+    localStorage.setItem('fd_token', token);
+    localStorage.setItem('fd_role', role);
+    showApp();
+  } catch(e) { errEl.textContent='Network error'; errEl.style.display='block'; }
+}
+
+function logout() {
+  token = null;
+  localStorage.removeItem('fd_token');
+  localStorage.removeItem('fd_role');
+  if (es) { es.close(); es = null; }
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('appHeader').style.display   = 'none';
+  document.getElementById('appTabs').style.display     = 'none';
+  document.querySelectorAll('.tab-panel').forEach(p => { p.style.display='none'; p.classList.remove('active'); });
+}
+
+async function showApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appHeader').style.display   = 'flex';
+  document.getElementById('appTabs').style.display     = 'flex';
+  document.getElementById('tab-transfers').style.display = 'block';
+  // Load peer statuses first so pills and selects populate
+  const peers = await api('/api/peers');
+  if (peers) { for (const p of peers) peerStatuses[p.name] = p; renderPeerPills(); }
+  await loadTransfers();
+  await loadStats();
+  connectSSE();
+  // Refresh peer status every 30s
+  setInterval(async () => {
+    const peers = await api('/api/peers');
+    if (peers) { for (const p of peers) peerStatuses[p.name] = p; renderPeerPills(); }
+  }, 30000);
+}
+
+// ── Wire events ───────────────────────────────────────────────────────────────
+document.getElementById('loginBtn').addEventListener('click', login);
+document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') login(); });
+document.getElementById('logoutBtn').addEventListener('click', logout);
+document.getElementById('filterStatus').addEventListener('change', renderTransfers);
+document.getElementById('filterDir').addEventListener('change', renderTransfers);
+document.getElementById('getSelectedBtn').addEventListener('click', getSelected);
+document.getElementById('selectAllBrowse').addEventListener('click', selectAllBrowse);
+document.getElementById('refreshMyFiles').addEventListener('click', loadMyFiles);
+document.getElementById('refreshBrowse').addEventListener('click', loadBrowse);
+document.getElementById('refreshLibrary').addEventListener('click', loadLibrary);
+document.getElementById('browsePeerSelect').addEventListener('change', loadBrowse);
+document.getElementById('libraryPeerSelect').addEventListener('change', loadLibrary);
+
+// ── My Files tab ─────────────────────────────────────────────────────────────
+let myFilesCache = {}; // fullPath → entries
+
+async function loadMyFiles() {
+  myFilesCache = {};
+  const data = await api('/api/local/myfiles');
+  if (!data) return;
+  const list = document.getElementById('myFilesList');
+  const empty = document.getElementById('emptyMyFiles');
+  const count = document.getElementById('myFilesCount');
+
+  if (!data.exists || !data.entries.length) {
+    list.innerHTML = '';
+    empty.style.display = 'block';
+    count.textContent = data.exists ? '0 items' : 'Folder not found: ' + data.path;
+    return;
+  }
+  empty.style.display = 'none';
+  count.textContent = `${data.entries.length} items in ${data.path}`;
+  list.innerHTML = renderMyFilesEntries(data.entries);
+
+  // Preload all subfolders in the background
+  const dirs = data.entries.filter(e => e.type === 'dir');
+  preloadDirs(dirs);
+}
+
+async function preloadDirs(dirs) {
+  for (const dir of dirs) {
+    if (myFilesCache[dir.fullPath] !== undefined) continue;
+    try {
+      const data = await api('/api/local/browse?path=' + encodeURIComponent(dir.fullPath));
+      if (data && data.entries) {
+        myFilesCache[dir.fullPath] = data.entries;
+        // Mark the folder's children container as ready
+        const el = document.querySelector(`[data-folderpath="${CSS.escape(dir.fullPath)}"]`);
+        if (el) {
+          const id = el.dataset.folderid;
+          const child = document.getElementById(id);
+          if (child && !child.dataset.loaded) {
+            child.innerHTML = renderMyFilesEntries(data.entries);
+            child.dataset.loaded = '1';
+          }
+        }
+        // Recurse into subdirs
+        const subdirs = data.entries.filter(e => e.type === 'dir');
+        if (subdirs.length) preloadDirs(subdirs);
+      }
+    } catch {}
+  }
+}
+
+let mfCounter = 0;
+function renderMyFilesEntries(entries) {
+  return entries.map(e => {
+    if (e.type === 'dir') {
+      const id = 'mf' + (++mfCounter);
+      return `<div class="myfiles-folder">
+        <div class="myfiles-folder-header" data-folderid="${id}" data-folderpath="${esc(e.fullPath)}">
+          <span class="folder-arr" id="arr_${id}">▶</span>
+          <span>📁</span>
+          <span style="flex:1;font-size:.83rem;color:#aaa">${esc(e.name)}</span>
+        </div>
+        <div class="myfiles-folder-children" id="${id}" style="display:none"></div>
+      </div>`;
+    } else {
+      return `<div class="myfiles-file-row">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(e.name)}</span>
+      </div>`;
+    }
+  }).join('');
+}
+
+document.getElementById('myFilesList').addEventListener('click', async function(e) {
+  const header = e.target.closest('[data-folderid]');
+  if (!header) return;
+  const id = header.dataset.folderid;
+  const fullPath = header.dataset.folderpath;
+  const el = document.getElementById(id);
+  const arr = document.getElementById('arr_' + id);
+  if (!el) return;
+  const isOpen = el.style.display !== 'none';
+  if (isOpen) {
+    el.style.display = 'none';
+    if (arr) arr.classList.remove('open');
+    return;
+  }
+  if (!el.dataset.loaded) {
+    // Check cache first — may already be preloaded
+    if (myFilesCache[fullPath] !== undefined) {
+      el.innerHTML = myFilesCache[fullPath].length
+        ? renderMyFilesEntries(myFilesCache[fullPath])
+        : '<div style="color:#444;font-size:.8rem;padding:.4rem .5rem">Empty folder</div>';
+      el.dataset.loaded = '1';
+    } else {
+      el.innerHTML = '<div style="color:#555;font-size:.8rem;padding:.4rem .5rem">Loading…</div>';
+      el.style.display = 'block';
+      const data = await api('/api/local/browse?path=' + encodeURIComponent(fullPath));
+      if (data && data.entries && data.entries.length) {
+        myFilesCache[fullPath] = data.entries;
+        el.innerHTML = renderMyFilesEntries(data.entries);
+      } else if (data && data.error) {
+        el.innerHTML = `<div style="color:#ff6b6b;font-size:.8rem;padding:.4rem .5rem">Error: ${esc(data.error)}</div>`;
+      } else {
+        el.innerHTML = `<div style="color:#444;font-size:.8rem;padding:.4rem .5rem">Empty folder</div>`;
+      }
+      el.dataset.loaded = '1';
+    }
+  } else {
+    el.style.display = 'block';
+  }
+  if (arr) arr.classList.add('open');
+});
+
+// ── Folder picker ─────────────────────────────────────────────────────────────
+let pickerTargetInputId = '';
+let pickerCurrentPath = '';
+
+async function openFolderPicker(inputId) {
+  pickerTargetInputId = inputId;
+  const currentVal = document.getElementById(inputId).value.trim();
+  document.getElementById('folderPickerModal').style.display = 'flex';
+  await navigatePicker(currentVal || '');
+}
+
+function closeFolderPicker() {
+  document.getElementById('folderPickerModal').style.display = 'none';
+}
+
+async function navigatePicker(dirPath) {
+  const qs = dirPath ? '?path=' + encodeURIComponent(dirPath) : '';
+  const data = await api('/api/local/browse' + qs);
+  if (!data) return;
+  pickerCurrentPath = data.path;
+  document.getElementById('pickerPath').textContent = data.path;
+
+  const body = document.getElementById('pickerBody');
+  let html = '';
+  if (data.parent) {
+    html += `<div class="picker-entry up" data-pickerpath="${esc(data.parent)}">⬆ ..</div>`;
+  }
+  for (const e of data.entries) {
+    if (e.type === 'dir') {
+      html += `<div class="picker-entry dir" data-pickerpath="${esc(e.fullPath)}">📁 ${esc(e.name)}</div>`;
+    }
+  }
+  if (!data.entries.filter(e => e.type === 'dir').length && !data.parent) {
+    html += '<div style="color:#444;font-size:.8rem;padding:.5rem">No subfolders</div>';
+  }
+  body.innerHTML = html;
+}
+
+document.getElementById('pickerBody').addEventListener('click', function(e) {
+  const entry = e.target.closest('[data-pickerpath]');
+  if (entry) navigatePicker(entry.dataset.pickerpath);
+});
+
+function confirmFolderPicker() {
+  if (!pickerCurrentPath) return;
+  document.getElementById(pickerTargetInputId).value = pickerCurrentPath;
+  closeFolderPicker();
+}
+
+if (token) {
+  // Verify the stored token is still valid before entering the app
+  fetch('/api/stats', { headers: { Authorization: 'Bearer ' + token } })
+    .then(r => { if (r.ok) showApp(); else logout(); })
+    .catch(() => logout());
+}
+</script>
+</body>
+</html>
