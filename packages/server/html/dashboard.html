@@ -224,8 +224,8 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
   padding: 3px 9px; border-radius: 20px;
 }
 .status-badge.uploading { background: #dbeafe; color: #1d4ed8; border: 1.5px solid #93c5fd; }
-.status-badge.available { background: #99f6e4; color: #134e4a; border: 1.5px solid #2dd4bf; }
-.status-badge.downloaded { background: #fef9c3; color: #a16207; border: 1.5px solid #fcd34d; }
+.status-badge.available { background: #dbeafe; color: #1e40af; border: 1.5px solid #93c5fd; }
+.status-badge.downloaded { background: #dbeafe; color: #1e40af; border: 1.5px solid #93c5fd; }
 .status-badge.deleting   { background: #fee2e2; color: #b91c1c; border: 1.5px solid #fca5a5; }
 .status-badge.deleted    { background: #f1f5f9; color: var(--muted2); border: 1.5px solid var(--border); }
 
@@ -1204,6 +1204,7 @@ function renderLibrary(all) {
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
           ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel uploads</button>` : ''}
+          ${gFiles.some(f => f.status === 'available') ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
@@ -1275,6 +1276,21 @@ function renderUploads(all) {
 async function cancelUpload(id) {
   if (!confirm('Cancel this upload?')) return;
   await api(`/api/files/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
+async function downloadFolderOwner(folder) {
+  const toDownload = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'available');
+  if (!toDownload.length) return;
+  const urls = await Promise.all(toDownload.map(f =>
+    api(`/api/files/${f.id}/download`, { method: 'POST' }).then(d => ({ url: d.url, name: f.name })).catch(() => null)
+  ));
+  urls.filter(Boolean).forEach((d, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = d.url; a.download = d.name;
+      document.body.appendChild(a); a.click(); a.remove();
+    }, i * 800);
+  });
 }
 
 async function cancelFolderUploads(folder) {
@@ -1570,7 +1586,7 @@ async function loadUsers() {
         <div class="user-name">${esc(u.username)}</div>
         <span class="role-badge ${u.role}">${u.role}</span>
         ${u.id !== parseInt(localStorage.getItem('fd_uid')) ? `
-          <button class="btn-ghost" onclick="deleteUser(${u.id},'${esc(u.username)}')">Remove</button>
+          <button class="btn-sm btn-delete" onclick="deleteUser(${u.id},'${esc(u.username)}')">Delete</button>
         ` : '<span style="font-size:12px;color:var(--muted)">You</span>'}
       </div>`).join('');
   } catch(e) { console.error(e); }
