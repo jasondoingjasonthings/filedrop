@@ -4,47 +4,121 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FileDrop · Shared Files</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{background:#080808;color:#efefef;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;min-height:100vh;padding:40px 20px}
-.wrap{max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:24px}
-.logo{font-size:22px;font-weight:800;letter-spacing:-.04em}.logo em{color:#f97316;font-style:normal}
-.header{display:flex;flex-direction:column;gap:6px}
-.folder-name{font-size:26px;font-weight:800;letter-spacing:-.03em}
-.meta{font-size:13px;color:#666}
-.file-list{display:flex;flex-direction:column;gap:8px}
-.file-row{
-  background:#111;border:1px solid #232323;border-radius:10px;
-  padding:16px 18px;display:flex;align-items:center;gap:14px;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #eaf6fb; --surface: #fff; --border: #c8e8f5; --border2: #9fd4eb;
+  --accent: #5bc8e8; --accent-d: #34b3d4; --text: #0b1f2a;
+  --muted: #6a96aa; --success: #16a34a; --danger: #dc2626;
+  --r: 10px;
 }
-.file-icon{font-size:22px;flex-shrink:0}
-.file-info{flex:1;min-width:0}
-.file-name{font-weight:600;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.file-size{font-size:12px;color:#666;margin-top:2px}
-.btn{
-  background:#f97316;color:#fff;border:none;border-radius:8px;
-  padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;
-  transition:background .15s;white-space:nowrap;flex-shrink:0;
-  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Montserrat', system-ui, sans-serif;
+  font-size: 14px; line-height: 1.5; min-height: 100vh;
 }
-.btn:hover{background:#c2550d}
-.btn.downloading{background:#374151;cursor:default}
-.empty{text-align:center;padding:60px 20px;color:#444}
-.expiry{background:#1a1000;border:1px solid #f9731630;border-radius:8px;padding:10px 14px;font-size:12px;color:#f97316}
+header {
+  background: var(--text); padding: 0 24px; height: 58px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 2px 12px rgba(11,31,42,0.15);
+}
+.logo-circles { display: flex; gap: 3px; }
+.logo-circles span {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 11px; font-weight: 700;
+}
+.logo-text { font-size: 15px; font-weight: 900; letter-spacing: .02em; color: #fff; text-transform: uppercase; }
+.logo-text em { color: var(--accent); font-style: normal; }
+
+.wrap { max-width: 680px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 24px; }
+
+.page-header { display: flex; flex-direction: column; gap: 6px; }
+.folder-name { font-size: 26px; font-weight: 900; letter-spacing: -.03em; text-transform: uppercase; }
+.meta { font-size: 13px; color: var(--muted); font-weight: 600; }
+
+.expiry {
+  background: #fff; border: 1.5px solid var(--border);
+  border-radius: 8px; padding: 10px 16px;
+  font-size: 12px; color: var(--muted); font-weight: 700;
+}
+
+.dl-all-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.dl-all-bar .section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
+
+.btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 8px;
+  padding: 9px 18px; font-size: 12px; font-weight: 800; font-family: inherit;
+  letter-spacing: .04em; text-transform: uppercase;
+  cursor: pointer; transition: background .15s, opacity .15s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.btn:hover { background: var(--accent-d); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.done { background: var(--success); }
+
+.file-list { display: flex; flex-direction: column; gap: 8px; }
+.file-row {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: var(--r); padding: 14px 18px;
+  display: flex; align-items: center; gap: 14px;
+  box-shadow: 0 1px 4px rgba(91,200,232,0.06);
+  transition: border-color .15s;
+}
+.file-row:hover { border-color: var(--accent); }
+.file-icon { font-size: 20px; flex-shrink: 0; }
+.file-info { flex: 1; min-width: 0; }
+.file-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-size { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+
+.empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+.empty h3 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
+
+#toasts {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 999;
+}
+.toast {
+  background: var(--text); color: #fff; border-radius: 10px;
+  padding: 12px 16px; font-size: 13px; font-weight: 600; min-width: 220px;
+  box-shadow: 0 8px 32px rgba(11,31,42,0.2); animation: slideIn .2s ease;
+}
+.toast.error { background: #b91c1c; }
+.toast.success { background: #15803d; }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 </style>
 </head>
 <body>
+<header>
+  <div class="logo-circles"><span>F</span><span>D</span></div>
+  <span class="logo-text">File<em>Drop</em></span>
+</header>
+
 <div class="wrap">
-  <div class="logo">File<em>Drop</em></div>
-  <div class="header">
+  <div class="page-header">
     <div class="folder-name" id="folderName">Loading…</div>
     <div class="meta" id="meta"></div>
   </div>
   <div class="expiry" id="expiry"></div>
+  <div class="dl-all-bar">
+    <span class="section-label" id="fileCount"></span>
+    <button class="btn" id="dlAllBtn" style="display:none" onclick="downloadAll()">↓ Download All</button>
+  </div>
   <div class="file-list" id="fileList"></div>
 </div>
+
+<div id="toasts"></div>
+
 <script>
+'use strict';
 const token = location.pathname.split('/').filter(Boolean).pop();
+let allFiles = [];
 
 function fmtBytes(b) {
   if (!b) return '0 B';
@@ -60,26 +134,35 @@ function fmtDate(iso) {
 function esc(s) {
   return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`; el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
 
 async function init() {
   const res = await fetch(`/share/${token}/files`);
   if (!res.ok) {
-    document.getElementById('folderName').textContent = 'Link expired or not found';
-    document.getElementById('fileList').innerHTML = '<div class="empty">This download link is no longer valid.</div>';
+    document.getElementById('folderName').textContent = 'Link expired';
+    document.getElementById('fileList').innerHTML = '<div class="empty"><h3>Not found</h3><p>This download link has expired or is no longer valid.</p></div>';
     return;
   }
   const data = await res.json();
+  allFiles = data.files;
 
   document.title = `FileDrop · ${data.label}`;
   document.getElementById('folderName').textContent = data.label;
-  document.getElementById('meta').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''}`;
+  document.getElementById('meta').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''} · ${fmtBytes(data.files.reduce((s,f)=>s+(f.size||0),0))}`;
   document.getElementById('expiry').textContent = `🔗 Link expires ${fmtDate(data.expiresAt)}`;
+  document.getElementById('fileCount').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''}`;
 
   if (!data.files.length) {
-    document.getElementById('fileList').innerHTML = '<div class="empty">No files available yet.</div>';
+    document.getElementById('fileList').innerHTML = '<div class="empty"><h3>Nothing here yet</h3><p>No files available yet.</p></div>';
     return;
   }
 
+  document.getElementById('dlAllBtn').style.display = 'inline-flex';
   document.getElementById('fileList').innerHTML = data.files.map(f => `
     <div class="file-row">
       <span class="file-icon">📄</span>
@@ -87,32 +170,60 @@ async function init() {
         <div class="file-name">${esc(f.name)}</div>
         <div class="file-size">${fmtBytes(f.size)}</div>
       </div>
-      <button class="btn" id="dl-${esc(f.id)}" onclick="download('${esc(f.id)}', '${esc(f.name)}', this)">
-        ↓ Download
-      </button>
+      <button class="btn" id="dl-${esc(f.id)}" onclick="downloadOne('${esc(f.id)}','${esc(f.name)}',this)">↓ Download</button>
     </div>
   `).join('');
 }
 
-async function download(fileId, name, btn) {
-  btn.className = 'btn downloading';
-  btn.textContent = 'Preparing…';
+async function downloadOne(fileId, name, btn) {
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Preparing…';
   try {
-    const res = await fetch(`/share/${token}/download/${fileId}`, { method: 'POST' });
+    const res  = await fetch(`/share/${token}/download/${fileId}`, { method: 'POST' });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     const a = document.createElement('a');
-    a.href = data.url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    btn.className = 'btn';
-    btn.textContent = '↓ Download';
+    a.href = data.url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    btn.textContent = '✓ Done'; btn.classList.add('done');
   } catch(e) {
-    btn.className = 'btn';
-    btn.textContent = '↓ Download';
-    alert('Download failed: ' + e.message);
+    btn.disabled = false; btn.textContent = orig;
+    toast('Download failed: ' + e.message, 'error');
+  }
+}
+
+async function downloadAll() {
+  const btn = document.getElementById('dlAllBtn');
+  btn.disabled = true; btn.textContent = 'Preparing…';
+  try {
+    // Fetch all presigned URLs in parallel
+    const results = await Promise.all(
+      allFiles.map(f =>
+        fetch(`/share/${token}/download/${f.id}`, { method: 'POST' })
+          .then(r => r.json())
+          .then(data => ({ url: data.url, name: f.name }))
+          .catch(() => null)
+      )
+    );
+    const valid = results.filter(Boolean);
+
+    // Staggered downloads within user gesture context
+    valid.forEach(({ url, name }, i) => {
+      setTimeout(() => {
+        const a = document.createElement('a');
+        a.href = url; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+      }, i * 1200);
+    });
+
+    btn.textContent = `↓ ${valid.length} downloading…`;
+    setTimeout(() => {
+      btn.textContent = '✓ All done';
+      btn.classList.add('done');
+    }, valid.length * 1200);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '↓ Download All';
+    toast('Failed: ' + e.message, 'error');
   }
 }
 
