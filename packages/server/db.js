@@ -62,6 +62,15 @@ function migrate(db) {
       expires_at TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS upload_links (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      token      TEXT UNIQUE NOT NULL,
+      folder     TEXT NOT NULL DEFAULT '',
+      label      TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 }
 

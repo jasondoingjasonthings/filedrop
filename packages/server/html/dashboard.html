@@ -638,6 +638,34 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
     <!-- ── Owner: Settings ── -->
     <div class="tab-panel" id="tab-settings">
       <div class="settings-section">
+        <h3>Upload Links</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Send people a link to upload files directly into a folder. No login needed — great for clients sending raw footage.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:flex-end">
+          <div class="field" style="flex:1;min-width:160px">
+            <label>Destination folder</label>
+            <input type="text" id="ulFolder" placeholder="e.g. Client Uploads · Season 2">
+          </div>
+          <div class="field" style="min-width:120px">
+            <label>Label (optional)</label>
+            <input type="text" id="ulLabel" placeholder="e.g. Sarah's footage">
+          </div>
+          <div class="field" style="min-width:100px">
+            <label>Expires</label>
+            <select id="ulExpiry" style="background:var(--bg);border:1.5px solid var(--border);border-radius:7px;color:var(--text);padding:8px 12px;font-size:13px;font-family:inherit;outline:none">
+              <option value="1">1 day</option>
+              <option value="7" selected>7 days</option>
+              <option value="30">30 days</option>
+            </select>
+          </div>
+          <button class="btn-primary" id="createUploadLinkBtn" style="white-space:nowrap;padding:9px 18px">Create link</button>
+        </div>
+        <div id="uploadLinkResult" style="display:none;background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:16px;display:none;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="uploadLinkText" style="font-family:monospace;font-size:12px;color:var(--accent-d);font-weight:700;flex:1;word-break:break-all"></span>
+          <button class="btn-primary" id="copyUploadLinkBtn" style="padding:7px 14px;font-size:12px;white-space:nowrap">Copy</button>
+        </div>
+        <div id="uploadLinkList"></div>
+      </div>
+      <div class="settings-section">
         <h3>Agent Token</h3>
         <p style="color:var(--muted);font-size:13px">Paste this into your FileDrop agent config on your Windows machine.</p>
         <div class="token-box" id="agentTokenBox">Loading…</div>
@@ -882,6 +910,7 @@ async function showApp() {
     document.getElementById('tab-settings').classList.remove('active');
     loadAgentToken();
     loadUsers();
+    loadUploadLinks();
   } else {
     document.getElementById('ownerTabs').style.display = 'none';
     document.getElementById('editorTabs').style.display = 'flex';
@@ -1262,6 +1291,77 @@ async function keepFile(id) {
     toast('Auto-delete cancelled');
   } catch(e) { toast(e.message, 'error'); }
 }
+
+// ── Upload Links ──────────────────────────────────────────────────────────────
+async function loadUploadLinks() {
+  try {
+    const links = await api('/upload/');
+    if (!links) return;
+    const el = document.getElementById('uploadLinkList');
+    if (!links.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No active upload links.</p>'; return; }
+    el.innerHTML = links.map(l => `
+      <div class="user-row" style="flex-wrap:wrap;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${esc(l.label || l.folder)}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">→ ${esc(l.folder)} · expires ${fmtDate(l.expires_at)}</div>
+        </div>
+        <button class="btn-sm" style="background:var(--accent);color:#fff" onclick="copyUploadLink('${l.token}')">Copy link</button>
+        <button class="btn-sm btn-delete" onclick="revokeUploadLink(${l.id})">Revoke</button>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+function copyUploadLink(token) {
+  const link = `${location.origin}/upload/${token}`;
+  if (navigator.clipboard && location.protocol === 'https:') {
+    navigator.clipboard.writeText(link).then(() => toast('Link copied'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    toast('Link copied');
+  }
+}
+
+async function revokeUploadLink(id) {
+  if (!confirm('Revoke this upload link? Anyone using it will immediately lose access.')) return;
+  try {
+    await api(`/upload/${id}`, { method: 'DELETE' });
+    toast('Upload link revoked');
+    loadUploadLinks();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+document.getElementById('createUploadLinkBtn')?.addEventListener('click', async () => {
+  const folder  = document.getElementById('ulFolder').value.trim();
+  const label   = document.getElementById('ulLabel').value.trim();
+  const days    = parseInt(document.getElementById('ulExpiry').value);
+  if (!folder) { toast('Enter a destination folder name', 'error'); return; }
+  try {
+    const data = await api('/upload/', { method: 'POST', body: JSON.stringify({ folder, label, days }) });
+    if (!data) return;
+    const link = `${location.origin}/upload/${data.token}`;
+    const resultEl = document.getElementById('uploadLinkResult');
+    document.getElementById('uploadLinkText').textContent = link;
+    resultEl.style.display = 'flex';
+    copyUploadLink(data.token);
+    document.getElementById('ulFolder').value = '';
+    document.getElementById('ulLabel').value  = '';
+    loadUploadLinks();
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('copyUploadLinkBtn')?.addEventListener('click', () => {
+  const link = document.getElementById('uploadLinkText').textContent;
+  if (navigator.clipboard && location.protocol === 'https:') {
+    navigator.clipboard.writeText(link).then(() => toast('Link copied'));
+  } else {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    toast('Link copied');
+  }
+});
 
 // ── Settings ──────────────────────────────────────────────────────────────────
 async function loadAgentToken() {
@@ -1867,6 +1967,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const active = document.getElementById('tab-'+tab);
     if (active) { active.classList.add('active'); active.style.display='block'; }
     if (tab === 'prefs') renderDlPrefs();
+    if (tab === 'settings') loadUploadLinks();
   });
 });
 

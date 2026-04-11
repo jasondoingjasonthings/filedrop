@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FileDrop — Upload</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #eaf6fb; --surface: #fff; --border: #c8e8f5; --border2: #9fd4eb;
+  --accent: #5bc8e8; --accent-d: #34b3d4; --text: #0b1f2a;
+  --muted: #6a96aa; --success: #16a34a; --danger: #dc2626; --warn: #d97706;
+  --r: 10px;
+}
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Montserrat', system-ui, sans-serif;
+  font-size: 14px; line-height: 1.5; min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+header {
+  background: var(--text); padding: 0 24px; height: 58px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 2px 12px rgba(11,31,42,0.15);
+}
+.logo-circles { display: flex; gap: 3px; }
+.logo-circles span {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: #fff; color: var(--text);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 11px; font-weight: 700;
+}
+.logo-text { font-size: 15px; font-weight: 900; letter-spacing: .02em; color: #fff; text-transform: uppercase; }
+.logo-text em { color: var(--accent); font-style: normal; }
+
+main {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: flex-start; padding: 40px 20px;
+}
+.upload-card {
+  background: var(--surface); border: 1.5px solid var(--border);
+  border-radius: 16px; padding: 36px;
+  width: 100%; max-width: 560px;
+  box-shadow: 0 4px 24px rgba(91,200,232,0.1);
+}
+.upload-card h1 {
+  font-size: 20px; font-weight: 900; text-transform: uppercase;
+  letter-spacing: .04em; margin-bottom: 4px;
+}
+.upload-card .dest {
+  font-size: 13px; color: var(--muted); margin-bottom: 24px; font-weight: 600;
+}
+.dest span { color: var(--accent-d); font-weight: 700; }
+
+.drop-zone {
+  border: 2px dashed var(--border2); border-radius: 10px;
+  padding: 48px 20px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s; margin-bottom: 16px;
+}
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: rgba(91,200,232,0.04); }
+.drop-zone-icon { font-size: 40px; margin-bottom: 10px; }
+.drop-zone h2 { font-size: 15px; font-weight: 800; margin-bottom: 4px; }
+.drop-zone p { font-size: 12px; color: var(--muted); font-weight: 600; }
+
+.queue { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.queue-item {
+  background: var(--bg); border: 1.5px solid var(--border);
+  border-radius: var(--r); padding: 12px 16px;
+  display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: start;
+}
+.queue-name { font-weight: 700; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.queue-pct { font-size: 13px; font-weight: 800; color: var(--accent); }
+.queue-detail { font-size: 12px; color: var(--muted); }
+.progress-wrap { background: var(--border); border-radius: 99px; height: 5px; overflow: hidden; grid-column: 1/-1; margin-top: 2px; }
+.progress-bar { height: 100%; border-radius: 99px; background: var(--accent); transition: width .4s ease; }
+
+.btn-cancel {
+  background: none; border: 1px solid var(--border2); border-radius: 6px;
+  color: var(--muted); padding: 3px 10px; font-size: 11px; font-weight: 700;
+  font-family: inherit; cursor: pointer; transition: color .15s;
+}
+.btn-cancel:hover { color: var(--danger); border-color: var(--danger); }
+
+#expiredMsg {
+  text-align: center; padding: 60px 20px; color: var(--muted);
+}
+#expiredMsg h2 { font-size: 20px; font-weight: 900; text-transform: uppercase; margin-bottom: 8px; color: var(--text); }
+
+#toasts {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 999;
+}
+.toast {
+  background: var(--text); color: #fff; border-radius: 10px;
+  padding: 12px 16px; font-size: 13px; font-weight: 600; min-width: 220px;
+  box-shadow: 0 8px 32px rgba(11,31,42,0.2); animation: slideIn .2s ease;
+}
+.toast.error { background: #b91c1c; }
+.toast.success { background: #15803d; }
+@keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo-circles"><span>F</span><span>D</span></div>
+  <span class="logo-text">File<em>Drop</em></span>
+</header>
+
+<main>
+  <div id="expiredMsg" style="display:none">
+    <h2>Link expired</h2>
+    <p>This upload link has expired or is no longer valid.</p>
+  </div>
+
+  <div class="upload-card" id="uploadCard" style="display:none">
+    <h1 id="uploadTitle">Upload Files</h1>
+    <div class="dest" id="uploadDest"></div>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-zone-icon">📤</div>
+      <h2>Drag files here or click to select</h2>
+      <p>Any file type · Any size · Files go straight to the destination</p>
+      <input type="file" id="fileInput" multiple style="display:none">
+    </div>
+
+    <div class="queue" id="queue"></div>
+  </div>
+</main>
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+
+const token = location.pathname.split('/').pop();
+const BASE  = `/upload/${token}`;
+
+const PART_SIZE           = 64 * 1024 * 1024;
+const MULTIPART_THRESHOLD = 64 * 1024 * 1024;
+
+let linkInfo = null;
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtBytes(b) {
+  if (!b) return '0 B';
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
+  return (b/1073741824).toFixed(2) + ' GB';
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts,
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) }
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(j.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function init() {
+  try {
+    linkInfo = await api(`${BASE}/info`);
+    document.getElementById('uploadTitle').textContent = linkInfo.label || 'Upload Files';
+    document.getElementById('uploadDest').innerHTML = `Files will be sent to <span>${esc(linkInfo.folder)}</span>`;
+    document.getElementById('uploadCard').style.display = 'block';
+  } catch(e) {
+    document.getElementById('expiredMsg').style.display = 'block';
+  }
+}
+
+async function uploadFile(file) {
+  const queue = document.getElementById('queue');
+  const row   = document.createElement('div');
+  row.className = 'queue-item';
+  row.innerHTML = `
+    <div class="queue-name">${esc(file.name)}</div>
+    <div class="queue-pct">0%</div>
+    <div class="queue-detail">${fmtBytes(file.size)}</div>
+    <button class="btn-cancel">Cancel</button>
+    <div class="progress-wrap"><div class="progress-bar" style="width:0%"></div></div>`;
+  queue.prepend(row);
+
+  const bar       = row.querySelector('.progress-bar');
+  const pctEl     = row.querySelector('.queue-pct');
+  const cancelBtn = row.querySelector('.btn-cancel');
+
+  let fileId    = null;
+  let cancelled = false;
+  let abortFn   = () => {};
+
+  const setProgress = pct => { bar.style.width = pct + '%'; pctEl.textContent = pct + '%'; };
+
+  cancelBtn.addEventListener('click', async () => {
+    cancelled = true;
+    abortFn();
+    if (fileId) await fetch(`${BASE}/fail/${fileId}`, { method: 'POST' }).catch(() => {});
+    row.remove();
+  });
+
+  try {
+    const start = await api(`${BASE}/start`, {
+      method: 'POST',
+      body: JSON.stringify({ name: file.name, size: file.size }),
+    });
+    if (cancelled) return;
+    fileId = start.id;
+
+    if (file.size <= MULTIPART_THRESHOLD) {
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        abortFn = () => xhr.abort();
+        xhr.open('PUT', start.url);
+        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+        xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded/e.total*100)); };
+        xhr.onload  = () => xhr.status < 300 ? resolve() : reject(new Error('Upload failed: ' + xhr.status));
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.onabort = () => reject(new Error('Cancelled'));
+        xhr.send(file);
+      });
+    } else {
+      const { uploadId } = await api(`${BASE}/multipart/create`, {
+        method: 'POST', body: JSON.stringify({ r2_key: start.r2Key }),
+      });
+      if (cancelled) { await api(`${BASE}/multipart/abort`, { method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }) }); return; }
+
+      const numParts = Math.ceil(file.size / PART_SIZE);
+      const parts    = [];
+      let   uploaded = 0;
+
+      abortFn = async () => {
+        await api(`${BASE}/multipart/abort`, { method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }) }).catch(() => {});
+      };
+
+      for (let i = 0; i < numParts; i++) {
+        if (cancelled) return;
+        const partNumber = i + 1;
+        const chunk      = file.slice(i * PART_SIZE, Math.min((i + 1) * PART_SIZE, file.size));
+        const { url }    = await api(`${BASE}/multipart/part-url`, {
+          method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId, partNumber }),
+        });
+        const etag = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          abortFn = async () => { xhr.abort(); await api(`${BASE}/multipart/abort`, { method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }) }).catch(() => {}); };
+          xhr.open('PUT', url);
+          xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round((uploaded + e.loaded) / file.size * 100)); };
+          xhr.onload  = () => xhr.status < 300 ? resolve(xhr.getResponseHeader('ETag')) : reject(new Error('Part failed'));
+          xhr.onerror = () => reject(new Error('Network error'));
+          xhr.onabort = () => reject(new Error('Cancelled'));
+          xhr.send(chunk);
+        });
+        uploaded += chunk.size;
+        parts.push({ PartNumber: partNumber, ETag: etag });
+        setProgress(Math.round(uploaded / file.size * 100));
+      }
+
+      if (cancelled) return;
+      await api(`${BASE}/multipart/complete`, {
+        method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId, parts }),
+      });
+    }
+
+    if (cancelled) return;
+    await api(`${BASE}/complete/${fileId}`, {
+      method: 'POST', body: JSON.stringify({ size: file.size }),
+    });
+
+    bar.style.width = '100%';
+    bar.style.background = '#16a34a';
+    pctEl.textContent = '✓';
+    pctEl.style.color = '#16a34a';
+    cancelBtn.style.display = 'none';
+    row.querySelector('.queue-detail').textContent = fmtBytes(file.size) + ' · Uploaded';
+    toast(file.name + ' uploaded', 'success');
+
+  } catch(err) {
+    if (cancelled) return;
+    pctEl.textContent = '✗';
+    pctEl.style.color = '#dc2626';
+    row.querySelector('.queue-detail').textContent = err.message;
+    cancelBtn.textContent = 'Remove';
+    cancelBtn.addEventListener('click', () => row.remove(), { once: true });
+    toast('Failed: ' + err.message, 'error');
+  }
+}
+
+// ── Drop zone ──────────────────────────────────────────────────────────────
+const dropZone  = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  [...fileInput.files].forEach(uploadFile);
+  fileInput.value = '';
+});
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  const items = [...e.dataTransfer.items];
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry?.();
+    if (entry) readEntry(entry);
+    else if (item.getAsFile) uploadFile(item.getAsFile());
+  }
+});
+
+function readEntry(entry) {
+  if (entry.isFile) {
+    entry.file(f => uploadFile(f));
+  } else if (entry.isDirectory) {
+    const reader = entry.createReader();
+    const readAll = () => reader.readEntries(entries => {
+      if (!entries.length) return;
+      for (const e of entries) readEntry(e);
+      readAll();
+    });
+    readAll();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
