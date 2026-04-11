@@ -1071,6 +1071,50 @@ function toggleFolder(key) {
   }
 }
 
+function folderDomId(key) {
+  // Stable DOM-safe ID from folder key
+  let h = 5381;
+  for (let i = 0; i < key.length; i++) h = ((h << 5) + h) + key.charCodeAt(i);
+  return 'fp_' + (h >>> 0).toString(16);
+}
+
+function fmtDuration(sec) {
+  if (sec < 60)   return Math.round(sec) + 's remaining';
+  if (sec < 3600) return Math.round(sec / 60) + ' min remaining';
+  return (sec / 3600).toFixed(1) + ' hr remaining';
+}
+
+// Speed tracking: fileId → { prevProgress, prevTime, bps }
+const uploadSpeedTracker = {};
+
+function updateFolderProgress(folder) {
+  const key        = folder || '';
+  const domId      = folderDomId(key);
+  const bar        = document.getElementById('fld-bar-' + domId);
+  const etaEl      = document.getElementById('fld-eta-' + domId);
+  const pctEl      = document.getElementById('fld-pct-' + domId);
+  if (!bar) return;
+
+  const uploading = Object.values(files).filter(f => (f.folder || '') === key && f.status === 'uploading');
+  if (!uploading.length) return;
+
+  const totalBytes    = uploading.reduce((s, f) => s + (f.size || 0), 0);
+  const uploadedBytes = uploading.reduce((s, f) => s + (f.size || 0) * ((f.upload_progress || 0) / 100), 0);
+  const pct           = totalBytes > 0 ? Math.round(uploadedBytes / totalBytes * 100) : 0;
+
+  bar.style.width = pct + '%';
+  if (pctEl) pctEl.textContent = pct + '%';
+
+  if (etaEl) {
+    const totalSpeed = uploading.reduce((s, f) => s + (uploadSpeedTracker[f.id]?.bps || 0), 0);
+    if (totalSpeed > 0) {
+      etaEl.textContent = fmtDuration((totalBytes - uploadedBytes) / totalSpeed);
+    } else {
+      etaEl.textContent = 'calculating…';
+    }
+  }
+}
+
 function renderLibrary(all) {
   const filtered = activeFilter === 'all'
     ? all.filter(f => f.status !== 'deleted' && f.status !== 'deleting')
@@ -1094,18 +1138,26 @@ function renderLibrary(all) {
     return a.localeCompare(b);
   });
 
-  // Auto-expand new folders (default open)
-  keys.forEach(k => { if (!expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); } });
-
   grid.innerHTML = keys.map(key => {
-    const gFiles   = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    const gFiles    = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     const totalSize = gFiles.reduce((s, f) => s + (f.size || 0), 0);
     const isExpanded = expandedFolders.has(key);
+    const domId     = folderDomId(key);
 
     let gStatus = 'available';
     if (gFiles.some(f => f.status === 'uploading'))       gStatus = 'uploading';
     else if (gFiles.some(f => f.status === 'downloaded')) gStatus = 'downloaded';
     else if (gFiles.every(f => f.status === 'deleted'))   gStatus = 'deleted';
+
+    // Folder-level upload progress
+    const uploadingFiles = gFiles.filter(f => f.status === 'uploading');
+    const hasUploading   = uploadingFiles.length > 0;
+    let folderPct = 0;
+    if (hasUploading) {
+      const upTotal    = uploadingFiles.reduce((s, f) => s + (f.size || 0), 0);
+      const upDone     = uploadingFiles.reduce((s, f) => s + (f.size || 0) * ((f.upload_progress || 0) / 100), 0);
+      folderPct = upTotal > 0 ? Math.round(upDone / upTotal * 100) : 0;
+    }
 
     const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     const rows = gFiles.map(f => {
@@ -1113,13 +1165,10 @@ function renderLibrary(all) {
       const countdown   = f.delete_at && f.status === 'downloaded'
         ? `<span style="font-size:11px;color:var(--muted)">⏱ ${timeUntil(f.delete_at)}</span>` : '';
       const progress    = f.status === 'uploading'
-        ? `<div class="progress-wrap" style="margin-top:4px"><div class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>` : '';
+        ? `<div class="progress-wrap" style="margin-top:4px"><div id="upb-${f.id}" class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>` : '';
       return `
         <tr id="fc-${f.id}" class="lib-row ${f.status}">
-          <td class="lib-name">
-            <span>${esc(f.name)}</span>
-            ${progress}
-          </td>
+          <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
           <td class="lib-size">${fmtBytes(f.size)}</td>
           <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
           <td class="lib-status"><span class="status-badge ${f.status}">${f.status}${f.upload_progress > 0 && f.status==='uploading' ? ' ' + f.upload_progress + '%' : ''}</span>${countdown}</td>
@@ -1131,8 +1180,22 @@ function renderLibrary(all) {
         </tr>`;
     }).join('');
 
+    const uploadBar = hasUploading ? `
+      <div style="padding:10px 16px 12px;background:var(--card);border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:11px;font-weight:700;color:var(--accent-d)">
+            Uploading ${uploadingFiles.length} of ${gFiles.length} files
+            · <span id="fld-pct-${domId}">${folderPct}%</span>
+          </span>
+          <span id="fld-eta-${domId}" style="font-size:11px;color:var(--muted)">calculating…</span>
+        </div>
+        <div style="background:var(--border);border-radius:99px;height:5px;overflow:hidden">
+          <div id="fld-bar-${domId}" style="width:${folderPct}%;height:100%;background:var(--accent);border-radius:99px;transition:width .5s ease"></div>
+        </div>
+      </div>` : '';
+
     return `
-      <div class="folder-group" style="margin-bottom:16px">
+      <div class="folder-group" style="margin-bottom:12px">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <span class="folder-group-icon">${isExpanded ? '📂' : '📁'}</span>
           <div class="folder-group-info">
@@ -1144,12 +1207,11 @@ function renderLibrary(all) {
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
+        ${uploadBar}
         ${isExpanded ? `
           <div style="background:var(--bg);border-top:1.5px solid var(--border)">
             <table class="lib-table">
-              <thead><tr>
-                <th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th>
-              </tr></thead>
+              <thead><tr><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
           </div>` : ''}
@@ -2167,12 +2229,33 @@ function connectSSE() {
 
   es.addEventListener('progress', e => {
     const { id, progress } = JSON.parse(e.data);
-    if (files[id]) files[id].upload_progress = progress;
-    // Update progress bar in place if visible
-    const bar = document.getElementById('upb-'+id);
+    const file = files[id];
+    if (!file) return;
+
+    // Track upload speed (EMA)
+    const now = Date.now();
+    const tracker = uploadSpeedTracker[id];
+    if (tracker && progress > tracker.prevProgress) {
+      const elapsed = (now - tracker.prevTime) / 1000;
+      if (elapsed >= 0.5) {
+        const bytesDelta = (file.size || 0) * (progress - tracker.prevProgress) / 100;
+        const instant    = bytesDelta / elapsed;
+        tracker.bps      = tracker.bps ? tracker.bps * 0.6 + instant * 0.4 : instant;
+        tracker.prevProgress = progress;
+        tracker.prevTime     = now;
+      }
+    } else if (!tracker) {
+      uploadSpeedTracker[id] = { prevProgress: progress, prevTime: now, bps: 0 };
+    }
+
+    file.upload_progress = progress;
+
+    // Update individual file bar if visible
+    const bar = document.getElementById('upb-' + id);
     if (bar) bar.style.width = progress + '%';
-    const pctEl = document.getElementById('ui-'+id)?.querySelector('.upload-pct');
-    if (pctEl) pctEl.textContent = progress + '%';
+
+    // Update folder-level bar + ETA
+    updateFolderProgress(file.folder || '');
   });
 
   es.onerror = () => {
