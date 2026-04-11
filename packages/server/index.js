@@ -18,6 +18,7 @@ const { makeSetupRouter } = require('./routes/setup');
 const { makeFsRouter }    = require('./routes/fs');
 const { makeSharesApiRouter, makeSharesPublicRouter } = require('./routes/shares');
 const { makeUploadLinksRouter } = require('./routes/uploadlinks');
+const { makeRequestsRouter }   = require('./routes/requests');
 
 const PORT       = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -64,7 +65,8 @@ app.use('/api/users',  auth, makeUsersRouter(db));
 app.use('/api/fs',    makeFsRouter(db, JWT_SECRET));
 app.use('/api/shares', makeSharesApiRouter(db, JWT_SECRET));
 app.use('/share',      makeSharesPublicRouter(db));
-app.use('/upload',     makeUploadLinksRouter(db, sseBus, JWT_SECRET));
+app.use('/upload',        makeUploadLinksRouter(db, sseBus, JWT_SECRET));
+app.use('/api/requests',  makeRequestsRouter(db, JWT_SECRET));
 
 // Serve dashboard HTML
 const HTML_DIR = path.join(__dirname, 'html');

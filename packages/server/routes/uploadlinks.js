@@ -12,8 +12,8 @@ function makeUploadLinksRouter(db, sseBus, jwtSecret) {
   const router  = express.Router();
   const jwtAuth = makeAuthMiddleware(jwtSecret);
 
-  // ── Owner: create upload link ─────────────────────────────────────────────
-  router.post('/', jwtAuth, requireOwner, (req, res) => {
+  // ── Owner or Editor: create upload link ──────────────────────────────────
+  router.post('/', jwtAuth, (req, res) => {
     const { folder, label, days = 7 } = req.body || {};
     if (!folder) { res.status(400).json({ error: 'folder is required' }); return; }
     const token     = crypto.randomBytes(24).toString('hex');
@@ -25,16 +25,16 @@ function makeUploadLinksRouter(db, sseBus, jwtSecret) {
     res.json({ token, expiresAt });
   });
 
-  // ── Owner: list upload links ──────────────────────────────────────────────
-  router.get('/', jwtAuth, requireOwner, (req, res) => {
+  // ── Owner or Editor: list upload links ───────────────────────────────────
+  router.get('/', jwtAuth, (req, res) => {
     const links = db.prepare(`
       SELECT * FROM upload_links WHERE expires_at > datetime('now') ORDER BY created_at DESC
     `).all();
     res.json(links);
   });
 
-  // ── Owner: revoke upload link ─────────────────────────────────────────────
-  router.delete('/:id', jwtAuth, requireOwner, (req, res) => {
+  // ── Owner or Editor: revoke upload link ──────────────────────────────────
+  router.delete('/:id', jwtAuth, (req, res) => {
     db.prepare(`DELETE FROM upload_links WHERE id=?`).run(req.params.id);
     res.json({ ok: true });
   });

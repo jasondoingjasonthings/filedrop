@@ -71,6 +71,16 @@ function migrate(db) {
       expires_at TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS file_requests (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id    INTEGER REFERENCES users(id),
+      username   TEXT NOT NULL,
+      message    TEXT NOT NULL,
+      folder     TEXT DEFAULT '',
+      status     TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','fulfilled')),
+      created_at TEXT DEFAULT (datetime('now'))
+    );
   `);
 }
 

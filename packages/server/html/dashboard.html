@@ -543,6 +543,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
   <nav class="tabs" id="editorTabs" style="display:none">
     <button class="tab-btn active" data-tab="available">Available Files</button>
     <button class="tab-btn" data-tab="upload">Upload</button>
+    <button class="tab-btn" data-tab="request">Request Files</button>
     <button class="tab-btn" data-tab="history">History</button>
     <button class="tab-btn" data-tab="prefs">Preferences</button>
   </nav>
@@ -666,6 +667,11 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
         <div id="uploadLinkList"></div>
       </div>
       <div class="settings-section">
+        <h3>File Requests <span id="requestBadge" style="display:none;background:var(--accent);color:#fff;font-size:10px;font-weight:800;border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:middle"></span></h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Requests sent by editors — things they need you to upload.</p>
+        <div id="requestList"></div>
+      </div>
+      <div class="settings-section">
         <h3>Agent Token</h3>
         <p style="color:var(--muted);font-size:13px">Paste this into your FileDrop agent config on your Windows machine.</p>
         <div class="token-box" id="agentTokenBox">Loading…</div>
@@ -722,6 +728,22 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
           <button class="btn-ghost" id="cancelAllUploads" style="font-size:12px;display:none" onclick="document.querySelectorAll('.upload-cancel').forEach(b=>b.click())">Cancel all</button>
         </div>
         <div id="uploadQueue" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+    </div>
+
+    <!-- ── Editor: Request Files ── -->
+    <div class="tab-panel" id="tab-request" style="display:none">
+      <div class="settings-section">
+        <h3>Request Files</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Send a request to the owner — describe what you need and it'll show up in their dashboard.</p>
+        <div class="field" style="margin-bottom:12px">
+          <label>What do you need?</label>
+          <textarea id="requestMessage" rows="4" placeholder="e.g. Can you upload the Grade 2 session from Tuesday?" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:14px;font-family:inherit;outline:none;width:100%;resize:vertical;transition:border-color .15s"></textarea>
+        </div>
+        <button class="btn-primary" id="sendRequestBtn" style="width:100%">Send Request</button>
+        <div id="requestSent" style="display:none;margin-top:12px;background:#dcfce7;border:1.5px solid #86efac;border-radius:8px;padding:12px 16px;font-size:13px;color:#15803d;font-weight:700">
+          ✓ Request sent — the owner will see it in their dashboard.
+        </div>
       </div>
     </div>
 
@@ -790,6 +812,30 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
     <div id="shareLinkWrap" style="display:none;flex-direction:column;gap:8px">
       <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--accent-d);word-break:break-all;font-family:monospace;font-weight:700" id="shareLinkText"></div>
       <button class="btn-primary" id="copyShareBtn">Copy link</button>
+    </div>
+  </div>
+</div>
+
+<!-- Editor: Upload Link Modal -->
+<div id="editorUploadLinkModal" style="display:none;position:fixed;inset:0;background:rgba(11,31,42,0.6);z-index:300;align-items:center;justify-content:center;backdrop-filter:blur(4px)">
+  <div style="background:#fff;border:1.5px solid var(--border);border-radius:16px;padding:32px;width:440px;max-width:calc(100vw - 40px);display:flex;flex-direction:column;gap:16px;box-shadow:0 24px 80px rgba(11,31,42,0.18)">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <strong style="font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em">Upload Link</strong>
+      <button class="btn-ghost" onclick="closeEditorUploadLinkModal()">✕</button>
+    </div>
+    <p style="font-size:13px;color:var(--muted)">Send this link to anyone who needs to upload files. They can drop files directly into the folder — no login needed.</p>
+    <div class="field">
+      <label>Expires after</label>
+      <select id="editorUploadLinkExpiry" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:14px;font-family:inherit;outline:none">
+        <option value="1">1 day</option>
+        <option value="7" selected>7 days</option>
+        <option value="30">30 days</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="generateEditorUploadLinkBtn">Generate & copy link</button>
+    <div id="editorUploadLinkResult" style="display:none;flex-direction:column;gap:8px">
+      <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--accent-d);word-break:break-all;font-family:monospace;font-weight:700" id="editorUploadLinkText"></div>
+      <button class="btn-primary" id="copyEditorUploadLinkBtn">Copy link again</button>
     </div>
   </div>
 </div>
@@ -897,7 +943,7 @@ async function showApp() {
     document.getElementById('ownerTabs').style.display = 'flex';
     document.getElementById('editorTabs').style.display = 'none';
     // Hide editor panels, show owner panels
-    ['tab-available','tab-history','tab-prefs'].forEach(id => {
+    ['tab-available','tab-history','tab-prefs','tab-request'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.classList.remove('active'); el.style.display='none'; }
     });
@@ -911,6 +957,7 @@ async function showApp() {
     loadAgentToken();
     loadUsers();
     loadUploadLinks();
+    loadRequests();
   } else {
     document.getElementById('ownerTabs').style.display = 'none';
     document.getElementById('editorTabs').style.display = 'flex';
@@ -1141,6 +1188,8 @@ function renderEditor() {
           <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
           <button class="btn-sm" style="${autoDownloadFolders.has(folder)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeFolder}',this)">${autoDownloadFolders.has(folder)?'⬇ Auto ON':'⬇ Auto'}</button>
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeFolder}',this)">↓ All</button>` : ''}
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeFolder}')">Share</button>
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeFolder}')">Upload link</button>
           <span class="folder-chevron">${editorExpandedFolders.has(folder)?'▲':'▼'}</span>
         </div>
         ${editorExpandedFolders.has(folder) ? `
@@ -1588,6 +1637,53 @@ async function uploadBrowserFile(file, folder) {
   }
 }
 
+// ── File Requests ─────────────────────────────────────────────────────────────
+document.getElementById('sendRequestBtn')?.addEventListener('click', async () => {
+  const msg = document.getElementById('requestMessage').value.trim();
+  if (!msg) { toast('Enter a message first', 'error'); return; }
+  try {
+    await api('/api/requests', { method: 'POST', body: JSON.stringify({ message: msg }) });
+    document.getElementById('requestMessage').value = '';
+    document.getElementById('requestSent').style.display = 'block';
+    setTimeout(() => { document.getElementById('requestSent').style.display = 'none'; }, 5000);
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+async function loadRequests() {
+  try {
+    const requests = await api('/api/requests');
+    if (!requests) return;
+    const el = document.getElementById('requestList');
+    if (!el) return;
+    if (!requests.length) { el.innerHTML = '<p style="font-size:13px;color:var(--muted)">No pending requests.</p>'; return; }
+    el.innerHTML = requests.map(r => `
+      <div class="user-row" style="flex-wrap:wrap;gap:8px;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${esc(r.username)}</div>
+          <div style="font-size:13px;color:var(--text);margin:4px 0">${esc(r.message)}</div>
+          <div style="font-size:11px;color:var(--muted)">${fmtDate(r.created_at)}</div>
+        </div>
+        <button class="btn-sm btn-keep" onclick="fulfilRequest(${r.id})">✓ Fulfilled</button>
+        <button class="btn-sm btn-delete" onclick="dismissRequest(${r.id})">Dismiss</button>
+      </div>`).join('');
+  } catch(e) { console.error(e); }
+}
+
+async function fulfilRequest(id) {
+  try {
+    await api(`/api/requests/${id}/fulfil`, { method: 'PATCH' });
+    toast('Marked as fulfilled');
+    loadRequests();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function dismissRequest(id) {
+  try {
+    await api(`/api/requests/${id}`, { method: 'DELETE' });
+    loadRequests();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
 // ── Editor Preferences ────────────────────────────────────────────────────────
 function renderDlPrefs() {
   const nameEl   = document.getElementById('dlPrefName');
@@ -1677,6 +1773,56 @@ document.getElementById('copyShareBtn')?.addEventListener('click', () => {
 
 document.getElementById('shareModal')?.addEventListener('click', e => {
   if (e.target === document.getElementById('shareModal')) closeShareModal();
+});
+
+// ── Editor upload link ────────────────────────────────────────────────────────
+let editorUploadLinkFolder = '';
+
+function editorUploadLink(folder) {
+  editorUploadLinkFolder = folder;
+  document.getElementById('editorUploadLinkResult').style.display = 'none';
+  document.getElementById('editorUploadLinkModal').style.display = 'flex';
+}
+
+function closeEditorUploadLinkModal() {
+  document.getElementById('editorUploadLinkModal').style.display = 'none';
+}
+
+document.getElementById('generateEditorUploadLinkBtn')?.addEventListener('click', async () => {
+  const days = parseInt(document.getElementById('editorUploadLinkExpiry').value);
+  try {
+    const data = await api('/upload/', {
+      method: 'POST',
+      body: JSON.stringify({ folder: editorUploadLinkFolder, label: editorUploadLinkFolder, days }),
+    });
+    if (!data) return;
+    const link = `${location.origin}/upload/${data.token}`;
+    document.getElementById('editorUploadLinkText').textContent = link;
+    document.getElementById('editorUploadLinkResult').style.display = 'flex';
+    // Auto-copy
+    if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => toast('Link copied to clipboard'));
+    else {
+      const ta = document.createElement('textarea');
+      ta.value = link; ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+      toast('Link copied to clipboard');
+    }
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('copyEditorUploadLinkBtn')?.addEventListener('click', () => {
+  const link = document.getElementById('editorUploadLinkText').textContent;
+  if (navigator.clipboard) navigator.clipboard.writeText(link).then(() => toast('Link copied'));
+  else {
+    const ta = document.createElement('textarea');
+    ta.value = link; ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+    toast('Link copied');
+  }
+});
+
+document.getElementById('editorUploadLinkModal')?.addEventListener('click', e => {
+  if (e.target === document.getElementById('editorUploadLinkModal')) closeEditorUploadLinkModal();
 });
 
 // ── Browse & Upload ───────────────────────────────────────────────────────────
@@ -1959,7 +2105,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     // Show/hide panels for the correct role
     const panels = role === 'owner'
       ? ['library','browse','uploads','settings']
-      : ['available','upload','history','prefs'];
+      : ['available','upload','request','history','prefs'];
     panels.forEach(p => {
       const el = document.getElementById('tab-'+p);
       if (el) { el.classList.remove('active'); el.style.display='none'; }
@@ -1967,7 +2113,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const active = document.getElementById('tab-'+tab);
     if (active) { active.classList.add('active'); active.style.display='block'; }
     if (tab === 'prefs') renderDlPrefs();
-    if (tab === 'settings') loadUploadLinks();
+    if (tab === 'settings') { loadUploadLinks(); loadRequests(); }
   });
 });
 

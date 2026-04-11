@@ -11,8 +11,8 @@ function makeSharesApiRouter(db, jwtSecret) {
   const router  = express.Router();
   const jwtAuth = makeAuthMiddleware(jwtSecret);
 
-  // ── Owner: create share link ──────────────────────────────────────────────
-  router.post('/', jwtAuth, requireOwner, (req, res) => {
+  // ── Owner or Editor: create share link ───────────────────────────────────
+  router.post('/', jwtAuth, (req, res) => {
     const { folder, label, days = 7 } = req.body || {};
     const token     = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
