@@ -396,6 +396,24 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 .folder-group-files .file-card .delete-countdown { font-size: 11px; white-space: nowrap; }
 .folder-group-files .file-card .progress-wrap { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 0; }
 
+/* ── Owner library list table ───────────────────────────────────────────── */
+.lib-table { width:100%; border-collapse:collapse; font-size:13px; }
+.lib-table thead th {
+  text-align:left; font-size:10px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.06em; color:var(--muted); padding:8px 12px;
+  border-bottom:1.5px solid var(--border); background:var(--bg);
+}
+.lib-table tbody tr.lib-row { transition:background .12s; }
+.lib-table tbody tr.lib-row:hover { background:rgba(91,200,232,0.06); }
+.lib-table tbody tr.lib-row td { padding:10px 12px; border-bottom:1px solid var(--border); vertical-align:middle; }
+.lib-table tbody tr.lib-row:last-child td { border-bottom:none; }
+.lib-table tr.lib-row.deleted td { opacity:.45; }
+.lib-name { font-weight:600; min-width:200px; word-break:break-word; }
+.lib-size { white-space:nowrap; color:var(--muted); }
+.lib-date { white-space:nowrap; color:var(--muted); }
+.lib-status { white-space:nowrap; }
+.lib-actions { white-space:nowrap; display:flex; gap:6px; align-items:center; }
+
 /* ── Browse tab ─────────────────────────────────────────────────────────── */
 .browse-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
 @media(max-width:700px){ .browse-layout { grid-template-columns: 1fr; } }
@@ -533,7 +551,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
   <!-- Owner tabs -->
   <nav class="tabs" id="ownerTabs" style="display:none">
-    <button class="tab-btn active" data-tab="library">Library</button>
+    <button class="tab-btn active" data-tab="library">Available</button>
     <button class="tab-btn" data-tab="browse">Browse & Upload</button>
     <button class="tab-btn" data-tab="uploads">Uploads <span class="tab-badge" id="uploadBadge" style="display:none">0</span></button>
     <button class="tab-btn" data-tab="settings">Settings</button>
@@ -550,23 +568,23 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
   <main>
 
-    <!-- ── Owner: Library ── -->
+    <!-- ── Owner: Available ── -->
     <div class="tab-panel active" id="tab-library">
       <div class="stats-bar" id="statsBar"></div>
       <div class="section-header">
         <div>
-          <div class="section-title">File Library</div>
-          <div class="section-sub">Everything currently on R2 storage</div>
+          <div class="section-title">Available Files</div>
+          <div class="section-sub">Files currently on R2 storage</div>
         </div>
         <div class="filters" id="libraryFilters">
-          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="all">All</button>
           <button class="filter-btn" data-filter="uploading">Uploading</button>
-          <button class="filter-btn" data-filter="available">Available</button>
+          <button class="filter-btn active" data-filter="available">Available</button>
           <button class="filter-btn" data-filter="downloaded">Downloaded</button>
           <button class="filter-btn" data-filter="deleted">Deleted</button>
         </div>
       </div>
-      <div class="file-grid" id="libraryGrid"></div>
+      <div id="libraryGrid"></div>
       <div class="empty" id="libraryEmpty" style="display:none">
         <div class="empty-icon">📁</div>
         <h3>No files yet</h3>
@@ -875,7 +893,7 @@ let role   = localStorage.getItem('fd_role') || '';
 let uname  = localStorage.getItem('fd_uname') || '';
 let files  = {};   // id → file object
 let es     = null;
-let activeFilter = 'all';
+let activeFilter = 'available';
 
 // ── Utils ─────────────────────────────────────────────────────────────────────
 function fmtBytes(b) {
@@ -1057,7 +1075,7 @@ function renderLibrary(all) {
   const filtered = activeFilter === 'all'
     ? all.filter(f => f.status !== 'deleted' && f.status !== 'deleting')
     : all.filter(f => f.status === activeFilter);
-  const grid = document.getElementById('libraryGrid');
+  const grid  = document.getElementById('libraryGrid');
   const empty = document.getElementById('libraryEmpty');
 
   if (!filtered.length) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
@@ -1076,20 +1094,45 @@ function renderLibrary(all) {
     return a.localeCompare(b);
   });
 
+  // Auto-expand new folders (default open)
+  keys.forEach(k => { if (!expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); } });
+
   grid.innerHTML = keys.map(key => {
-    const gFiles = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+    const gFiles   = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
     const totalSize = gFiles.reduce((s, f) => s + (f.size || 0), 0);
     const isExpanded = expandedFolders.has(key);
 
-    // Worst status wins
     let gStatus = 'available';
-    if (gFiles.some(f => f.status === 'uploading'))  gStatus = 'uploading';
+    if (gFiles.some(f => f.status === 'uploading'))       gStatus = 'uploading';
     else if (gFiles.some(f => f.status === 'downloaded')) gStatus = 'downloaded';
     else if (gFiles.every(f => f.status === 'deleted'))   gStatus = 'deleted';
 
     const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const rows = gFiles.map(f => {
+      const canDownload = f.status === 'available';
+      const countdown   = f.delete_at && f.status === 'downloaded'
+        ? `<span style="font-size:11px;color:var(--muted)">⏱ ${timeUntil(f.delete_at)}</span>` : '';
+      const progress    = f.status === 'uploading'
+        ? `<div class="progress-wrap" style="margin-top:4px"><div class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>` : '';
+      return `
+        <tr id="fc-${f.id}" class="lib-row ${f.status}">
+          <td class="lib-name">
+            <span>${esc(f.name)}</span>
+            ${progress}
+          </td>
+          <td class="lib-size">${fmtBytes(f.size)}</td>
+          <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
+          <td class="lib-status"><span class="status-badge ${f.status}">${f.status}${f.upload_progress > 0 && f.status==='uploading' ? ' ' + f.upload_progress + '%' : ''}</span>${countdown}</td>
+          <td class="lib-actions">
+            ${canDownload ? `<button class="btn-sm btn-get" onclick="downloadSingleFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
+            ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
+            ${f.status !== 'deleted' ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
+          </td>
+        </tr>`;
+    }).join('');
+
     return `
-      <div class="folder-group">
+      <div class="folder-group" style="margin-bottom:16px">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <span class="folder-group-icon">${isExpanded ? '📂' : '📁'}</span>
           <div class="folder-group-info">
@@ -1101,7 +1144,15 @@ function renderLibrary(all) {
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
-        ${isExpanded ? `<div class="folder-group-files">${gFiles.map(f => fileCard(f)).join('')}</div>` : ''}
+        ${isExpanded ? `
+          <div style="background:var(--bg);border-top:1.5px solid var(--border)">
+            <table class="lib-table">
+              <thead><tr>
+                <th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>` : ''}
       </div>`;
   }).join('');
 
@@ -1113,23 +1164,12 @@ function renderLibrary(all) {
 }
 
 function fileCard(f) {
-  const isOwner = role === 'owner';
+  // Used by editor view only
   let actions = '';
-  if (isOwner) {
-    if (f.status === 'downloaded' && f.delete_at) {
-      actions += `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>`;
-    }
-    if (f.status !== 'deleted') {
-      actions += `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete from R2</button>`;
-    }
-  }
-
   const countdown = (f.delete_at && f.status==='downloaded')
     ? `<div class="delete-countdown">⏱ Deletes in ${timeUntil(f.delete_at)}</div>` : '';
-
   const progress = f.status === 'uploading'
     ? `<div class="progress-wrap"><div class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>` : '';
-
   return `
     <div class="file-card ${f.status}" id="fc-${f.id}">
       <div>
