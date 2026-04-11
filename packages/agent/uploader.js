@@ -23,6 +23,10 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   const regRes = await api(serverUrl, agentToken, 'POST', '/api/upload/register', {
     name, r2_key: r2Key, size, folder,
   });
+  if (regRes.skip) {
+    console.log(`[uploader] Already available, skipping: ${name}`);
+    return;
+  }
   const { id } = regRes;
   console.log(`[uploader] Registered ${name} → id=${id}, key=${r2Key}`);
 

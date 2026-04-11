@@ -19,6 +19,16 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       res.status(400).json({ error: 'name and r2_key required' });
       return;
     }
+
+    // Dedup: if an 'available' file with the same name+folder already exists, skip
+    const existing = db.prepare(`
+      SELECT id FROM files WHERE name=? AND folder=? AND status='available' LIMIT 1
+    `).get(name, folder || '');
+    if (existing) {
+      console.log(`[upload] Skipping duplicate: ${name} in ${folder || '(root)'}`);
+      return res.json({ id: existing.id, skip: true });
+    }
+
     const id = uuid();
     db.prepare(`
       INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
