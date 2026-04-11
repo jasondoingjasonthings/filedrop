@@ -6,3 +6,10 @@ config/filedrop.config.json
 *.db-wal
 *.db-shm
 .env
+build/*.exe
+build/*-arm64
+build/*-win
+build/*.db
+build/*.db-shm
+build/*.db-wal
+build/
