@@ -1203,6 +1203,7 @@ function renderLibrary(all) {
             <div class="folder-group-meta">${gFiles.length} file${gFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
+          ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel uploads</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
@@ -1264,10 +1265,23 @@ function renderUploads(all) {
       <div class="upload-name">${esc(f.name)}</div>
       <div class="upload-pct">${f.upload_progress||0}%</div>
       <div class="upload-detail">${fmtBytes(f.size)} · ${f.folder||'root'}</div>
+      <button class="btn-sm btn-delete" style="margin-left:auto" onclick="cancelUpload('${f.id}')">Cancel</button>
       <div class="progress-wrap" style="grid-column:1/-1">
         <div class="progress-bar" id="upb-${f.id}" style="width:${f.upload_progress||0}%"></div>
       </div>
     </div>`).join('');
+}
+
+async function cancelUpload(id) {
+  if (!confirm('Cancel this upload?')) return;
+  await api(`/api/files/${id}`, { method: 'DELETE' }).catch(() => {});
+}
+
+async function cancelFolderUploads(folder) {
+  const uploading = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'uploading');
+  if (!uploading.length) return;
+  if (!confirm(`Cancel all ${uploading.length} uploading file${uploading.length !== 1 ? 's' : ''} in "${folder || 'root'}"?`)) return;
+  await Promise.all(uploading.map(f => api(`/api/files/${f.id}`, { method: 'DELETE' }).catch(() => {})));
 }
 
 // ── Editor render ─────────────────────────────────────────────────────────────
