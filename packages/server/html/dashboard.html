@@ -1335,9 +1335,10 @@ function renderEditor() {
     <div class="stat"><div class="stat-val">${fmtBytes(available.reduce((s,f)=>s+(f.size||0),0))}</div><div class="stat-label">Total size</div></div>
   `;
 
-  // Group by folder
+  // Group by folder — include downloaded files so folders don't vanish after download
+  const forFolders = all.filter(f=>f.status==='available'||f.status==='uploading'||f.status==='downloaded');
   const folders = {};
-  for (const f of available) {
+  for (const f of forFolders) {
     const key = f.folder || '(root)';
     if (!folders[key]) folders[key] = [];
     folders[key].push(f);
