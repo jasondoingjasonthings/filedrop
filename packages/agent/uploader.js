@@ -3,8 +3,6 @@
 const fs    = require('fs');
 const path  = require('path');
 const fetch = require('node-fetch');
-const { S3Client, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
 const PART_SIZE       = 100 * 1024 * 1024; // 100 MB per part
 const MULTIPART_ABOVE =  10 * 1024 * 1024; // use multipart above 10 MB
@@ -57,6 +55,26 @@ function startHeartbeat(serverUrl, agentToken, id) {
   return () => clearInterval(interval);
 }
 
+// ── Retry helper ─────────────────────────────────────────────────────────────
+// Retries fn up to maxAttempts times with exponential backoff.
+// Useful when an external drive spins down mid-read and needs a few seconds to wake.
+
+async function withRetry(fn, { maxAttempts = 4, baseDelayMs = 5000, label = 'op' } = {}) {
+  let lastErr;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt === maxAttempts) break;
+      const delay = baseDelayMs * attempt; // 5s, 10s, 15s
+      console.warn(`[uploader] ${label} failed (attempt ${attempt}/${maxAttempts}): ${err.message} — retrying in ${delay / 1000}s`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
+}
+
 // ── Simple upload (small files) ──────────────────────────────────────────────
 
 async function simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size }) {
@@ -64,14 +82,16 @@ async function simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size }
 
   const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
   try {
-    const stream = fs.createReadStream(filePath);
-    const res = await fetch(url, {
-      method: 'PUT',
-      body: stream,
-      headers: { 'Content-Length': String(size) },
-      duplex: 'half',
-    });
-    if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+    await withRetry(async () => {
+      const stream = fs.createReadStream(filePath);
+      const res = await fetch(url, {
+        method: 'PUT',
+        body: stream,
+        headers: { 'Content-Length': String(size) },
+        duplex: 'half',
+      });
+      if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+    }, { label: 'simple upload' });
     await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress: 100 });
   } finally {
     stopHeartbeat();
@@ -87,9 +107,6 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
   const numParts = Math.ceil(size / PART_SIZE);
   const fd       = fs.openSync(filePath, 'r');
 
-  // Progress updates already act as heartbeats on the server side.
-  // But between part uploads (presign + PUT) we might go quiet for a while
-  // on very large parts, so also run an explicit heartbeat timer.
   const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
 
   try {
@@ -98,21 +115,25 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
       const offset     = i * PART_SIZE;
       const partSize   = Math.min(PART_SIZE, size - offset);
 
-      const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
-        r2_key: r2Key, uploadId, partNumber,
-      });
+      const etag = await withRetry(async () => {
+        // Get a fresh presigned URL each retry (they can expire)
+        const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
+          r2_key: r2Key, uploadId, partNumber,
+        });
 
-      const buf = Buffer.alloc(partSize);
-      fs.readSync(fd, buf, 0, partSize, offset);
+        // Read from disk — this is where drive sleep hits us
+        const buf = Buffer.alloc(partSize);
+        fs.readSync(fd, buf, 0, partSize, offset);
 
-      const res = await fetch(url, {
-        method: 'PUT',
-        body: buf,
-        headers: { 'Content-Length': String(partSize) },
-      });
-      if (!res.ok) throw new Error(`Part ${partNumber} upload failed: ${res.status}`);
+        const res = await fetch(url, {
+          method: 'PUT',
+          body: buf,
+          headers: { 'Content-Length': String(partSize) },
+        });
+        if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
+        return res.headers.get('etag');
+      }, { label: `part ${partNumber}/${numParts}` });
 
-      const etag = res.headers.get('etag');
       parts.push({ PartNumber: partNumber, ETag: etag });
 
       const progress = Math.round((partNumber / numParts) * 100);
