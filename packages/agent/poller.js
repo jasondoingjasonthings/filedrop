@@ -42,17 +42,30 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       result = { sizes };
     } else if (cmd.type === 'upload') {
       const { paths, folder } = cmd.payload;
-      // Expand any folders recursively to get all files
       const allFiles = [];
-      for (const p of paths) {
-        expandPath(p, allFiles);
+      for (const p of paths) expandPath(p, allFiles);
+
+      // Upload all files, collecting results
+      const results = await Promise.allSettled(
+        allFiles.map(filePath => {
+          const name = path.basename(filePath);
+          return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
+        })
+      );
+
+      // Re-queue any that failed (drive sleep, network blip, etc.)
+      const failed = allFiles.filter((_, i) => results[i].status === 'rejected');
+      if (failed.length) {
+        console.log(`[poller] ${failed.length} file(s) failed — re-queuing after 10s`);
+        await new Promise(r => setTimeout(r, 10_000));
+        await Promise.allSettled(failed.map(filePath => {
+          const name = path.basename(filePath);
+          return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' })
+            .catch(err => console.error(`[poller] Re-queue also failed for ${name}:`, err.message));
+        }));
       }
-      for (const filePath of allFiles) {
-        const name = path.basename(filePath);
-        uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' })
-          .catch(err => console.error(`[poller] Upload failed ${name}:`, err.message));
-      }
-      result = { queued: allFiles.length };
+
+      result = { queued: allFiles.length, failed: failed.length };
     }
 
     await fetch(`${serverUrl}/api/fs/result/${cmd.id}`, {

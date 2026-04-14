@@ -1141,8 +1141,11 @@ function renderLibrary(all) {
     return a.localeCompare(b);
   });
 
-  // Auto-expand folders the first time they appear
-  keys.forEach(k => { if (!expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); } });
+  // Auto-expand folders that have active uploads so progress is visible
+  keys.forEach(k => {
+    const hasActive = (groups[k] || []).some(f => f.status === 'uploading');
+    if (hasActive && !expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); }
+  });
 
   grid.innerHTML = keys.map(key => {
     const gFiles    = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
@@ -1170,18 +1173,23 @@ function renderLibrary(all) {
       const canDownload = f.status === 'available';
       const countdown   = f.delete_at && f.status === 'downloaded'
         ? `<span style="font-size:11px;color:var(--muted)">⏱ ${timeUntil(f.delete_at)}</span>` : '';
-      const progress    = f.status === 'uploading'
-        ? `<div class="progress-wrap" style="margin-top:4px"><div id="upb-${f.id}" class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>` : '';
+      const isUploading = f.status === 'uploading';
+      const progress    = isUploading
+        ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+             <div class="progress-wrap" style="flex:1"><div id="upb-${f.id}" class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>
+             <span id="upct-${f.id}" style="font-size:11px;color:var(--accent-d);font-weight:700;white-space:nowrap">${f.upload_progress||0}%</span>
+           </div>` : '';
       return `
         <tr id="fc-${f.id}" class="lib-row ${f.status}">
           <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
           <td class="lib-size">${fmtBytes(f.size)}</td>
           <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
-          <td class="lib-status"><span class="status-badge ${f.status}">${f.status}${f.upload_progress > 0 && f.status==='uploading' ? ' ' + f.upload_progress + '%' : ''}</span>${countdown}</td>
+          <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}</td>
           <td class="lib-actions">
+            ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
             ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
             ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
-            ${f.status !== 'deleted' ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
+            ${f.status !== 'deleted' && !isUploading ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
           </td>
         </tr>`;
     }).join('');
@@ -2303,9 +2311,11 @@ function connectSSE() {
 
     file.upload_progress = progress;
 
-    // Update individual file bar if visible
-    const bar = document.getElementById('upb-' + id);
-    if (bar) bar.style.width = progress + '%';
+    // Update individual file bar + percentage if visible
+    const bar  = document.getElementById('upb-' + id);
+    const upct = document.getElementById('upct-' + id);
+    if (bar)  bar.style.width    = progress + '%';
+    if (upct) upct.textContent   = progress + '%';
 
     // Update folder-level bar + ETA
     updateFolderProgress(file.folder || '');
