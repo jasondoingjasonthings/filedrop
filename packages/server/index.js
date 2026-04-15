@@ -30,6 +30,13 @@ const sseBus = new SseBus();
 
 app.use(express.json({ limit: '10mb' }));
 
+// Request logger (temporary debug)
+app.use((req, res, next) => {
+  const auth = req.headers.authorization ? req.headers.authorization.slice(0, 20) + '…' : 'none';
+  console.log(`[req] ${req.method} ${req.path} auth=${auth}`);
+  next();
+});
+
 // Setup wizard (pre-auth)
 app.use('/setup', makeSetupRouter(db));
 

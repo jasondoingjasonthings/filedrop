@@ -951,7 +951,7 @@ function toast(msg, type='success') {
   el.className = `toast ${type}`;
   el.textContent = msg;
   document.getElementById('toasts').appendChild(el);
-  setTimeout(() => el.remove(), 4000);
+  setTimeout(() => el.remove(), msg.startsWith('DEBUG') ? 15000 : 4000);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
