@@ -816,7 +816,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
         </div>
 
         <div id="dlPrefHttpWarn" style="display:none;background:#fff8e1;border:1.5px solid #fcd34d;border-radius:8px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--warn);font-weight:600">
-          ⚠️ Choosing a custom folder requires a secure connection (HTTPS). Once the site has an SSL certificate this will unlock — for now files go to your Downloads folder.
+          ⚠️ Choosing a custom folder requires Chrome or Edge. This browser doesn't support it — files will go to your default Downloads folder instead.
         </div>
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
@@ -1922,12 +1922,14 @@ function renderDlPrefs() {
     clearBtn.style.display = 'none';
   }
 
-  warnEl.style.display = ('showDirectoryPicker' in window) ? 'none' : 'block';
+  const supported = ('showDirectoryPicker' in window);
+  warnEl.style.display = supported ? 'none' : 'block';
+  document.getElementById('chooseDlFolderBtn').style.display = supported ? 'inline-flex' : 'none';
 }
 
 document.getElementById('chooseDlFolderBtn')?.addEventListener('click', async () => {
   if (!('showDirectoryPicker' in window)) {
-    toast('Choosing a folder requires HTTPS — coming soon', 'error');
+    toast('This browser doesn\'t support folder selection — use Chrome or Edge', 'error');
     return;
   }
   try {

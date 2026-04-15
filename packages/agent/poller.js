@@ -45,24 +45,35 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       const allFiles = [];
       for (const p of paths) expandPath(p, allFiles);
 
-      // Upload all files, collecting results
-      const results = await Promise.allSettled(
-        allFiles.map(filePath => {
-          const name = path.basename(filePath);
-          return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
-        })
-      );
+      // Upload with limited concurrency (3 at a time) to avoid overwhelming the connection
+      const CONCURRENCY = 3;
+      const failed = [];
 
-      // Re-queue any that failed (drive sleep, network blip, etc.)
-      const failed = allFiles.filter((_, i) => results[i].status === 'rejected');
+      for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
+        const batch = allFiles.slice(i, i + CONCURRENCY);
+        const batchResults = await Promise.allSettled(
+          batch.map(filePath => {
+            const name = path.basename(filePath);
+            return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
+          })
+        );
+        batch.forEach((filePath, j) => {
+          if (batchResults[j].status === 'rejected') failed.push(filePath);
+        });
+      }
+
+      // Retry failed files one at a time (drive may have been asleep)
       if (failed.length) {
-        console.log(`[poller] ${failed.length} file(s) failed — re-queuing after 10s`);
-        await new Promise(r => setTimeout(r, 10_000));
-        await Promise.allSettled(failed.map(filePath => {
+        console.log(`[poller] ${failed.length} file(s) failed — retrying one-by-one after 15s`);
+        await new Promise(r => setTimeout(r, 15_000));
+        for (const filePath of failed) {
           const name = path.basename(filePath);
-          return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' })
-            .catch(err => console.error(`[poller] Re-queue also failed for ${name}:`, err.message));
-        }));
+          try {
+            await uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
+          } catch (err) {
+            console.error(`[poller] Retry also failed for ${name}:`, err.message);
+          }
+        }
       }
 
       result = { queued: allFiles.length, failed: failed.length };
