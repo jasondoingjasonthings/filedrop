@@ -49,7 +49,7 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       // Upload with limited concurrency (5 at a time)
       // Returns counts of uploaded, skipped (already on server), and failed
       async function uploadBatch(fileList) {
-        const CONCURRENCY = 5;
+        const CONCURRENCY = 3;
         let uploaded = 0, skipped = 0;
         const failed = [];
 

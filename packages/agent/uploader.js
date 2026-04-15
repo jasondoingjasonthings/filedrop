@@ -4,9 +4,9 @@ const fs    = require('fs');
 const path  = require('path');
 const fetch = require('node-fetch');
 
-const PART_SIZE       = 200 * 1024 * 1024; // 200 MB per part
-const MULTIPART_ABOVE =  10 * 1024 * 1024; // use multipart above 10 MB
-const PART_CONCURRENCY = 4;                // upload this many parts simultaneously
+const PART_SIZE        = 256 * 1024 * 1024; // 256 MB per part
+const MULTIPART_ABOVE  =  10 * 1024 * 1024; // use multipart above 10 MB
+const PART_CONCURRENCY = 2;                 // parallel parts per file (streaming, low memory)
 
 async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   const stat = fs.statSync(filePath);
@@ -106,13 +106,12 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
   const { uploadId } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/create', { r2_key: r2Key });
 
   const numParts      = Math.ceil(size / PART_SIZE);
-  const parts         = new Array(numParts); // pre-sized so order is preserved
-  const fd            = fs.openSync(filePath, 'r');
+  const parts         = new Array(numParts);
   const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
   let   completedParts = 0;
 
   try {
-    // Upload PART_CONCURRENCY parts at a time
+    // Upload PART_CONCURRENCY parts at a time — streamed from disk, no large buffers
     for (let batch = 0; batch < numParts; batch += PART_CONCURRENCY) {
       const batchIndices = [];
       for (let j = batch; j < Math.min(batch + PART_CONCURRENCY, numParts); j++) batchIndices.push(j);
@@ -127,13 +126,13 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
             r2_key: r2Key, uploadId, partNumber,
           });
 
-          const buf = Buffer.alloc(partSize);
-          fs.readSync(fd, buf, 0, partSize, offset);
-
+          // Stream the part directly from disk — no large Buffer in memory
+          const stream = fs.createReadStream(filePath, { start: offset, end: offset + partSize - 1 });
           const res = await fetch(url, {
             method: 'PUT',
-            body: buf,
+            body: stream,
             headers: { 'Content-Length': String(partSize) },
+            duplex: 'half',
           });
           if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
           parts[i] = { PartNumber: partNumber, ETag: res.headers.get('etag') };
@@ -147,7 +146,6 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
     }
   } finally {
     stopHeartbeat();
-    fs.closeSync(fd);
   }
 
   await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/complete', {
