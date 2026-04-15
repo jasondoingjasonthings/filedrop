@@ -4,8 +4,9 @@ const fs    = require('fs');
 const path  = require('path');
 const fetch = require('node-fetch');
 
-const PART_SIZE       = 100 * 1024 * 1024; // 100 MB per part
+const PART_SIZE       = 200 * 1024 * 1024; // 200 MB per part
 const MULTIPART_ABOVE =  10 * 1024 * 1024; // use multipart above 10 MB
+const PART_CONCURRENCY = 4;                // upload this many parts simultaneously
 
 async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   const stat = fs.statSync(filePath);
@@ -103,42 +104,45 @@ async function simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size }
 async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, size }) {
   const { uploadId } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/create', { r2_key: r2Key });
 
-  const parts    = [];
-  const numParts = Math.ceil(size / PART_SIZE);
-  const fd       = fs.openSync(filePath, 'r');
-
+  const numParts      = Math.ceil(size / PART_SIZE);
+  const parts         = new Array(numParts); // pre-sized so order is preserved
+  const fd            = fs.openSync(filePath, 'r');
   const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
+  let   completedParts = 0;
 
   try {
-    for (let i = 0; i < numParts; i++) {
-      const partNumber = i + 1;
-      const offset     = i * PART_SIZE;
-      const partSize   = Math.min(PART_SIZE, size - offset);
+    // Upload PART_CONCURRENCY parts at a time
+    for (let batch = 0; batch < numParts; batch += PART_CONCURRENCY) {
+      const batchIndices = [];
+      for (let j = batch; j < Math.min(batch + PART_CONCURRENCY, numParts); j++) batchIndices.push(j);
 
-      const etag = await withRetry(async () => {
-        // Get a fresh presigned URL each retry (they can expire)
-        const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
-          r2_key: r2Key, uploadId, partNumber,
-        });
+      await Promise.all(batchIndices.map(i => {
+        const partNumber = i + 1;
+        const offset     = i * PART_SIZE;
+        const partSize   = Math.min(PART_SIZE, size - offset);
 
-        // Read from disk — this is where drive sleep hits us
-        const buf = Buffer.alloc(partSize);
-        fs.readSync(fd, buf, 0, partSize, offset);
+        return withRetry(async () => {
+          const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
+            r2_key: r2Key, uploadId, partNumber,
+          });
 
-        const res = await fetch(url, {
-          method: 'PUT',
-          body: buf,
-          headers: { 'Content-Length': String(partSize) },
-        });
-        if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
-        return res.headers.get('etag');
-      }, { label: `part ${partNumber}/${numParts}` });
+          const buf = Buffer.alloc(partSize);
+          fs.readSync(fd, buf, 0, partSize, offset);
 
-      parts.push({ PartNumber: partNumber, ETag: etag });
+          const res = await fetch(url, {
+            method: 'PUT',
+            body: buf,
+            headers: { 'Content-Length': String(partSize) },
+          });
+          if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
+          parts[i] = { PartNumber: partNumber, ETag: res.headers.get('etag') };
+        }, { label: `part ${partNumber}/${numParts}` });
+      }));
 
-      const progress = Math.round((partNumber / numParts) * 100);
+      completedParts += batchIndices.length;
+      const progress = Math.round((completedParts / numParts) * 100);
       await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress });
-      console.log(`[uploader] Part ${partNumber}/${numParts} (${progress}%)`);
+      console.log(`[uploader] Parts ${batch + 1}–${batch + batchIndices.length}/${numParts} (${progress}%)`);
     }
   } finally {
     stopHeartbeat();

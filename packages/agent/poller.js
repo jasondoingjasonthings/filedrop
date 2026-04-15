@@ -45,8 +45,8 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       const allFiles = [];
       for (const p of paths) expandPath(p, allFiles);
 
-      // Upload with limited concurrency (3 at a time) to avoid overwhelming the connection
-      const CONCURRENCY = 3;
+      // Upload with limited concurrency (5 at a time)
+      const CONCURRENCY = 5;
       const failed = [];
 
       for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
