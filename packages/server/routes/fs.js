@@ -7,9 +7,9 @@ const { makeAuthMiddleware, makeAgentMiddleware, requireOwner } = require('../au
 // In-memory command store — ephemeral, intentionally
 const commands = new Map(); // id → { type, payload, result, error, done, createdAt }
 
-// Expire commands older than 60s
+// Expire commands older than 120s
 setInterval(() => {
-  const cutoff = Date.now() - 60000;
+  const cutoff = Date.now() - 120000;
   for (const [id, cmd] of commands) {
     if (cmd.createdAt < cutoff) commands.delete(id);
   }

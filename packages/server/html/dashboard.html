@@ -2092,8 +2092,8 @@ async function agentCommand(type, payload) {
   const res = await api('/api/fs/' + type, { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return null;
   const { commandId } = res;
-  // Poll up to 15s for result
-  for (let i = 0; i < 30; i++) {
+  // Poll up to 60s for result
+  for (let i = 0; i < 120; i++) {
     await new Promise(r => setTimeout(r, 500));
     const poll = await api('/api/fs/result/' + commandId);
     if (!poll) return null;
