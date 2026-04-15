@@ -1049,12 +1049,15 @@ async function showApp() {
 // ── Files ─────────────────────────────────────────────────────────────────────
 async function loadFiles() {
   try {
+    toast('DEBUG: fetching files…', 'info');
     const list = await api('/api/files');
-    if (!list) return;
+    if (!list) { toast('DEBUG: api returned null (401 — logged out)', 'error'); return; }
+    toast(`DEBUG: got ${list.length} files, rendering…`, 'info');
     files = {};
     for (const f of list) files[f.id] = f;
     render();
-  } catch(e) { console.error('loadFiles', e); }
+    toast(`DEBUG: render() done`, 'info');
+  } catch(e) { toast('DEBUG loadFiles err: ' + e.message, 'error'); console.error('loadFiles', e); }
 }
 
 function render() {
