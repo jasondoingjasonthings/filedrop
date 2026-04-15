@@ -1478,7 +1478,7 @@ function renderEditor() {
                 <span>${fmtBytes(f.size)}</span>
                 ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
               </div>
-              <button class="btn-sm btn-get" ${f.status!=='available'&&f.status!=='downloaded'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.status==='downloaded'?'↓ Re-download':'↓ Download'}</button>
+              <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
             </div>`).join('')}
         </div>` : ''}
       </div>`;

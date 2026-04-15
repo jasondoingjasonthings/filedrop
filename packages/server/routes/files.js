@@ -33,14 +33,14 @@ function makeFilesRouter(db, sseBus) {
     try {
       const url = await presignDownload(file.r2_key, 3600);
 
-      // On first download: record who downloaded it and schedule deletion after 72h
+      // On first download: record who downloaded it — status stays 'available' so
+      // multiple editors can download and the file is never auto-deleted.
       if (!file.downloaded_at) {
-        const deleteAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
         db.prepare(`
           UPDATE files
-          SET status='downloaded', downloaded_by=?, downloaded_at=datetime('now'), delete_at=?
+          SET downloaded_by=?, downloaded_at=datetime('now')
           WHERE id=?
-        `).run(req.user.sub, deleteAt, file.id);
+        `).run(req.user.sub, file.id);
 
         const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id);
         sseBus.broadcast('file', updated);
