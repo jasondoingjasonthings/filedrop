@@ -885,7 +885,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 <div id="toasts"></div>
 
 <!-- ── Download Queue Panel ──────────────────────────────────────────────────── -->
-<div id="dlQueuePanel" style="display:none;position:fixed;bottom:24px;right:24px;width:440px;max-height:540px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;box-shadow:0 8px 40px rgba(11,31,42,0.18);z-index:150;display:flex;flex-direction:column;overflow:hidden">
+<div id="dlQueuePanel" style="display:none;position:fixed;bottom:24px;right:24px;width:440px;max-height:540px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;box-shadow:0 8px 40px rgba(11,31,42,0.18);z-index:150;flex-direction:column;overflow:hidden">
   <div style="padding:14px 16px;background:var(--accent);display:flex;align-items:center;gap:12px">
     <div style="flex:1;min-width:0">
       <div style="font-weight:700;font-size:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="dlQueueTitle">Downloading…</div>
@@ -903,7 +903,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
     </div>
   </div>
   <div id="dlQueueList" style="overflow-y:auto;flex:1;padding:8px 0"></div>
-  <div id="dlQueueFooter" style="display:none;padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+  <div id="dlQueueFooter" style="display:none;padding:12px 16px;border-top:1px solid var(--border);gap:8px;align-items:center">
     <span id="dlQueueFooterMsg" style="font-size:12px;color:var(--muted);flex:1"></span>
     <button id="dlRetryFailedBtn" onclick="retryFailedDownloads()" class="btn-sm btn-delete" style="display:none">Retry failed</button>
   </div>
@@ -1049,16 +1049,12 @@ async function showApp() {
 // ── Files ─────────────────────────────────────────────────────────────────────
 async function loadFiles() {
   try {
-    console.log('[loadFiles] fetching...');
     const list = await api('/api/files');
-    console.log('[loadFiles] got', list ? list.length : 'null', 'files');
     if (!list) return;
     files = {};
     for (const f of list) files[f.id] = f;
-    console.log('[loadFiles] populated files, calling render');
     render();
-    console.log('[loadFiles] render done');
-  } catch(e) { console.error('[loadFiles] error:', e.message, e.stack); }
+  } catch(e) { console.error('loadFiles', e); }
 }
 
 function render() {
@@ -1409,7 +1405,6 @@ async function cancelFolderUploads(folder) {
 
 // ── Editor render ─────────────────────────────────────────────────────────────
 function renderEditor() {
-  console.log('[renderEditor] called, files count:', Object.keys(files).length);
   const all = Object.values(files).filter(f=>f.status!=='deleted'&&f.status!=='deleting');
   const available = all.filter(f=>f.status==='available'||f.status==='uploading');
   const downloaded = Object.values(files).filter(f=>f.downloaded_at);
