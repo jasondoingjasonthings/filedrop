@@ -24,7 +24,7 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   });
   if (regRes.skip) {
     console.log(`[uploader] Already available, skipping: ${name}`);
-    return;
+    return 'skipped';
   }
   const { id } = regRes;
   console.log(`[uploader] Registered ${name} → id=${id}, key=${r2Key}`);
@@ -39,6 +39,7 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
     // Mark complete
     await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/complete`, { size });
     console.log(`[uploader] ✓ ${name} complete`);
+    return 'uploaded';
   } catch (err) {
     console.error(`[uploader] Upload error for ${name}:`, err.message);
     await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/fail`, {}).catch(() => {});

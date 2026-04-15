@@ -44,39 +44,62 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       const { paths, folder } = cmd.payload;
       const allFiles = [];
       for (const p of paths) expandPath(p, allFiles);
+      console.log(`[poller] Found ${allFiles.length} file(s) to upload`);
 
       // Upload with limited concurrency (5 at a time)
-      const CONCURRENCY = 5;
-      const failed = [];
+      // Returns counts of uploaded, skipped (already on server), and failed
+      async function uploadBatch(fileList) {
+        const CONCURRENCY = 5;
+        let uploaded = 0, skipped = 0;
+        const failed = [];
 
-      for (let i = 0; i < allFiles.length; i += CONCURRENCY) {
-        const batch = allFiles.slice(i, i + CONCURRENCY);
-        const batchResults = await Promise.allSettled(
-          batch.map(filePath => {
-            const name = path.basename(filePath);
-            return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
-          })
-        );
-        batch.forEach((filePath, j) => {
-          if (batchResults[j].status === 'rejected') failed.push(filePath);
-        });
-      }
-
-      // Retry failed files one at a time (drive may have been asleep)
-      if (failed.length) {
-        console.log(`[poller] ${failed.length} file(s) failed — retrying one-by-one after 15s`);
-        await new Promise(r => setTimeout(r, 15_000));
-        for (const filePath of failed) {
-          const name = path.basename(filePath);
-          try {
-            await uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
-          } catch (err) {
-            console.error(`[poller] Retry also failed for ${name}:`, err.message);
-          }
+        for (let i = 0; i < fileList.length; i += CONCURRENCY) {
+          const batch = fileList.slice(i, i + CONCURRENCY);
+          const batchResults = await Promise.allSettled(
+            batch.map(filePath => {
+              const name = path.basename(filePath);
+              return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
+            })
+          );
+          batch.forEach((filePath, j) => {
+            const r = batchResults[j];
+            if (r.status === 'rejected') {
+              console.error(`[poller] Failed: ${path.basename(filePath)} — ${r.reason?.message}`);
+              failed.push(filePath);
+            } else if (r.value === 'skipped') {
+              skipped++;
+            } else {
+              uploaded++;
+            }
+          });
         }
+        return { uploaded, skipped, failed };
       }
 
-      result = { queued: allFiles.length, failed: failed.length };
+      let { uploaded, skipped, failed } = await uploadBatch(allFiles);
+      console.log(`[poller] Pass 1: ${uploaded} uploaded, ${skipped} skipped, ${failed.length} failed of ${allFiles.length}`);
+
+      // Keep retrying failed files until none remain (up to 5 passes)
+      let pass = 2;
+      while (failed.length > 0 && pass <= 5) {
+        console.log(`[poller] Pass ${pass}: retrying ${failed.length} failed file(s) after 15s`);
+        await new Promise(r => setTimeout(r, 15_000));
+        const retry = await uploadBatch(failed);
+        uploaded += retry.uploaded;
+        skipped  += retry.skipped;
+        failed    = retry.failed;
+        console.log(`[poller] Pass ${pass}: ${retry.uploaded} uploaded, ${retry.skipped} skipped, ${retry.failed.length} still failing`);
+        pass++;
+      }
+
+      const done = uploaded + skipped;
+      if (done < allFiles.length) {
+        console.warn(`[poller] WARNING: only ${done}/${allFiles.length} files accounted for — ${failed.length} permanently failed`);
+      } else {
+        console.log(`[poller] ✓ All ${allFiles.length} files complete (${uploaded} uploaded, ${skipped} already on server)`);
+      }
+
+      result = { total: allFiles.length, uploaded, skipped, failed: failed.length };
     }
 
     await fetch(`${serverUrl}/api/fs/result/${cmd.id}`, {
@@ -107,7 +130,9 @@ function expandPath(filePath, out) {
     } else {
       out.push(filePath);
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[poller] Skipping inaccessible path: ${filePath} — ${err.message}`);
+  }
 }
 
 function getRoots() {
