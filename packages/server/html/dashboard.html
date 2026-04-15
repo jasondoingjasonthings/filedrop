@@ -1091,19 +1091,25 @@ function fmtDuration(sec) {
 const uploadSpeedTracker = {};
 
 function updateFolderProgress(folder) {
-  const key        = folder || '';
-  const domId      = folderDomId(key);
-  const bar        = document.getElementById('fld-bar-' + domId);
-  const etaEl      = document.getElementById('fld-eta-' + domId);
-  const pctEl      = document.getElementById('fld-pct-' + domId);
+  const key   = folder || '';
+  const domId = folderDomId(key);
+  const bar   = document.getElementById('fld-bar-' + domId);
+  const etaEl = document.getElementById('fld-eta-' + domId);
+  const pctEl = document.getElementById('fld-pct-' + domId);
   if (!bar) return;
 
-  const uploading = Object.values(files).filter(f => (f.folder || '') === key && f.status === 'uploading');
+  const inFolder   = Object.values(files).filter(f => (f.folder || '') === key && (f.status === 'uploading' || f.status === 'available'));
+  const uploading  = inFolder.filter(f => f.status === 'uploading');
   if (!uploading.length) return;
 
-  const totalBytes    = uploading.reduce((s, f) => s + (f.size || 0), 0);
-  const uploadedBytes = uploading.reduce((s, f) => s + (f.size || 0) * ((f.upload_progress || 0) / 100), 0);
-  const pct           = totalBytes > 0 ? Math.round(uploadedBytes / totalBytes * 100) : 0;
+  // Total = all files in folder (uploading + already done)
+  const totalBytes    = inFolder.reduce((s, f) => s + (f.size || 0), 0);
+  // Uploaded = completed files (full size) + in-progress files (partial)
+  const uploadedBytes = inFolder.reduce((s, f) => {
+    if (f.status === 'available') return s + (f.size || 0);
+    return s + (f.size || 0) * ((f.upload_progress || 0) / 100);
+  }, 0);
+  const pct = totalBytes > 0 ? Math.round(uploadedBytes / totalBytes * 100) : 0;
 
   bar.style.width = pct + '%';
   if (pctEl) pctEl.textContent = pct + '%';
@@ -1311,11 +1317,15 @@ function updateUploadsProgress(folder) {
   const etaEl = document.getElementById('ufld-eta-' + domId);
   if (!bar) return;
 
-  const uploading     = Object.values(files).filter(f => (f.folder || '') === key && f.status === 'uploading');
+  const inFolder      = Object.values(files).filter(f => (f.folder || '') === key && (f.status === 'uploading' || f.status === 'available'));
+  const uploading     = inFolder.filter(f => f.status === 'uploading');
   if (!uploading.length) return;
-  const totalBytes    = uploading.reduce((s, f) => s + (f.size || 0), 0);
-  const uploadedBytes = uploading.reduce((s, f) => s + (f.size || 0) * ((f.upload_progress || 0) / 100), 0);
-  const pct           = totalBytes > 0 ? Math.round(uploadedBytes / totalBytes * 100) : 0;
+  const totalBytes    = inFolder.reduce((s, f) => s + (f.size || 0), 0);
+  const uploadedBytes = inFolder.reduce((s, f) => {
+    if (f.status === 'available') return s + (f.size || 0);
+    return s + (f.size || 0) * ((f.upload_progress || 0) / 100);
+  }, 0);
+  const pct = totalBytes > 0 ? Math.round(uploadedBytes / totalBytes * 100) : 0;
 
   bar.style.width = pct + '%';
   if (pctEl) pctEl.textContent = pct + '%';
