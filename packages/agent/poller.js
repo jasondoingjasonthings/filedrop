@@ -3,7 +3,7 @@
 const fs   = require('fs');
 const path = require('path');
 const fetch = require('node-fetch');
-const { uploadFile } = require('./uploader');
+const { uploadFile, registerFile } = require('./uploader');
 
 const POLL_INTERVAL = 1500; // ms
 
@@ -46,60 +46,77 @@ async function handleCommand(cmd, serverUrl, agentToken) {
       for (const p of paths) expandPath(p, allFiles);
       console.log(`[poller] Found ${allFiles.length} file(s) to upload`);
 
-      // Upload with limited concurrency (5 at a time)
-      // Returns counts of uploaded, skipped (already on server), and failed
-      async function uploadBatch(fileList) {
-        const CONCURRENCY = 3;
-        let uploaded = 0, skipped = 0;
-        const failed = [];
+      // ── Step 1: Pre-register ALL files so they appear in the dashboard immediately ──
+      // Registration is fast (just DB inserts). Files show as 0% until their upload starts.
+      const REG_CONCURRENCY = 10;
+      const toUpload  = []; // { filePath, preRegistered: { id, r2Key, size } }
+      let   skipped   = 0;
 
-        for (let i = 0; i < fileList.length; i += CONCURRENCY) {
-          const batch = fileList.slice(i, i + CONCURRENCY);
-          const batchResults = await Promise.allSettled(
-            batch.map(filePath => {
-              const name = path.basename(filePath);
-              return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
-            })
-          );
-          batch.forEach((filePath, j) => {
-            const r = batchResults[j];
+      for (let i = 0; i < allFiles.length; i += REG_CONCURRENCY) {
+        const batch = allFiles.slice(i, i + REG_CONCURRENCY);
+        const results = await Promise.allSettled(batch.map(filePath => {
+          const name = path.basename(filePath);
+          return registerFile({ serverUrl, agentToken, filePath, name, folder: folder || '' });
+        }));
+        results.forEach((r, j) => {
+          if (r.status === 'rejected') {
+            console.warn(`[poller] Register failed for ${path.basename(batch[j])}: ${r.reason?.message}`);
+          } else if (r.value === null) {
+            skipped++; // already on server
+          } else {
+            toUpload.push({ filePath: batch[j], preRegistered: r.value });
+          }
+        });
+      }
+      console.log(`[poller] Registered ${toUpload.length} to upload, ${skipped} already on server`);
+
+      // ── Step 2: Upload registered files in batches ──
+      const CONCURRENCY = 3;
+      async function uploadBatch(items) {
+        let uploaded = 0;
+        const failed = [];
+        for (let i = 0; i < items.length; i += CONCURRENCY) {
+          const batch = items.slice(i, i + CONCURRENCY);
+          const results = await Promise.allSettled(batch.map(({ filePath, preRegistered }) => {
+            const name = path.basename(filePath);
+            return uploadFile({ serverUrl, agentToken, filePath, name, folder: folder || '', preRegistered });
+          }));
+          results.forEach((r, j) => {
             if (r.status === 'rejected') {
-              console.error(`[poller] Failed: ${path.basename(filePath)} — ${r.reason?.message}`);
-              failed.push(filePath);
-            } else if (r.value === 'skipped') {
-              skipped++;
+              console.error(`[poller] Failed: ${path.basename(batch[j].filePath)} — ${r.reason?.message}`);
+              failed.push(batch[j]);
             } else {
               uploaded++;
             }
           });
         }
-        return { uploaded, skipped, failed };
+        return { uploaded, failed };
       }
 
-      let { uploaded, skipped, failed } = await uploadBatch(allFiles);
-      console.log(`[poller] Pass 1: ${uploaded} uploaded, ${skipped} skipped, ${failed.length} failed of ${allFiles.length}`);
+      let { uploaded, failed } = await uploadBatch(toUpload);
+      console.log(`[poller] Pass 1: ${uploaded} uploaded, ${failed.length} failed`);
 
-      // Keep retrying failed files until none remain (up to 5 passes)
+      // Retry failed files up to 5 times
       let pass = 2;
       while (failed.length > 0 && pass <= 5) {
-        console.log(`[poller] Pass ${pass}: retrying ${failed.length} failed file(s) after 15s`);
+        console.log(`[poller] Pass ${pass}: retrying ${failed.length} file(s) after 15s`);
         await new Promise(r => setTimeout(r, 15_000));
         const retry = await uploadBatch(failed);
         uploaded += retry.uploaded;
-        skipped  += retry.skipped;
         failed    = retry.failed;
-        console.log(`[poller] Pass ${pass}: ${retry.uploaded} uploaded, ${retry.skipped} skipped, ${retry.failed.length} still failing`);
+        console.log(`[poller] Pass ${pass}: ${retry.uploaded} uploaded, ${retry.failed.length} still failing`);
         pass++;
       }
 
-      const done = uploaded + skipped;
-      if (done < allFiles.length) {
-        console.warn(`[poller] WARNING: only ${done}/${allFiles.length} files accounted for — ${failed.length} permanently failed`);
+      const total = allFiles.length;
+      const done  = uploaded + skipped;
+      if (done < total) {
+        console.warn(`[poller] WARNING: ${done}/${total} complete — ${failed.length} permanently failed`);
       } else {
-        console.log(`[poller] ✓ All ${allFiles.length} files complete (${uploaded} uploaded, ${skipped} already on server)`);
+        console.log(`[poller] ✓ All ${total} files complete (${uploaded} uploaded, ${skipped} already on server)`);
       }
 
-      result = { total: allFiles.length, uploaded, skipped, failed: failed.length };
+      result = { total, uploaded, skipped, failed: failed.length };
     }
 
     await fetch(`${serverUrl}/api/fs/result/${cmd.id}`, {

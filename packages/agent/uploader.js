@@ -8,26 +8,41 @@ const PART_SIZE        = 256 * 1024 * 1024; // 256 MB per part
 const MULTIPART_ABOVE  =  10 * 1024 * 1024; // use multipart above 10 MB
 const PART_CONCURRENCY = 2;                 // parallel parts per file (streaming, low memory)
 
-async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
+// Pre-register a file so it appears in the dashboard immediately.
+// Returns { id, r2Key } on success, or null if already available (skip).
+async function registerFile({ serverUrl, agentToken, filePath, name, folder }) {
   const stat = fs.statSync(filePath);
   const size = stat.size;
 
-  // Generate a unique r2 key
   const ext   = path.extname(name);
   const base  = path.basename(name, ext).replace(/[^a-zA-Z0-9._-]/g, '_');
   const ts    = Date.now();
   const r2Key = folder ? `${folder}/${ts}-${base}${ext}` : `${ts}-${base}${ext}`;
 
-  // Register upload with server
   const regRes = await api(serverUrl, agentToken, 'POST', '/api/upload/register', {
     name, r2_key: r2Key, size, folder,
   });
   if (regRes.skip) {
     console.log(`[uploader] Already available, skipping: ${name}`);
-    return 'skipped';
+    return null; // null = already on server
   }
-  const { id } = regRes;
-  console.log(`[uploader] Registered ${name} → id=${id}, key=${r2Key}`);
+  return { id: regRes.id, r2Key, size };
+}
+
+async function uploadFile({ serverUrl, agentToken, filePath, name, folder, preRegistered }) {
+  let id, r2Key, size;
+
+  if (preRegistered) {
+    // Already registered — just upload
+    ({ id, r2Key, size } = preRegistered);
+  } else {
+    // Register + upload in one call (legacy path)
+    const reg = await registerFile({ serverUrl, agentToken, filePath, name, folder });
+    if (!reg) return 'skipped';
+    ({ id, r2Key, size } = reg);
+  }
+
+  console.log(`[uploader] Uploading ${name} → id=${id}`);
 
   try {
     if (size > MULTIPART_ABOVE) {
@@ -171,4 +186,4 @@ async function api(serverUrl, agentToken, method, path, body) {
   return res.json();
 }
 
-module.exports = { uploadFile };
+module.exports = { uploadFile, registerFile };

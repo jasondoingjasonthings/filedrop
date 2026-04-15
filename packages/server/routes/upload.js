@@ -30,11 +30,11 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       return res.json({ id: available.id, skip: true });
     }
 
-    // Skip if already uploading with a recent heartbeat (within 5 min = still alive)
+    // Skip if already uploading and still alive (active upload or queued within 60 min)
     const activeUpload = db.prepare(`
       SELECT id FROM files
       WHERE name=? AND folder=? AND status='uploading'
-        AND last_seen_at >= datetime('now', '-5 minutes')
+        AND last_seen_at >= datetime('now', '-60 minutes')
       LIMIT 1
     `).get(name, folderKey);
     if (activeUpload) {
@@ -42,11 +42,11 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       return res.json({ id: activeUpload.id, skip: true });
     }
 
-    // Kill any stale uploading entries for this name+folder (no heartbeat for 5+ min)
+    // Kill any truly stale uploading entries (no heartbeat for 60+ min)
     const stale = db.prepare(`
       SELECT id FROM files
       WHERE name=? AND folder=? AND status='uploading'
-        AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-5 minutes'))
+        AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-60 minutes'))
     `).all(name, folderKey);
     for (const s of stale) {
       db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(s.id);
