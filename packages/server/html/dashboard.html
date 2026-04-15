@@ -951,7 +951,7 @@ function toast(msg, type='success') {
   el.className = `toast ${type}`;
   el.textContent = msg;
   document.getElementById('toasts').appendChild(el);
-  setTimeout(() => el.remove(), msg.startsWith('DEBUG') ? 15000 : 4000);
+  setTimeout(() => el.remove(), 4000);
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -1007,74 +1007,58 @@ function logout() {
 
 // ── App init ──────────────────────────────────────────────────────────────────
 async function showApp() {
-  try {
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
-    document.getElementById('headerUsername').textContent = uname;
-    const roleBadge = document.getElementById('headerRole');
-    roleBadge.textContent = role;
-    roleBadge.className = `role-badge ${role}`;
-    toast('DEBUG: showApp role=' + role, 'info');
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('headerUsername').textContent = uname;
+  const roleBadge = document.getElementById('headerRole');
+  roleBadge.textContent = role;
+  roleBadge.className = `role-badge ${role}`;
 
-    if (role === 'owner') {
-      document.getElementById('ownerTabs').style.display = 'flex';
-      document.getElementById('editorTabs').style.display = 'none';
-      // Hide editor panels, show owner panels
-      ['tab-available','tab-history','tab-prefs','tab-request'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.classList.remove('active'); el.style.display='none'; }
-      });
-      ['tab-browse','tab-uploads','tab-settings'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.classList.remove('active'); el.style.display='none'; }
-      });
-      document.getElementById('tab-library').classList.add('active');
-      document.getElementById('tab-uploads').classList.remove('active');
-      document.getElementById('tab-settings').classList.remove('active');
-      loadAgentToken();
-      loadUsers();
-      loadUploadLinks();
-      loadRequests();
-      initOwnerUpload();
-    } else {
-      toast('DEBUG: entering editor branch', 'info');
-      document.getElementById('ownerTabs').style.display = 'none';
-      document.getElementById('editorTabs').style.display = 'flex';
-      ['tab-library','tab-browse','tab-uploads','tab-settings'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) { el.classList.remove('active'); el.style.display='none'; }
-      });
-      document.getElementById('tab-available').classList.add('active');
-      document.getElementById('tab-available').style.display = 'block';
-      toast('DEBUG: calling renderDlPrefs', 'info');
-      try { renderDlPrefs(); } catch(e) { toast('DEBUG renderDlPrefs THREW: ' + e.message, 'error'); }
-      toast('DEBUG: calling initBrowserUpload', 'info');
-      try { initBrowserUpload(); } catch(e) { toast('DEBUG initBrowserUpload THREW: ' + e.message, 'error'); }
-      toast('DEBUG: editor setup done', 'info');
-    }
-
-    toast('DEBUG: calling loadFiles', 'info');
-    await loadFiles();
-    toast('DEBUG: calling connectSSE', 'info');
-    connectSSE();
-  } catch(e) {
-    toast('DEBUG showApp CRASHED: ' + e.message, 'error');
-    console.error('showApp error', e);
+  if (role === 'owner') {
+    document.getElementById('ownerTabs').style.display = 'flex';
+    document.getElementById('editorTabs').style.display = 'none';
+    ['tab-available','tab-history','tab-prefs','tab-request'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.classList.remove('active'); el.style.display='none'; }
+    });
+    ['tab-browse','tab-uploads','tab-settings'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.classList.remove('active'); el.style.display='none'; }
+    });
+    document.getElementById('tab-library').classList.add('active');
+    document.getElementById('tab-uploads').classList.remove('active');
+    document.getElementById('tab-settings').classList.remove('active');
+    loadAgentToken();
+    loadUsers();
+    loadUploadLinks();
+    loadRequests();
+    initOwnerUpload();
+  } else {
+    document.getElementById('ownerTabs').style.display = 'none';
+    document.getElementById('editorTabs').style.display = 'flex';
+    ['tab-library','tab-browse','tab-uploads','tab-settings'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.classList.remove('active'); el.style.display='none'; }
+    });
+    document.getElementById('tab-available').classList.add('active');
+    document.getElementById('tab-available').style.display = 'block';
+    renderDlPrefs();
+    initBrowserUpload();
   }
+
+  await loadFiles();
+  connectSSE();
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
 async function loadFiles() {
   try {
-    toast('DEBUG: fetching files…', 'info');
     const list = await api('/api/files');
-    if (!list) { toast('DEBUG: api returned null (401 — logged out)', 'error'); return; }
-    toast(`DEBUG: got ${list.length} files, rendering…`, 'info');
+    if (!list) return;
     files = {};
     for (const f of list) files[f.id] = f;
     render();
-    toast(`DEBUG: render() done`, 'info');
-  } catch(e) { toast('DEBUG loadFiles err: ' + e.message, 'error'); console.error('loadFiles', e); }
+  } catch(e) { console.error('loadFiles', e); }
 }
 
 function render() {
