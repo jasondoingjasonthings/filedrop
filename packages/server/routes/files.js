@@ -33,9 +33,9 @@ function makeFilesRouter(db, sseBus) {
     try {
       const url = await presignDownload(file.r2_key, 3600);
 
-      // Log first download and schedule deletion
+      // On first download: record who downloaded it and schedule deletion after 72h
       if (!file.downloaded_at) {
-        const deleteAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+        const deleteAt = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
         db.prepare(`
           UPDATE files
           SET status='downloaded', downloaded_by=?, downloaded_at=datetime('now'), delete_at=?
