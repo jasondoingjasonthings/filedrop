@@ -956,9 +956,14 @@ function toast(msg, type='success') {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, opts={}) {
+  const hasBody = opts.body !== undefined;
   const res = await fetch(path, {
     ...opts,
-    headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json', ...(opts.headers||{}) }
+    headers: {
+      Authorization: 'Bearer '+token,
+      ...(hasBody ? { 'Content-Type':'application/json' } : {}),
+      ...(opts.headers||{})
+    }
   });
   if (res.status === 401) { logout(); return null; }
   if (!res.ok) {
