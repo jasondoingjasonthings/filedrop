@@ -6,7 +6,7 @@ const fetch = require('node-fetch');
 
 const PART_SIZE        = 256 * 1024 * 1024; // 256 MB per part
 const MULTIPART_ABOVE  =  10 * 1024 * 1024; // use multipart above 10 MB
-const PART_CONCURRENCY = 2;                 // parallel parts per file (streaming, low memory)
+const PART_CONCURRENCY = 3;                 // parallel parts per file (streaming, low memory)
 
 // Pre-register a file so it appears in the dashboard immediately.
 // Returns { id, r2Key } on success, or null if already available (skip).
