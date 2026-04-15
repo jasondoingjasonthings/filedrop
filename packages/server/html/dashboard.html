@@ -1049,12 +1049,16 @@ async function showApp() {
 // ── Files ─────────────────────────────────────────────────────────────────────
 async function loadFiles() {
   try {
+    console.log('[loadFiles] fetching...');
     const list = await api('/api/files');
+    console.log('[loadFiles] got', list ? list.length : 'null', 'files');
     if (!list) return;
     files = {};
     for (const f of list) files[f.id] = f;
+    console.log('[loadFiles] populated files, calling render');
     render();
-  } catch(e) { console.error('loadFiles', e); }
+    console.log('[loadFiles] render done');
+  } catch(e) { console.error('[loadFiles] error:', e.message, e.stack); }
 }
 
 function render() {
@@ -1405,6 +1409,7 @@ async function cancelFolderUploads(folder) {
 
 // ── Editor render ─────────────────────────────────────────────────────────────
 function renderEditor() {
+  console.log('[renderEditor] called, files count:', Object.keys(files).length);
   const all = Object.values(files).filter(f=>f.status!=='deleted'&&f.status!=='deleting');
   const available = all.filter(f=>f.status==='available'||f.status==='uploading');
   const downloaded = Object.values(files).filter(f=>f.downloaded_at);
