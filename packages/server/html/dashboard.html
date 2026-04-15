@@ -1141,11 +1141,7 @@ function renderLibrary(all) {
     return a.localeCompare(b);
   });
 
-  // Auto-expand folders that have active uploads so progress is visible
-  keys.forEach(k => {
-    const hasActive = (groups[k] || []).some(f => f.status === 'uploading');
-    if (hasActive && !expandedFolders.has('__seen_' + k)) { expandedFolders.add(k); expandedFolders.add('__seen_' + k); }
-  });
+  // Folders stay collapsed by default — progress bar is visible on the header without expanding
 
   grid.innerHTML = keys.map(key => {
     const gFiles    = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
@@ -1194,36 +1190,30 @@ function renderLibrary(all) {
         </tr>`;
     }).join('');
 
-    const uploadBar = hasUploading ? `
-      <div style="padding:10px 16px 12px;background:var(--card);border-top:1px solid var(--border)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-          <span style="font-size:11px;font-weight:700;color:var(--accent-d)">
-            Uploading ${uploadingFiles.length} of ${gFiles.length} files
-            · <span id="fld-pct-${domId}">${folderPct}%</span>
-          </span>
-          <span id="fld-eta-${domId}" style="font-size:11px;color:var(--muted)">calculating…</span>
-        </div>
-        <div style="background:var(--border);border-radius:99px;height:5px;overflow:hidden">
-          <div id="fld-bar-${domId}" style="width:${folderPct}%;height:100%;background:var(--accent);border-radius:99px;transition:width .5s ease"></div>
-        </div>
-      </div>` : '';
 
     return `
       <div class="folder-group" style="margin-bottom:12px">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
-          <div class="folder-group-info">
+          <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${key ? esc(key) : '<span style="color:var(--muted)">No folder</span>'}</div>
             <div class="folder-group-meta">${gFiles.length} file${gFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
+            ${hasUploading ? `
+              <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                <div style="flex:1;background:var(--border);border-radius:99px;height:5px;overflow:hidden;max-width:220px">
+                  <div id="fld-bar-${domId}" style="width:${folderPct}%;height:100%;background:var(--accent);border-radius:99px;transition:width .5s ease"></div>
+                </div>
+                <span id="fld-pct-${domId}" style="font-size:11px;font-weight:700;color:var(--accent-d);white-space:nowrap">${folderPct}%</span>
+                <span id="fld-eta-${domId}" style="font-size:11px;color:var(--muted);white-space:nowrap">calculating…</span>
+              </div>` : ''}
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
-          ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel uploads</button>` : ''}
+          ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
           ${gFiles.some(f => f.status === 'available') ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
-        ${uploadBar}
         ${isExpanded ? `
           <div style="background:var(--bg);border-top:1.5px solid var(--border)">
             <table class="lib-table">
