@@ -28,7 +28,7 @@ const app    = express();
 const db     = getDb();
 const sseBus = new SseBus();
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 // Setup wizard (pre-auth)
 app.use('/setup', makeSetupRouter(db));
