@@ -80,6 +80,7 @@ const HTML_DIR = path.join(__dirname, 'html');
 app.get('/', (req, res) => {
   if (!ownerExists(db)) { res.redirect('/setup'); return; }
   res.setHeader('Content-Type', 'text/html');
+  res.setHeader('Cache-Control', 'no-store');
   res.send(fs.readFileSync(path.join(HTML_DIR, 'dashboard.html'), 'utf-8'));
 });
 
