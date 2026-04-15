@@ -1256,6 +1256,7 @@ function renderLibrary(all) {
           <span class="status-badge ${gStatus}">${gStatus}</span>
           ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
           ${gFiles.some(f => f.status === 'available') ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
+          ${gFiles.some(f => f.status === 'downloaded' && f.delete_at) ? `<button class="btn-sm btn-keep" style="flex-shrink:0" onclick="event.stopPropagation();keepFolder('${safeKey}')">Keep all</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
@@ -1776,6 +1777,15 @@ async function keepFile(id) {
   try {
     await api(`/api/files/${id}/keep`, { method:'POST' });
     toast('Auto-delete cancelled');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function keepFolder(folder) {
+  const toKeep = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'downloaded' && f.delete_at);
+  if (!toKeep.length) return;
+  try {
+    await Promise.all(toKeep.map(f => api(`/api/files/${f.id}/keep`, { method:'POST' })));
+    toast(`Kept ${toKeep.length} file${toKeep.length !== 1 ? 's' : ''} — auto-delete cancelled`);
   } catch(e) { toast(e.message, 'error'); }
 }
 
