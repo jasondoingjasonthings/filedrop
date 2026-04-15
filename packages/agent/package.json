@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "build:win": "pkg index.js --target node20-win-x64 --output dist/filedrop-agent-win.exe",
-    "build:mac": "pkg index.js --target node20-macos-arm64 --output dist/filedrop-agent-mac"
+    "build:win": "pkg index.js --target node18-win-x64 --output dist/filedrop-agent-win.exe",
+    "build:mac": "pkg index.js --target node18-macos-arm64 --output dist/filedrop-agent-mac"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.600.0",
@@ -20,6 +20,6 @@
   },
   "pkg": {
     "assets": [],
-    "targets": ["node20-win-x64", "node20-macos-arm64"]
+    "targets": ["node18-win-x64", "node18-macos-arm64"]
   }
 }

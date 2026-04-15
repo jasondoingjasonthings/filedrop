@@ -884,6 +884,31 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
 <div id="toasts"></div>
 
+<!-- ── Download Queue Panel ──────────────────────────────────────────────────── -->
+<div id="dlQueuePanel" style="display:none;position:fixed;bottom:24px;right:24px;width:440px;max-height:540px;background:var(--card);border:1.5px solid var(--border2);border-radius:14px;box-shadow:0 8px 40px rgba(11,31,42,0.18);z-index:150;display:flex;flex-direction:column;overflow:hidden">
+  <div style="padding:14px 16px;background:var(--accent);display:flex;align-items:center;gap:12px">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:13px;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="dlQueueTitle">Downloading…</div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.8);margin-top:2px" id="dlQueueSub"></div>
+    </div>
+    <button onclick="closeDlQueue()" style="background:rgba(255,255,255,0.2);border:none;border-radius:6px;color:#fff;width:26px;height:26px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0">✕</button>
+  </div>
+  <div style="padding:10px 16px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <span style="font-size:11px;font-weight:700;color:var(--accent-d)" id="dlQueueOverallLabel">0 of 0 files</span>
+      <span style="font-size:11px;color:var(--muted)" id="dlQueueOverallPct">0%</span>
+    </div>
+    <div style="background:var(--border);border-radius:99px;height:6px;overflow:hidden">
+      <div id="dlQueueOverallBar" style="width:0%;height:100%;background:var(--accent);border-radius:99px;transition:width .4s ease"></div>
+    </div>
+  </div>
+  <div id="dlQueueList" style="overflow-y:auto;flex:1;padding:8px 0"></div>
+  <div id="dlQueueFooter" style="display:none;padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center">
+    <span id="dlQueueFooterMsg" style="font-size:12px;color:var(--muted);flex:1"></span>
+    <button id="dlRetryFailedBtn" onclick="retryFailedDownloads()" class="btn-sm btn-delete" style="display:none">Retry failed</button>
+  </div>
+</div>
+
 <script>
 'use strict';
 
@@ -1465,54 +1490,216 @@ function toggleAutoDownload(folder, btn) {
   renderEditor();
 }
 
+// ── Download Queue ────────────────────────────────────────────────────────────
+const DL_CONCURRENCY  = 2;
+const DL_MAX_ATTEMPTS = 3;
+const DL_RETRY_DELAY  = 5000;
+let dlQueueItems = []; // { id, name, size, status, progress, attempts, error }
+let dlQueueRunning = false;
+
 async function downloadFolderAll(folder, btn) {
   const toDownload = Object.values(files).filter(f =>
     (f.folder || '(root)') === folder && f.status === 'available'
   );
   if (!toDownload.length) return;
 
-  autoDownloadFolders.add(folder);
-  btn.disabled = true;
-  btn.textContent = 'Preparing…';
+  if (btn) { btn.disabled = true; btn.textContent = 'Queued…'; }
 
-  try {
-    // Fetch all presigned URLs in parallel
-    const results = await Promise.all(
-      toDownload.map(f => api(`/api/files/${f.id}/download`, { method: 'POST' })
-        .then(data => ({ url: data?.url, name: f.name }))
-        .catch(() => null))
-    );
-    const valid = results.filter(Boolean);
+  dlQueueItems = toDownload.map(f => ({
+    id: f.id, name: f.name, size: f.size || 0,
+    status: 'waiting', progress: 0, attempts: 0, error: '',
+  }));
 
-    if (downloadDirHandle) {
-      // Stream files sequentially straight into chosen folder
-      for (let i = 0; i < valid.length; i++) {
-        const { url, name } = valid[i];
-        btn.textContent = `Saving ${i + 1}/${valid.length}…`;
-        const fileHandle = await downloadDirHandle.getFileHandle(name, { create: true });
-        const writable   = await fileHandle.createWritable();
-        const response   = await fetch(url);
-        await response.body.pipeTo(writable);
-      }
-      btn.textContent = `✓ ${valid.length} saved`;
-      btn.style.background = 'var(--success)';
-    } else {
-      // HTTP fallback: staggered anchor clicks → Downloads folder
-      valid.forEach(({ url, name }, i) => {
-        setTimeout(() => {
-          const a = document.createElement('a');
-          a.href = url; a.download = name;
-          document.body.appendChild(a); a.click(); a.remove();
-        }, i * 1200);
-      });
-      btn.textContent = `↓ ${valid.length} starting…`;
-      setTimeout(() => { btn.textContent = '✓ Done'; btn.style.background = 'var(--success)'; }, valid.length * 1200);
-    }
-  } catch(e) {
-    toast(e.message, 'error');
+  showDlQueuePanel(folder);
+  await runDlQueue();
+
+  if (btn) {
+    const failed = dlQueueItems.filter(i => i.status === 'failed').length;
     btn.disabled = false;
-    btn.textContent = '↓ All';
+    btn.textContent = failed ? `↓ All (${failed} failed)` : '✓ Done';
+    if (!failed) btn.style.background = 'var(--success)';
   }
+}
+
+function showDlQueuePanel(folder) {
+  const panel = document.getElementById('dlQueuePanel');
+  panel.style.display = 'flex';
+  document.getElementById('dlQueueTitle').textContent = folder || 'Download queue';
+  document.getElementById('dlQueueFooter').style.display = 'none';
+  document.getElementById('dlRetryFailedBtn').style.display = 'none';
+  renderDlQueueList();
+  updateDlQueueOverall();
+}
+
+function closeDlQueue() {
+  document.getElementById('dlQueuePanel').style.display = 'none';
+}
+
+function renderDlQueueList() {
+  const list = document.getElementById('dlQueueList');
+  list.innerHTML = dlQueueItems.map((item, i) => {
+    const icon = item.status === 'done'       ? `<span style="color:var(--success);font-size:16px">✓</span>`
+               : item.status === 'failed'     ? `<span style="color:var(--danger);font-size:16px">✕</span>`
+               : item.status === 'downloading'? `<span style="color:var(--accent);font-size:11px;font-weight:700">${item.progress}%</span>`
+               : item.status === 'retrying'   ? `<span style="color:var(--warn);font-size:11px">retry…</span>`
+               :                                `<span style="color:var(--muted2);font-size:11px">–</span>`;
+    const bar = (item.status === 'downloading' || item.status === 'done') ? `
+      <div style="background:var(--border);border-radius:99px;height:3px;margin-top:4px;overflow:hidden">
+        <div style="width:${item.progress}%;height:100%;background:${item.status==='done'?'var(--success)':'var(--accent)'};border-radius:99px;transition:width .3s ease"></div>
+      </div>` : '';
+    const errMsg = item.status === 'failed' ? `<div style="font-size:10px;color:var(--danger);margin-top:2px">${esc(item.error||'Failed')}</div>` : '';
+    return `<div id="dlqi-${i}" style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px">
+      <div style="width:32px;text-align:center;padding-top:2px;flex-shrink:0">${icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</div>
+        <div style="font-size:11px;color:var(--muted)">${fmtBytes(item.size)}</div>
+        ${bar}${errMsg}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateDlQueueItem(index) {
+  const el = document.getElementById('dlqi-' + index);
+  if (!el) return;
+  const item = dlQueueItems[index];
+  const icon = item.status === 'done'       ? `<span style="color:var(--success);font-size:16px">✓</span>`
+             : item.status === 'failed'     ? `<span style="color:var(--danger);font-size:16px">✕</span>`
+             : item.status === 'downloading'? `<span style="color:var(--accent);font-size:11px;font-weight:700">${item.progress}%</span>`
+             : item.status === 'retrying'   ? `<span style="color:var(--warn);font-size:11px">retry…</span>`
+             :                                `<span style="color:var(--muted2);font-size:11px">–</span>`;
+  el.querySelector('div:first-child').innerHTML = icon;
+  const barHtml = (item.status === 'downloading' || item.status === 'done') ? `
+    <div style="background:var(--border);border-radius:99px;height:3px;margin-top:4px;overflow:hidden">
+      <div style="width:${item.progress}%;height:100%;background:${item.status==='done'?'var(--success)':'var(--accent)'};border-radius:99px;transition:width .3s ease"></div>
+    </div>` : '';
+  const errHtml = item.status === 'failed' ? `<div style="font-size:10px;color:var(--danger);margin-top:2px">${esc(item.error||'Failed')}</div>` : '';
+  const info = el.querySelector('div:last-child');
+  // Update bar + error without touching name/size
+  const bars = info.querySelectorAll('div:nth-child(n+3)');
+  bars.forEach(b => b.remove());
+  if (barHtml) info.insertAdjacentHTML('beforeend', barHtml);
+  if (errHtml) info.insertAdjacentHTML('beforeend', errHtml);
+}
+
+function updateDlQueueOverall() {
+  const total  = dlQueueItems.length;
+  const done   = dlQueueItems.filter(i => i.status === 'done').length;
+  const failed = dlQueueItems.filter(i => i.status === 'failed').length;
+  const totalBytes = dlQueueItems.reduce((s, i) => s + i.size, 0);
+  const doneBytes  = dlQueueItems.reduce((s, i) => {
+    if (i.status === 'done') return s + i.size;
+    if (i.status === 'downloading') return s + i.size * (i.progress / 100);
+    return s;
+  }, 0);
+  const pct = totalBytes > 0 ? Math.round(doneBytes / totalBytes * 100) : 0;
+
+  document.getElementById('dlQueueOverallBar').style.width = pct + '%';
+  document.getElementById('dlQueueOverallPct').textContent = pct + '%';
+  document.getElementById('dlQueueOverallLabel').textContent = `${done} of ${total} files`;
+
+  if (done + failed === total) {
+    const footer = document.getElementById('dlQueueFooter');
+    const msg    = document.getElementById('dlQueueFooterMsg');
+    const retry  = document.getElementById('dlRetryFailedBtn');
+    footer.style.display = 'flex';
+    if (failed) {
+      msg.textContent = `${failed} file${failed!==1?'s':''} failed`;
+      retry.style.display = 'inline-flex';
+    } else {
+      msg.textContent = `✓ All ${total} files downloaded`;
+      retry.style.display = 'none';
+    }
+  }
+}
+
+async function runDlQueue() {
+  dlQueueRunning = true;
+  let index = 0;
+  const pending = dlQueueItems.filter(i => i.status === 'waiting' || i.status === 'failed');
+  // Reset failed to waiting for this run
+  pending.forEach(i => { if (i.status === 'failed') { i.status = 'waiting'; i.progress = 0; } });
+
+  async function worker() {
+    while (true) {
+      const item = dlQueueItems.find((i, idx) => i.status === 'waiting' && idx >= 0);
+      if (!item) break;
+      item.status = 'downloading'; // claim it
+      const idx = dlQueueItems.indexOf(item);
+      await downloadQueueItem(item, idx);
+    }
+  }
+
+  const workers = [];
+  for (let i = 0; i < DL_CONCURRENCY; i++) workers.push(worker());
+  await Promise.all(workers);
+  dlQueueRunning = false;
+}
+
+async function downloadQueueItem(item, idx) {
+  for (let attempt = 1; attempt <= DL_MAX_ATTEMPTS; attempt++) {
+    item.attempts = attempt;
+    item.status = attempt > 1 ? 'retrying' : 'downloading';
+    item.progress = 0;
+    updateDlQueueItem(idx);
+    if (attempt > 1) await new Promise(r => setTimeout(r, DL_RETRY_DELAY));
+
+    try {
+      const data = await api(`/api/files/${item.id}/download`, { method: 'POST' });
+      if (!data?.url) throw new Error('No download URL');
+      await streamFile(item, idx, data.url);
+      item.status = 'done';
+      item.progress = 100;
+      updateDlQueueItem(idx);
+      updateDlQueueOverall();
+      return;
+    } catch(err) {
+      if (attempt === DL_MAX_ATTEMPTS) {
+        item.status = 'failed';
+        item.error  = err.message;
+        updateDlQueueItem(idx);
+        updateDlQueueOverall();
+      }
+    }
+  }
+}
+
+async function streamFile(item, idx, url) {
+  if (downloadDirHandle) {
+    const fileHandle = await downloadDirHandle.getFileHandle(item.name, { create: true });
+    const writable   = await fileHandle.createWritable();
+    const response   = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const contentLength = parseInt(response.headers.get('content-length') || '0');
+    let received = 0;
+    const transform = new TransformStream({
+      transform(chunk, controller) {
+        received += chunk.byteLength;
+        if (contentLength) {
+          item.progress = Math.round(received / contentLength * 100);
+          updateDlQueueItem(idx);
+          updateDlQueueOverall();
+        }
+        controller.enqueue(chunk);
+      }
+    });
+    await response.body.pipeThrough(transform).pipeTo(writable);
+  } else {
+    // Fallback: anchor download (no per-file progress)
+    const a = document.createElement('a');
+    a.href = url; a.download = item.name;
+    document.body.appendChild(a); a.click(); a.remove();
+    item.progress = 100;
+    updateDlQueueItem(idx);
+  }
+}
+
+async function retryFailedDownloads() {
+  document.getElementById('dlRetryFailedBtn').style.display = 'none';
+  document.getElementById('dlQueueFooter').style.display = 'none';
+  dlQueueItems.filter(i => i.status === 'failed').forEach(i => { i.status = 'waiting'; i.progress = 0; });
+  renderDlQueueList();
+  await runDlQueue();
 }
 
 async function downloadSingleFile(id, name, btn) {
