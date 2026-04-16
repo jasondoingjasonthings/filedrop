@@ -956,14 +956,9 @@ function toast(msg, type='success') {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, opts={}) {
-  const hasBody = opts.body !== undefined;
   const res = await fetch(path, {
     ...opts,
-    headers: {
-      Authorization: 'Bearer '+token,
-      ...(hasBody ? { 'Content-Type':'application/json' } : {}),
-      ...(opts.headers||{})
-    }
+    headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json', ...(opts.headers||{}) }
   });
   if (res.status === 401) { logout(); return null; }
   if (!res.ok) {
@@ -2627,7 +2622,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', addUser);
 
 // ── Auto-login ────────────────────────────────────────────────────────────────
 if (token) {
-  fetch('/api/files', { headers: { Authorization: 'Bearer '+token } })
+  fetch('/api/files', { headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json' } })
     .then(r => { if (r.ok) showApp(); else logout(); })
     .catch(() => logout());
 }
