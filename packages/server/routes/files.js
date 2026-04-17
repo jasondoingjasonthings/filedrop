@@ -7,10 +7,10 @@ const { presignDownload, deleteObject } = require('../r2');
 function makeFilesRouter(db, sseBus) {
   const router = express.Router();
 
-  // List files (owner sees all, editor sees non-deleted only)
+  // List files (owner sees recent deleted only, editor sees non-deleted only)
   router.get('/', (req, res) => {
     const files = req.user.role === 'owner'
-      ? db.prepare(`SELECT * FROM files ORDER BY created_at DESC`).all()
+      ? db.prepare(`SELECT * FROM files WHERE status != 'deleted' OR deleted_at >= datetime('now', '-7 days') ORDER BY created_at DESC`).all()
       : db.prepare(`SELECT * FROM files WHERE status NOT IN ('deleted') ORDER BY created_at DESC`).all();
     res.json(files);
   });
