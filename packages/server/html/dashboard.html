@@ -923,6 +923,7 @@ let files  = {};   // id → file object (only loaded folders)
 let folderSummaries = []; // [{folder, file_count, total_size, uploading_count, available_count, downloaded_count}]
 let loadedFolders  = new Set(); // folder keys whose files have been fetched
 let loadingFolders = new Set(); // folder keys currently being fetched
+let queueStatus    = {}; // folder key → {total, done, failed, ts} — agent queue progress
 let es     = null;
 let activeFilter = 'available';
 
@@ -1271,7 +1272,7 @@ function renderLibrary() {
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${key ? esc(key) : '<span style="color:var(--muted)">No folder</span>'}</div>
-            <div class="folder-group-meta">${summary.file_count} file${summary.file_count !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
+            <div class="folder-group-meta">${summary.file_count} file${summary.file_count !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
             ${hasUploading ? `
               <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
                 <div style="flex:1;background:var(--border);border-radius:99px;height:5px;overflow:hidden;max-width:220px">
@@ -1499,7 +1500,7 @@ function renderEditor() {
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
             <div class="folder-group-name">${esc(label)}</div>
-            <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}</div>
+            <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
           </div>
           <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
@@ -2605,6 +2606,17 @@ function connectSSE() {
         }
       }, 100);
     }
+  });
+
+  es.addEventListener('queue', e => {
+    const { folder, total, done, failed } = JSON.parse(e.data);
+    const key = folder ?? '';
+    if (total > 0) {
+      queueStatus[key] = { total, done, failed, ts: Date.now() };
+    } else {
+      delete queueStatus[key]; // queue finished, clear it
+    }
+    render();
   });
 
   es.addEventListener('progress', e => {

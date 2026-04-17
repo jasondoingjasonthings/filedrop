@@ -3,7 +3,7 @@
 const express = require('express');
 const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
-const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart } = require('../r2');
+const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject } = require('../r2');
 
 function makeUploadRouter(db, sseBus, jwtSecret) {
   const router = express.Router();
@@ -153,6 +153,34 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  });
+
+  // Verify upload integrity — agent calls after /complete to confirm R2 has the object
+  router.get('/:id/verify', agentAuth, async (req, res) => {
+    const file = db.prepare(`SELECT r2_key, size FROM files WHERE id=?`).get(req.params.id);
+    if (!file) { res.status(404).json({ error: 'Not found' }); return; }
+    try {
+      const head = await headObject(file.r2_key);
+      if (!head) {
+        res.json({ exists: false });
+      } else {
+        res.json({ exists: true, size: head.ContentLength });
+      }
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Agent reports queue depth per folder — broadcast to dashboard via SSE
+  router.post('/queue-status', agentAuth, (req, res) => {
+    const { folder, total, done, failed } = req.body || {};
+    sseBus.broadcast('queue', {
+      folder:  folder  ?? '',
+      total:   total   || 0,
+      done:    done    || 0,
+      failed:  failed  || 0,
+    });
+    res.json({ ok: true });
   });
 
   // ── Browser upload endpoints (JWT — editor or owner) ─────────────────────
