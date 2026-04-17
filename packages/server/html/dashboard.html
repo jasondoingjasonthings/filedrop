@@ -1419,6 +1419,7 @@ async function ownerDownloadFile(id, name, btn) {
 }
 
 async function downloadFolderOwner(folder) {
+  if (!loadedFolders.has(folder)) await loadFolderFiles(folder);
   const toDownload = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'available');
   if (!toDownload.length) return;
   const urls = await Promise.all(toDownload.map(f =>
@@ -1541,8 +1542,9 @@ let dlQueueItems = []; // { id, name, size, status, progress, attempts, error }
 let dlQueueRunning = false;
 
 async function downloadFolderAll(folder, btn) {
+  if (!loadedFolders.has(folder)) await loadFolderFiles(folder);
   const toDownload = Object.values(files).filter(f =>
-    (f.folder || '(root)') === folder && f.status === 'available'
+    (f.folder || '') === folder && f.status === 'available'
   );
   if (!toDownload.length) return;
 
@@ -2554,11 +2556,12 @@ function connectSSE() {
     const prev = files[f.id];
 
     // Always track uploading files (needed for Uploads tab)
+    // Also update if we already have this file (e.g. was uploading → now available)
     if (f.status === 'uploading') {
       files[f.id] = f;
     } else if (f.status === 'deleted') {
       delete files[f.id];
-    } else if (loadedFolders.has(folderKey)) {
+    } else if (loadedFolders.has(folderKey) || files[f.id]) {
       files[f.id] = f;
     }
 

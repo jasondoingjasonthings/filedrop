@@ -11,16 +11,16 @@ function startCleanup(db, sseBus) {
 }
 
 async function runCleanup(db, sseBus) {
-  // ── Sweep stale 'uploading' entries (no heartbeat for > 5 minutes = dead) ──
-  // Files registered but not yet started (progress=0): allow 60 min before cleanup
-  // Files actively uploading (progress>0): clean up after 10 min no heartbeat
+  // ── Sweep stale 'uploading' entries ──────────────────────────────────────────
+  // Queued (progress=0): give 6 hours — large batches can sit in queue a long time
+  // Active (progress>0): 30 min no heartbeat = something went wrong
   const stale = db.prepare(`
     SELECT id FROM files
     WHERE status = 'uploading'
       AND (
-        (upload_progress > 0 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-10 minutes')))
+        (upload_progress > 0 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-30 minutes')))
         OR
-        (upload_progress = 0 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-60 minutes')))
+        (upload_progress = 0 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-6 hours')))
       )
   `).all();
   for (const f of stale) {
@@ -30,7 +30,6 @@ async function runCleanup(db, sseBus) {
   }
 
   // ── Prune deleted records — keep only the 100 most recent ───────────────────
-  // Stale upload cleanup creates many deleted records; cap them to prevent DB bloat
   db.prepare(`
     DELETE FROM files WHERE status = 'deleted'
       AND id NOT IN (
