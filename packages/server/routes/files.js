@@ -7,15 +7,37 @@ const { presignDownload, deleteObject } = require('../r2');
 function makeFilesRouter(db, sseBus) {
   const router = express.Router();
 
-  // List files (owner sees active + last 50 deleted, editor sees non-deleted only)
+  // Folder summaries — fast endpoint for initial page load
+  router.get('/folders', (req, res) => {
+    const rows = db.prepare(`
+      SELECT
+        folder,
+        COUNT(*) as file_count,
+        SUM(size) as total_size,
+        MAX(COALESCE(uploaded_at, created_at)) as latest_at,
+        SUM(CASE WHEN status='uploading'  THEN 1 ELSE 0 END) as uploading_count,
+        SUM(CASE WHEN status='available'  THEN 1 ELSE 0 END) as available_count,
+        SUM(CASE WHEN status='downloaded' THEN 1 ELSE 0 END) as downloaded_count
+      FROM files
+      WHERE status NOT IN ('deleted', 'deleting')
+      GROUP BY folder
+      ORDER BY MAX(COALESCE(uploaded_at, created_at)) DESC
+    `).all();
+    res.json(rows);
+  });
+
+  // Files in a specific folder (used when expanding a folder)
+  router.get('/in', (req, res) => {
+    const folder = req.query.folder ?? '';
+    const list = req.user.role === 'owner'
+      ? db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder)
+      : db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder);
+    res.json(list);
+  });
+
+  // List all files — kept for SSE token validation only; returns empty array to avoid heavy load
   router.get('/', (req, res) => {
-    const files = req.user.role === 'owner'
-      ? [
-          ...db.prepare(`SELECT * FROM files WHERE status != 'deleted' ORDER BY created_at DESC`).all(),
-          ...db.prepare(`SELECT * FROM files WHERE status = 'deleted' ORDER BY COALESCE(deleted_at, created_at) DESC LIMIT 50`).all(),
-        ]
-      : db.prepare(`SELECT * FROM files WHERE status NOT IN ('deleted') ORDER BY created_at DESC`).all();
-    res.json(files);
+    res.json([]);
   });
 
   // Get a single file

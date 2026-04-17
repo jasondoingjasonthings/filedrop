@@ -919,7 +919,10 @@ const ICON_FOLDER_OPEN   = `<svg width="22" height="22" viewBox="0 0 24 24" fill
 let token  = localStorage.getItem('fd_token');
 let role   = localStorage.getItem('fd_role') || '';
 let uname  = localStorage.getItem('fd_uname') || '';
-let files  = {};   // id → file object
+let files  = {};   // id → file object (only loaded folders)
+let folderSummaries = []; // [{folder, file_count, total_size, uploading_count, available_count, downloaded_count}]
+let loadedFolders  = new Set(); // folder keys whose files have been fetched
+let loadingFolders = new Set(); // folder keys currently being fetched
 let es     = null;
 let activeFilter = 'available';
 
@@ -1041,19 +1044,40 @@ async function showApp() {
     initBrowserUpload();
   }
 
-  await loadFiles();
+  await loadFolders();
   connectSSE();
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
-async function loadFiles() {
+async function loadFolders() {
   try {
-    const list = await api('/api/files');
+    const list = await api('/api/files/folders');
     if (!list) return;
-    files = {};
-    for (const f of list) files[f.id] = f;
+    folderSummaries = list;
+    // Eagerly load files for any folder currently uploading
+    const uploading = list.filter(s => s.uploading_count > 0);
+    await Promise.all(uploading.map(s => loadFolderFiles(s.folder || '')));
     render();
-  } catch(e) { console.error('loadFiles', e); }
+  } catch(e) { console.error('loadFolders', e); }
+}
+
+async function loadFolderFiles(folder) {
+  const key = folder ?? '';
+  if (loadedFolders.has(key) || loadingFolders.has(key)) return;
+  loadingFolders.add(key);
+  render();
+  try {
+    const list = await api('/api/files/in?folder=' + encodeURIComponent(key));
+    if (!list) { loadingFolders.delete(key); render(); return; }
+    for (const f of list) files[f.id] = f;
+    loadedFolders.add(key);
+    loadingFolders.delete(key);
+    render();
+  } catch(e) {
+    loadingFolders.delete(key);
+    render();
+    console.error('loadFolderFiles', e);
+  }
 }
 
 function render() {
@@ -1062,17 +1086,16 @@ function render() {
 }
 
 function renderOwner() {
-  const all = Object.values(files);
-  renderStats(all);
-  renderLibrary(all);
-  renderUploads(all);
+  renderStats();
+  renderLibrary();
+  renderUploads();
 }
 
-function renderStats(all) {
-  const available = all.filter(f=>f.status==='available').length;
-  const uploading = all.filter(f=>f.status==='uploading').length;
-  const downloaded = all.filter(f=>f.status==='downloaded').length;
-  const totalSize = all.filter(f=>f.status!=='deleted'&&f.status!=='deleting').reduce((s,f)=>s+(f.size||0),0);
+function renderStats() {
+  const available  = folderSummaries.reduce((s, f) => s + (f.available_count  || 0), 0);
+  const uploading  = folderSummaries.reduce((s, f) => s + (f.uploading_count  || 0), 0);
+  const downloaded = folderSummaries.reduce((s, f) => s + (f.downloaded_count || 0), 0);
+  const totalSize  = folderSummaries.reduce((s, f) => s + (f.total_size       || 0), 0);
   document.getElementById('statsBar').innerHTML = `
     <div class="stat"><div class="stat-val">${available}</div><div class="stat-label">Available</div></div>
     <div class="stat"><div class="stat-val" style="color:var(--info)">${uploading}</div><div class="stat-label">Uploading</div></div>
@@ -1086,15 +1109,25 @@ let editorExpandedFolders = new Set(); // editor available files
 let autoDownloadFolders   = new Set(); // editor folders set to auto-download
 let downloadDirHandle     = null;      // FileSystemDirectoryHandle for saving downloads
 
-function toggleFolder(key) {
+async function toggleFolder(key) {
   if (role === 'owner') {
-    if (expandedFolders.has(key)) expandedFolders.delete(key);
-    else expandedFolders.add(key);
-    renderLibrary(Object.values(files));
+    if (expandedFolders.has(key)) {
+      expandedFolders.delete(key);
+      renderLibrary();
+    } else {
+      if (!loadedFolders.has(key)) await loadFolderFiles(key);
+      expandedFolders.add(key);
+      renderLibrary();
+    }
   } else {
-    if (editorExpandedFolders.has(key)) editorExpandedFolders.delete(key);
-    else editorExpandedFolders.add(key);
-    renderEditor();
+    if (editorExpandedFolders.has(key)) {
+      editorExpandedFolders.delete(key);
+      renderEditor();
+    } else {
+      if (!loadedFolders.has(key)) await loadFolderFiles(key);
+      editorExpandedFolders.add(key);
+      renderEditor();
+    }
   }
 }
 
@@ -1148,78 +1181,89 @@ function updateFolderProgress(folder) {
   }
 }
 
-function renderLibrary(all) {
-  const filtered = activeFilter === 'all'
-    ? all.filter(f => f.status !== 'deleted' && f.status !== 'deleting')
-    : all.filter(f => f.status === activeFilter);
+function renderLibrary() {
+  // Filter folder summaries by active filter
+  let summaries = folderSummaries;
+  if (activeFilter !== 'all') {
+    summaries = folderSummaries.filter(s => {
+      if (activeFilter === 'uploading')  return s.uploading_count > 0;
+      if (activeFilter === 'downloaded') return s.downloaded_count > 0;
+      if (activeFilter === 'available')  return s.available_count > 0;
+      return true;
+    });
+  }
+
   const grid  = document.getElementById('libraryGrid');
   const empty = document.getElementById('libraryEmpty');
 
-  if (!filtered.length) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
+  if (!summaries.length) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
   empty.style.display = 'none';
 
-  // Group by folder
-  const groups = {};
-  for (const f of filtered) {
-    const key = f.folder || '';
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(f);
-  }
-
-  const keys = Object.keys(groups).sort((a, b) => {
-    if (!a && b) return -1; if (a && !b) return 1;
-    return a.localeCompare(b);
-  });
-
-  // Folders stay collapsed by default — progress bar is visible on the header without expanding
-
-  grid.innerHTML = keys.map(key => {
-    const gFiles    = groups[key].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
-    const totalSize = gFiles.reduce((s, f) => s + (f.size || 0), 0);
+  grid.innerHTML = summaries.map(summary => {
+    const key        = summary.folder ?? '';
     const isExpanded = expandedFolders.has(key);
-    const domId     = folderDomId(key);
+    const isLoading  = loadingFolders.has(key);
+    const domId      = folderDomId(key);
+    const totalSize  = summary.total_size || 0;
+    const hasUploading = summary.uploading_count > 0;
 
     let gStatus = 'available';
-    if (gFiles.some(f => f.status === 'uploading'))       gStatus = 'uploading';
-    else if (gFiles.some(f => f.status === 'downloaded')) gStatus = 'downloaded';
-    else if (gFiles.every(f => f.status === 'deleted'))   gStatus = 'deleted';
+    if (hasUploading)              gStatus = 'uploading';
+    else if (summary.downloaded_count > 0) gStatus = 'downloaded';
 
-    // Folder-level upload progress
-    const uploadingFiles = gFiles.filter(f => f.status === 'uploading');
-    const hasUploading   = uploadingFiles.length > 0;
+    // Progress bar (from loaded files if available, else indeterminate)
     let folderPct = 0;
-    if (hasUploading) {
-      const upTotal    = uploadingFiles.reduce((s, f) => s + (f.size || 0), 0);
-      const upDone     = uploadingFiles.reduce((s, f) => s + (f.size || 0) * ((f.upload_progress || 0) / 100), 0);
+    if (hasUploading && loadedFolders.has(key)) {
+      const uploading = Object.values(files).filter(f => (f.folder||'') === key && f.status === 'uploading');
+      const upTotal   = uploading.reduce((s, f) => s + (f.size||0), 0);
+      const upDone    = uploading.reduce((s, f) => s + (f.size||0) * ((f.upload_progress||0)/100), 0);
       folderPct = upTotal > 0 ? Math.round(upDone / upTotal * 100) : 0;
     }
 
     const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    const rows = gFiles.map(f => {
-      const canDownload = f.status === 'available';
-      const countdown   = f.delete_at && f.status === 'downloaded'
-        ? `<span style="font-size:11px;color:var(--muted)">⏱ ${timeUntil(f.delete_at)}</span>` : '';
-      const isUploading = f.status === 'uploading';
-      const progress    = isUploading
-        ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
-             <div class="progress-wrap" style="flex:1"><div id="upb-${f.id}" class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>
-             <span id="upct-${f.id}" style="font-size:11px;color:var(--accent-d);font-weight:700;white-space:nowrap">${f.upload_progress||0}%</span>
-           </div>` : '';
-      return `
-        <tr id="fc-${f.id}" class="lib-row ${f.status}">
-          <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
-          <td class="lib-size">${fmtBytes(f.size)}</td>
-          <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
-          <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}</td>
-          <td class="lib-actions">
-            ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
-            ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
-            ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
-            ${f.status !== 'deleted' && !isUploading ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
-          </td>
-        </tr>`;
-    }).join('');
 
+    // Expanded file rows — only shown when folder is loaded
+    let expandedContent = '';
+    if (isExpanded) {
+      if (isLoading) {
+        expandedContent = `<div style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>`;
+      } else if (loadedFolders.has(key)) {
+        const gFiles = Object.values(files)
+          .filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting')
+          .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+        const rows = gFiles.map(f => {
+          const canDownload = f.status === 'available';
+          const countdown   = f.delete_at && f.status === 'downloaded'
+            ? `<span style="font-size:11px;color:var(--muted)">⏱ ${timeUntil(f.delete_at)}</span>` : '';
+          const isUploading = f.status === 'uploading';
+          const progress    = isUploading
+            ? `<div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+                 <div class="progress-wrap" style="flex:1"><div id="upb-${f.id}" class="progress-bar" style="width:${f.upload_progress||0}%"></div></div>
+                 <span id="upct-${f.id}" style="font-size:11px;color:var(--accent-d);font-weight:700;white-space:nowrap">${f.upload_progress||0}%</span>
+               </div>` : '';
+          return `
+            <tr id="fc-${f.id}" class="lib-row ${f.status}">
+              <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
+              <td class="lib-size">${fmtBytes(f.size)}</td>
+              <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
+              <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}</td>
+              <td class="lib-actions">
+                ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
+                ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
+                ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
+                ${f.status !== 'deleted' && !isUploading ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
+              </td>
+            </tr>`;
+        }).join('');
+        expandedContent = `
+          <div style="background:var(--bg);border-top:1.5px solid var(--border)">
+            <table class="lib-table">
+              <thead><tr><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>`;
+      }
+    }
 
     return `
       <div class="folder-group" style="margin-bottom:12px">
@@ -1227,7 +1271,7 @@ function renderLibrary(all) {
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${key ? esc(key) : '<span style="color:var(--muted)">No folder</span>'}</div>
-            <div class="folder-group-meta">${gFiles.length} file${gFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
+            <div class="folder-group-meta">${summary.file_count} file${summary.file_count !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}</div>
             ${hasUploading ? `
               <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
                 <div style="flex:1;background:var(--border);border-radius:99px;height:5px;overflow:hidden;max-width:220px">
@@ -1239,26 +1283,19 @@ function renderLibrary(all) {
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
           ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
-          ${gFiles.some(f => f.status === 'available') ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
-          ${gFiles.some(f => f.status === 'downloaded' && f.delete_at) ? `<button class="btn-sm btn-keep" style="flex-shrink:0" onclick="event.stopPropagation();keepFolder('${safeKey}')">Keep all</button>` : ''}
+          ${summary.available_count > 0 ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
-        ${isExpanded ? `
-          <div style="background:var(--bg);border-top:1.5px solid var(--border)">
-            <table class="lib-table">
-              <thead><tr><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>` : ''}
+        ${expandedContent}
       </div>`;
   }).join('');
 
   // Upload badge
-  const uploading = all.filter(f => f.status === 'uploading').length;
+  const totalUploading = folderSummaries.reduce((s, f) => s + (f.uploading_count || 0), 0);
   const badge = document.getElementById('uploadBadge');
-  if (uploading > 0) { badge.textContent = uploading; badge.style.display = 'inline-block'; }
+  if (totalUploading > 0) { badge.textContent = totalUploading; badge.style.display = 'inline-block'; }
   else badge.style.display = 'none';
 }
 
@@ -1290,8 +1327,8 @@ function fileCard(f) {
     </div>`;
 }
 
-function renderUploads(all) {
-  const active = all.filter(f => f.status === 'uploading');
+function renderUploads() {
+  const active = Object.values(files).filter(f => f.status === 'uploading');
   const list   = document.getElementById('uploadList');
   const empty  = document.getElementById('uploadEmpty');
   if (!active.length) { list.innerHTML = ''; empty.style.display = 'flex'; return; }
@@ -1405,70 +1442,76 @@ async function cancelFolderUploads(folder) {
 
 // ── Editor render ─────────────────────────────────────────────────────────────
 function renderEditor() {
-  const all = Object.values(files).filter(f=>f.status!=='deleted'&&f.status!=='deleting');
-  const available = all.filter(f=>f.status==='available'||f.status==='uploading');
-  const downloaded = Object.values(files).filter(f=>f.downloaded_at);
+  // Stats from folder summaries
+  const totalAvailable  = folderSummaries.reduce((s, f) => s + (f.available_count  || 0), 0);
+  const totalUploading  = folderSummaries.reduce((s, f) => s + (f.uploading_count  || 0), 0);
+  const totalSize       = folderSummaries.reduce((s, f) => s + (f.total_size       || 0), 0);
+  const downloaded      = Object.values(files).filter(f => f.downloaded_at);
 
-  // Stats
   document.getElementById('editorStatsBar').innerHTML = `
-    <div class="stat"><div class="stat-val">${available.length}</div><div class="stat-label">Ready to download</div></div>
+    <div class="stat"><div class="stat-val">${totalAvailable + totalUploading}</div><div class="stat-label">Ready to download</div></div>
     <div class="stat"><div class="stat-val" style="color:var(--warn)">${downloaded.length}</div><div class="stat-label">Downloaded</div></div>
-    <div class="stat"><div class="stat-val">${fmtBytes(available.reduce((s,f)=>s+(f.size||0),0))}</div><div class="stat-label">Total size</div></div>
+    <div class="stat"><div class="stat-val">${fmtBytes(totalSize)}</div><div class="stat-label">Total size</div></div>
   `;
-
-  // Group by folder — include downloaded files so folders don't vanish after download
-  const forFolders = all.filter(f=>f.status==='available'||f.status==='uploading'||f.status==='downloaded');
-  const folders = {};
-  for (const f of forFolders) {
-    const key = f.folder || '(root)';
-    if (!folders[key]) folders[key] = [];
-    folders[key].push(f);
-  }
 
   const folderList = document.getElementById('folderList');
   const empty = document.getElementById('availableEmpty');
-  const keys = Object.keys(folders);
 
-  if (!keys.length) { folderList.innerHTML=''; empty.style.display='flex'; return; }
+  if (!folderSummaries.length) { folderList.innerHTML=''; empty.style.display='flex'; return; }
   empty.style.display='none';
 
-  folderList.innerHTML = keys.map(folder => {
-    const ffiles = folders[folder];
-    const totalSize = ffiles.reduce((s,f)=>s+(f.size||0),0);
-    const allReady = ffiles.every(f=>f.status==='available');
-    const anyUploading = ffiles.some(f=>f.status==='uploading');
-    const safeFolder = folder.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  folderList.innerHTML = folderSummaries.map(summary => {
+    const key        = summary.folder ?? '';
+    const isExpanded = editorExpandedFolders.has(key);
+    const isLoading  = loadingFolders.has(key);
+    const anyUploading = summary.uploading_count > 0;
+    const allReady   = summary.uploading_count === 0 && summary.available_count > 0;
+    const safeKey    = key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const label      = key || '(root)';
+
+    let expandedContent = '';
+    if (isExpanded) {
+      if (isLoading) {
+        expandedContent = `<div class="folder-group-files" style="padding:20px;text-align:center;color:var(--muted);font-size:13px">Loading…</div>`;
+      } else if (loadedFolders.has(key)) {
+        const ffiles = Object.values(files)
+          .filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting')
+          .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+        expandedContent = `
+          <div class="folder-group-files">
+            ${ffiles.map(f => `
+              <div class="file-card ${f.status}" id="fc-${f.id}" style="position:relative">
+                <div class="file-name">${esc(f.name)}</div>
+                <div class="file-meta">
+                  <span>${fmtBytes(f.size)}</span>
+                  ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
+                </div>
+                <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
+              </div>`).join('')}
+          </div>`;
+      }
+    }
+
     return `
       <div class="folder-group">
-        <div class="folder-group-header" onclick="toggleFolder('${safeFolder}')">
-          <span class="folder-group-icon">${editorExpandedFolders.has(folder) ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
+        <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
+          <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
-            <div class="folder-group-name">${esc(folder)}</div>
-            <div class="folder-group-meta">${ffiles.length} file${ffiles.length!==1?'s':''} · ${fmtBytes(totalSize)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}</div>
+            <div class="folder-group-name">${esc(label)}</div>
+            <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}</div>
           </div>
           <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
-          <button class="btn-sm" style="${autoDownloadFolders.has(folder)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeFolder}',this)">${autoDownloadFolders.has(folder)?'⬇ Auto ON':'⬇ Auto'}</button>
-          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeFolder}',this)">↓ All</button>` : ''}
-          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeFolder}')">Share</button>
-          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeFolder}')">Upload link</button>
-          <span class="folder-chevron">${editorExpandedFolders.has(folder)?'▲':'▼'}</span>
+          <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
+          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ All</button>` : ''}
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeKey}')">Upload link</button>
+          <span class="folder-chevron">${isExpanded?'▲':'▼'}</span>
         </div>
-        ${editorExpandedFolders.has(folder) ? `
-        <div class="folder-group-files">
-          ${ffiles.map(f => `
-            <div class="file-card ${f.status}" id="fc-${f.id}" style="position:relative">
-              <div class="file-name">${esc(f.name)}</div>
-              <div class="file-meta">
-                <span>${fmtBytes(f.size)}</span>
-                ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
-              </div>
-              <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
-            </div>`).join('')}
-        </div>` : ''}
+        ${expandedContent}
       </div>`;
   }).join('');
 
-  // History
+  // History — from any loaded folders
   const historyGrid = document.getElementById('historyGrid');
   const historyEmpty = document.getElementById('historyEmpty');
   if (!downloaded.length) { historyGrid.innerHTML=''; historyEmpty.style.display='flex'; }
@@ -2507,14 +2550,41 @@ function connectSSE() {
 
   es.addEventListener('file', e => {
     const f = JSON.parse(e.data);
+    const folderKey = f.folder ?? '';
     const prev = files[f.id];
-    files[f.id] = f;
+
+    // Always track uploading files (needed for Uploads tab)
+    if (f.status === 'uploading') {
+      files[f.id] = f;
+    } else if (f.status === 'deleted') {
+      delete files[f.id];
+    } else if (loadedFolders.has(folderKey)) {
+      files[f.id] = f;
+    }
+
+    // Update folder summary counts
+    let summary = folderSummaries.find(s => (s.folder ?? '') === folderKey);
+    if (!summary) {
+      summary = { folder: f.folder ?? '', file_count: 0, total_size: 0, uploading_count: 0, available_count: 0, downloaded_count: 0 };
+      folderSummaries.unshift(summary);
+    }
+    if (loadedFolders.has(folderKey)) {
+      // Recalculate from loaded files
+      const loaded = Object.values(files).filter(ff => (ff.folder ?? '') === folderKey && ff.status !== 'deleted' && ff.status !== 'deleting');
+      summary.file_count = loaded.length;
+      summary.total_size = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
+      summary.uploading_count  = loaded.filter(ff => ff.status === 'uploading').length;
+      summary.available_count  = loaded.filter(ff => ff.status === 'available').length;
+      summary.downloaded_count = loaded.filter(ff => ff.downloaded_at).length;
+    }
+
     render();
+
     // If editor has the folder open and a file just became available
     if (role === 'editor' && f.status === 'available' && (!prev || prev.status !== 'available')) {
       const key = f.folder || '(root)';
-      // Auto-expand folder
-      if (!editorExpandedFolders.has(key)) { editorExpandedFolders.add(key); render(); }
+      // Auto-expand folder (only if already loaded to avoid triggering a fetch mid-session)
+      if (loadedFolders.has(folderKey) && !editorExpandedFolders.has(key)) { editorExpandedFolders.add(key); render(); }
       // Auto-download if folder is in auto-download mode
       if (autoDownloadFolders.has(key)) {
         setTimeout(() => {
@@ -2573,7 +2643,7 @@ function connectSSE() {
     const b = document.getElementById('connBadge');
     b.textContent = 'disconnected'; b.className = 'conn-badge error';
     // Check if token is still valid before retrying
-    fetch('/api/files', { headers: { Authorization: 'Bearer '+token } })
+    fetch('/api/files/folders', { headers: { Authorization: 'Bearer '+token } })
       .then(r => {
         if (r.ok) setTimeout(connectSSE, 5000);
         else logout();
@@ -2622,7 +2692,7 @@ document.getElementById('addUserBtn')?.addEventListener('click', addUser);
 
 // ── Auto-login ────────────────────────────────────────────────────────────────
 if (token) {
-  fetch('/api/files', { headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json' } })
+  fetch('/api/files/folders', { headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json' } })
     .then(r => { if (r.ok) showApp(); else logout(); })
     .catch(() => logout());
 }
