@@ -29,9 +29,14 @@ async function runCleanup(db, sseBus) {
     console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);
   }
 
-  // ── Prune old deleted records (keep 7 days of history) ──────────────────────
+  // ── Prune deleted records — keep only the 100 most recent ───────────────────
+  // Stale upload cleanup creates many deleted records; cap them to prevent DB bloat
   db.prepare(`
-    DELETE FROM files WHERE status = 'deleted' AND deleted_at < datetime('now', '-7 days')
+    DELETE FROM files WHERE status = 'deleted'
+      AND id NOT IN (
+        SELECT id FROM files WHERE status = 'deleted'
+        ORDER BY COALESCE(deleted_at, created_at) DESC LIMIT 100
+      )
   `).run();
 
   const now = new Date().toISOString();
