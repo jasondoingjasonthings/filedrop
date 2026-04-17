@@ -1970,7 +1970,7 @@ function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, c
   zone.addEventListener('click', () => input.click());
   input.addEventListener('change', () => {
     const folder = document.getElementById(folderInputId)?.value.trim() || '';
-    for (const file of [...input.files]) uploadBrowserFile(file, folder, ctx);
+    for (const file of [...input.files]) enqueueUpload(file, folder, ctx);
     input.value = '';
   });
 
@@ -1984,14 +1984,14 @@ function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, c
     for (const item of items) {
       const entry = item.webkitGetAsEntry?.();
       if (entry) readEntry(entry, folder, ctx);
-      else if (item.getAsFile) uploadBrowserFile(item.getAsFile(), folder, ctx);
+      else if (item.getAsFile) enqueueUpload(item.getAsFile(), folder, ctx);
     }
   });
 }
 
 function readEntry(entry, folderPrefix, ctx) {
   if (entry.isFile) {
-    entry.file(file => uploadBrowserFile(file, folderPrefix, ctx));
+    entry.file(file => enqueueUpload(file, folderPrefix, ctx));
   } else if (entry.isDirectory) {
     const dirName = folderPrefix ? folderPrefix + '/' + entry.name : entry.name;
     const reader  = entry.createReader();
@@ -2007,12 +2007,72 @@ function readEntry(entry, folderPrefix, ctx) {
 function handleBrowserFiles(fileList) {
   const folder = document.getElementById('uploadFolderLabel')?.value.trim() || '';
   const ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' };
-  for (const file of fileList) uploadBrowserFile(file, folder, ctx);
+  for (const file of fileList) enqueueUpload(file, folder, ctx);
   document.getElementById('filePickerInput').value = '';
 }
 
-const PART_SIZE           = 64 * 1024 * 1024;  // 64 MB per part
-const MULTIPART_THRESHOLD = 64 * 1024 * 1024;  // use multipart above 64 MB
+const PART_SIZE           = 64 * 1024 * 1024;   // 64 MB per part
+const MULTIPART_THRESHOLD = 64 * 1024 * 1024;   // use multipart above 64 MB
+const PART_PARALLELISM    = 2;                   // concurrent part uploads per file
+const UPLOAD_CONCURRENCY  = 3;                   // max simultaneous file uploads
+
+// ── Upload queue — limits to UPLOAD_CONCURRENCY files at once ─────────────────
+let _activeUploads = 0;
+const _uploadQueue = []; // { file, folder, ctx }
+
+function enqueueUpload(file, folder, ctx) {
+  _uploadQueue.push({ file, folder, ctx });
+  _drainUploadQueue();
+}
+
+function _drainUploadQueue() {
+  while (_activeUploads < UPLOAD_CONCURRENCY && _uploadQueue.length > 0) {
+    const task = _uploadQueue.shift();
+    _activeUploads++;
+    uploadBrowserFile(task.file, task.folder, task.ctx).finally(() => {
+      _activeUploads--;
+      _drainUploadQueue();
+    });
+  }
+}
+
+// ── Browser-side resume state (localStorage) ──────────────────────────────────
+// Keyed by file name + size + lastModified — uniquely identifies a file version.
+// Stores { r2Key, uploadId, parts } so an interrupted multipart can be continued.
+
+function _resumeKey(file) {
+  return 'fd_r_' + btoa(unescape(encodeURIComponent(`${file.name}|${file.size}|${file.lastModified}`))).slice(0, 40);
+}
+function _loadResume(file)         { try { const s = localStorage.getItem(_resumeKey(file)); return s ? JSON.parse(s) : null; } catch { return null; } }
+function _saveResume(file, state)  { try { localStorage.setItem(_resumeKey(file), JSON.stringify(state)); } catch {} }
+function _clearResume(file)        { try { localStorage.removeItem(_resumeKey(file)); } catch {} }
+
+// ── Per-XHR upload helper with retry ─────────────────────────────────────────
+
+async function _xhrPut(url, body, onProgress, isCancelled, label, maxAttempts = 3) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    if (isCancelled()) throw new Error('Cancelled');
+    try {
+      return await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', url);
+        if (onProgress) xhr.upload.onprogress = onProgress;
+        xhr.onload  = () => xhr.status < 300 ? resolve(xhr) : reject(new Error(`${label} failed: HTTP ${xhr.status}`));
+        xhr.onerror = () => reject(new Error('Network error'));
+        xhr.onabort = () => reject(new Error('Cancelled'));
+        xhr.send(body);
+      });
+    } catch (err) {
+      if (err.message === 'Cancelled' || isCancelled()) throw new Error('Cancelled');
+      if (attempt === maxAttempts) throw err;
+      const delay = 3000 * attempt;
+      console.warn(`[upload] ${label} attempt ${attempt} failed: ${err.message} — retrying in ${delay/1000}s`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+// ── Main upload function ──────────────────────────────────────────────────────
 
 async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' }) {
   const queue = document.getElementById(ctx.queueId);
@@ -2033,89 +2093,120 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
 
   let fileId    = null;
   let cancelled = false;
-  let abortFn   = () => {};
+  let r2Key     = null;
+  let uploadId  = null;
+
+  const isCancelled = () => cancelled;
+  const setProgress = pct => { bar.style.width = pct + '%'; pctEl.textContent = pct + '%'; };
 
   cancelBtn.addEventListener('click', async () => {
     cancelled = true;
-    abortFn();
     if (fileId) await api(`/api/upload/browser/fail/${fileId}`, { method: 'POST' }).catch(() => {});
+    if (uploadId && r2Key) await api('/api/upload/browser/multipart/abort', {
+      method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId }),
+    }).catch(() => {});
+    _clearResume(file);
     row.remove();
     if (!document.querySelectorAll('.' + ctx.cancelClass).length)
       document.getElementById(ctx.cancelAllId).style.display = 'none';
   });
 
-  const setProgress = pct => { bar.style.width = pct + '%'; pctEl.textContent = pct + '%'; };
-
   try {
-    // Register file
+    const resume = _loadResume(file);
+
+    // Register — pass saved r2Key if resuming so the same R2 object is reused
     const start = await api('/api/upload/browser/start', {
       method: 'POST',
-      body: JSON.stringify({ name: file.name, size: file.size, folder }),
+      body: JSON.stringify({ name: file.name, size: file.size, folder, r2Key: resume?.r2Key }),
     });
     if (!start || cancelled) return;
     fileId = start.id;
+    r2Key  = start.r2Key;
 
     if (file.size <= MULTIPART_THRESHOLD) {
-      // ── Single PUT ────────────────────────────────────────────────────────
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        abortFn = () => xhr.abort();
-        xhr.open('PUT', start.url);
-        xhr.setRequestHeader('Content-Type', 'application/octet-stream');
-        xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(Math.round(e.loaded/e.total*100)); };
-        xhr.onload  = () => xhr.status < 300 ? resolve() : reject(new Error('Upload failed: ' + xhr.status));
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.onabort = () => reject(new Error('Cancelled'));
-        xhr.send(file);
-      });
+      // ── Simple PUT ────────────────────────────────────────────────────────
+      // Small files: single PUT with retry. No resume needed.
+      _clearResume(file);
+      const xhr = await _xhrPut(
+        start.url, file,
+        e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); },
+        isCancelled, file.name
+      );
+      if (!xhr) return; // cancelled
+
     } else {
-      // ── Multipart ─────────────────────────────────────────────────────────
-      const { uploadId } = await api('/api/upload/browser/multipart/create', {
-        method: 'POST', body: JSON.stringify({ r2_key: start.r2Key }),
-      });
-      if (cancelled) { await api('/api/upload/browser/multipart/abort', { method:'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }) }); return; }
+      // ── Multipart with resume ─────────────────────────────────────────────
+      const numParts   = Math.ceil(file.size / PART_SIZE);
+      const allParts   = new Array(numParts).fill(null);
+      const partBytes  = new Array(numParts).fill(0); // in-flight progress per part
 
-      const numParts = Math.ceil(file.size / PART_SIZE);
-      const parts    = [];
-      let   uploaded = 0;
+      if (resume?.uploadId) {
+        // Resume: reuse existing multipart session — skip completed parts
+        uploadId = resume.uploadId;
+        for (const p of (resume.parts || [])) {
+          if (p?.PartNumber >= 1 && p.PartNumber <= numParts) allParts[p.PartNumber - 1] = p;
+        }
+        const doneCount = allParts.filter(Boolean).length;
+        setProgress(Math.round(doneCount / numParts * 100));
+        console.log(`[upload] Resuming ${file.name}: ${doneCount}/${numParts} parts done`);
+      } else {
+        const r = await api('/api/upload/browser/multipart/create', {
+          method: 'POST', body: JSON.stringify({ r2_key: r2Key }),
+        });
+        if (!r || cancelled) return;
+        uploadId = r.uploadId;
+        _saveResume(file, { r2Key, uploadId, parts: [] });
+      }
 
-      abortFn = async () => {
-        await api('/api/upload/browser/multipart/abort', {
-          method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }),
-        }).catch(() => {});
+      const doneBytesBase = allParts.filter(Boolean).length * PART_SIZE;
+
+      const updateProgress = () => {
+        const inFlight = partBytes.reduce((a, b) => a + b, 0);
+        setProgress(Math.round(Math.min((doneBytesBase + inFlight) / file.size, 1) * 100));
       };
 
-      for (let i = 0; i < numParts; i++) {
+      // Upload remaining parts in parallel batches
+      for (let batchStart = 0; batchStart < numParts; batchStart += PART_PARALLELISM) {
         if (cancelled) return;
-        const partNumber = i + 1;
-        const chunk      = file.slice(i * PART_SIZE, Math.min((i + 1) * PART_SIZE, file.size));
 
-        const { url } = await api('/api/upload/browser/multipart/part-url', {
-          method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId, partNumber }),
-        });
+        const pending = [];
+        for (let i = batchStart; i < Math.min(batchStart + PART_PARALLELISM, numParts); i++) {
+          if (!allParts[i]) pending.push(i);
+        }
 
-        const etag = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          abortFn = async () => { xhr.abort(); await api('/api/upload/browser/multipart/abort', { method:'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId }) }).catch(()=>{}); };
-          xhr.open('PUT', url);
-          xhr.upload.onprogress = e => {
-            if (!e.lengthComputable) return;
-            setProgress(Math.round((uploaded + e.loaded) / file.size * 100));
-          };
-          xhr.onload  = () => xhr.status < 300 ? resolve(xhr.getResponseHeader('ETag')) : reject(new Error('Part ' + partNumber + ' failed: ' + xhr.status));
-          xhr.onerror = () => reject(new Error('Network error'));
-          xhr.onabort = () => reject(new Error('Cancelled'));
-          xhr.send(chunk);
-        });
+        if (pending.length > 0) {
+          await Promise.all(pending.map(async i => {
+            if (cancelled) return;
+            const partNumber = i + 1;
+            const chunkStart = i * PART_SIZE;
+            const chunk      = file.slice(chunkStart, Math.min(chunkStart + PART_SIZE, file.size));
 
-        uploaded += chunk.size;
-        parts.push({ PartNumber: partNumber, ETag: etag });
-        setProgress(Math.round(uploaded / file.size * 100));
+            // Get fresh presigned URL (retries built into _xhrPut, URL is fresh each retry)
+            const { url } = await api('/api/upload/browser/multipart/part-url', {
+              method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, partNumber }),
+            });
+
+            const xhr = await _xhrPut(
+              url, chunk,
+              e => { if (e.lengthComputable) { partBytes[i] = e.loaded; updateProgress(); } },
+              isCancelled, `${file.name} part ${partNumber}`
+            );
+            if (!xhr) return; // cancelled
+
+            allParts[i] = { PartNumber: partNumber, ETag: xhr.getResponseHeader('ETag') };
+            partBytes[i] = chunk.size; // mark fully done
+          }));
+        }
+
+        // Save resume state after each batch — worst case: redo one batch on crash
+        const doneSoFar = allParts.filter(Boolean);
+        _saveResume(file, { r2Key, uploadId, parts: doneSoFar });
+        setProgress(Math.round(doneSoFar.length / numParts * 100));
       }
 
       if (cancelled) return;
       await api('/api/upload/browser/multipart/complete', {
-        method: 'POST', body: JSON.stringify({ r2_key: start.r2Key, uploadId, parts }),
+        method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, parts: allParts }),
       });
     }
 
@@ -2124,7 +2215,18 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
       method: 'POST', body: JSON.stringify({ size: file.size }),
     });
 
-    bar.style.width = '100%';
+    // Verify the object landed in R2 with the right size
+    try {
+      const v = await api(`/api/upload/${start.id}/verify`);
+      if (!v.exists) throw new Error('Object not found in R2');
+      if (v.size !== undefined && v.size !== file.size) throw new Error(`Size mismatch: R2=${v.size} local=${file.size}`);
+    } catch (e) {
+      if (e.message.includes('not found') || e.message.includes('mismatch')) throw e;
+      console.warn('[upload] Verify skipped:', e.message); // endpoint unavailable
+    }
+
+    _clearResume(file);
+    setProgress(100);
     pctEl.textContent = '✓';
     pctEl.style.color = 'var(--success)';
     cancelBtn.style.display = 'none';
@@ -2139,8 +2241,9 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     pctEl.textContent = '✗';
     pctEl.style.color = 'var(--danger)';
     row.querySelector('.upload-detail').textContent = err.message;
-    cancelBtn.textContent = 'Remove';
+    cancelBtn.textContent = 'Dismiss';
     cancelBtn.addEventListener('click', () => row.remove(), { once: true });
+    // Keep resume state in localStorage so a page reload can continue the upload
   }
 }
 

@@ -155,8 +155,8 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     }
   });
 
-  // Verify upload integrity — agent calls after /complete to confirm R2 has the object
-  router.get('/:id/verify', agentAuth, async (req, res) => {
+  // Verify upload integrity — browser or agent calls after /complete to confirm R2 has the object
+  router.get('/:id/verify', jwtAuth, async (req, res) => {
     const file = db.prepare(`SELECT r2_key, size FROM files WHERE id=?`).get(req.params.id);
     if (!file) { res.status(404).json({ error: 'Not found' }); return; }
     try {
@@ -187,12 +187,13 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
 
   // Start a browser upload: register file + return presigned PUT URL
   router.post('/browser/start', jwtAuth, async (req, res) => {
-    const { name, size, folder } = req.body || {};
+    const { name, size, folder, r2Key: resumeR2Key } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
     const id    = uuid();
     const ext   = name.slice(name.lastIndexOf('.'));
     const base  = name.slice(0, name.lastIndexOf('.')).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
-    const r2Key = (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
+    // Use provided r2Key when resuming an interrupted upload, otherwise generate fresh key
+    const r2Key = resumeR2Key || (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
 
     db.prepare(`
       INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
