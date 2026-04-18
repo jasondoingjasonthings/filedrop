@@ -1497,9 +1497,9 @@ function renderEditor() {
                   <span>${fmtBytes(f.size)}</span>
                   ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
                 </div>
-                <div style="display:flex;gap:6px;align-items:center">
+                <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
                   <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
-                  <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="renameFile('${f.id}')">✎ Rename</button>
+                  <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="renameFile('${f.id}')">Rename</button>
                 </div>
               </div>`).join('')}
           </div>`;
