@@ -108,6 +108,18 @@ function makeFilesRouter(db, sseBus) {
     }
   });
 
+  // Rename a file — any authenticated user (editor or owner)
+  router.patch('/:id/rename', (req, res) => {
+    const { name } = req.body || {};
+    if (!name || !name.trim()) { res.status(400).json({ error: 'name required' }); return; }
+    const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
+    if (!file) { res.status(404).json({ error: 'Not found' }); return; }
+    db.prepare(`UPDATE files SET name=? WHERE id=?`).run(name.trim(), file.id);
+    const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id);
+    sseBus.broadcast('file', updated);
+    res.json({ ok: true });
+  });
+
   // Owner cancels auto-delete
   router.post('/:id/keep', requireOwner, (req, res) => {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);

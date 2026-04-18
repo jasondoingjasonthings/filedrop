@@ -1492,12 +1492,15 @@ function renderEditor() {
           <div class="folder-group-files">
             ${ffiles.map(f => `
               <div class="file-card ${f.status}" id="fc-${f.id}" style="position:relative">
-                <div class="file-name">${esc(f.name)}</div>
+                <div class="file-name" id="fn-${f.id}">${esc(f.name)}</div>
                 <div class="file-meta">
                   <span>${fmtBytes(f.size)}</span>
                   ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
                 </div>
-                <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
+                <div style="display:flex;gap:6px;align-items:center">
+                  <button class="btn-sm btn-get" ${f.status!=='available'?'disabled':''} id="dlbtn-${f.id}" onclick="downloadSingleFile('${f.id}','${esc(f.name)}',this)">${f.downloaded_at?'↓ Download again':'↓ Download'}</button>
+                  <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="renameFile('${f.id}')">✎ Rename</button>
+                </div>
               </div>`).join('')}
           </div>`;
       }
@@ -1530,6 +1533,51 @@ function renderEditor() {
     historyEmpty.style.display='none';
     historyGrid.innerHTML = downloaded.sort((a,b)=>b.downloaded_at?.localeCompare(a.downloaded_at||'')||0).map(f=>fileCard(f)).join('');
   }
+}
+
+// ── Rename ────────────────────────────────────────────────────────────────────
+async function renameFile(id) {
+  const nameEl = document.getElementById('fn-' + id);
+  if (!nameEl) return;
+  const currentName = nameEl.textContent;
+
+  // Replace name element with an inline input
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.style.cssText = 'font:700 13px inherit;border:1.5px solid var(--accent);border-radius:4px;padding:2px 6px;width:100%;outline:none;color:var(--text);background:var(--bg)';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let saved = false;
+
+  async function save() {
+    if (saved) return;
+    saved = true;
+    const newName = input.value.trim();
+    if (!newName || newName === currentName) {
+      input.replaceWith(nameEl);
+      return;
+    }
+    try {
+      await api(`/api/files/${id}/rename`, { method: 'PATCH', body: JSON.stringify({ name: newName }) });
+      nameEl.textContent = newName;
+      // Also update the download button's onclick with new name
+      const dlBtn = document.getElementById('dlbtn-' + id);
+      if (dlBtn) dlBtn.setAttribute('onclick', `downloadSingleFile('${id}','${newName.replace(/'/g,"\\'")}',this)`);
+    } catch(e) {
+      toast(e.message || 'Rename failed', 'error');
+      nameEl.textContent = currentName;
+    }
+    input.replaceWith(nameEl);
+  }
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { saved = true; input.replaceWith(nameEl); }
+  });
+  input.addEventListener('blur', save);
 }
 
 // ── Downloads ─────────────────────────────────────────────────────────────────
