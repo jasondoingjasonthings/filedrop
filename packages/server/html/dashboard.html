@@ -1517,6 +1517,7 @@ function renderEditor() {
           <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ All</button>` : ''}
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeKey}')">Upload link</button>
           <span class="folder-chevron">${isExpanded?'▲':'▼'}</span>
@@ -1574,6 +1575,54 @@ async function renameFile(id) {
   }
 
   input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    if (e.key === 'Escape') { saved = true; input.replaceWith(nameEl); }
+  });
+  input.addEventListener('blur', save);
+}
+
+async function renameFolder(key, btn) {
+  const header = btn.closest('.folder-group-header');
+  const nameEl = header.querySelector('.folder-group-name');
+  const currentName = key;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = currentName;
+  input.style.cssText = 'font:700 14px inherit;border:1.5px solid var(--accent);border-radius:4px;padding:2px 8px;outline:none;color:var(--text);background:var(--bg);min-width:120px';
+  input.placeholder = 'Folder name';
+  nameEl.replaceWith(input);
+  input.focus();
+  input.select();
+  input.addEventListener('click', e => e.stopPropagation());
+
+  let saved = false;
+
+  async function save() {
+    if (saved) return;
+    saved = true;
+    const newName = input.value.trim();
+    if (!newName || newName === currentName) { input.replaceWith(nameEl); return; }
+    try {
+      await api('/api/files/folder-rename', {
+        method: 'PATCH', body: JSON.stringify({ oldFolder: currentName, newFolder: newName }),
+      });
+      // Update local files map
+      Object.values(files).forEach(f => { if ((f.folder || '') === currentName) f.folder = newName; });
+      // Update folder summaries
+      const s = folderSummaries.find(s => (s.folder || '') === currentName);
+      if (s) s.folder = newName;
+      // Update loadedFolders
+      if (loadedFolders.has(currentName)) { loadedFolders.delete(currentName); loadedFolders.add(newName); }
+      renderEditor();
+    } catch(e) {
+      toast(e.message || 'Rename failed', 'error');
+      input.replaceWith(nameEl);
+    }
+  }
+
+  input.addEventListener('keydown', e => {
+    e.stopPropagation();
     if (e.key === 'Enter') { e.preventDefault(); save(); }
     if (e.key === 'Escape') { saved = true; input.replaceWith(nameEl); }
   });

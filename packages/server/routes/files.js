@@ -108,6 +108,21 @@ function makeFilesRouter(db, sseBus) {
     }
   });
 
+  // Rename a folder — updates folder field on all files in that folder
+  router.patch('/folder-rename', (req, res) => {
+    const { oldFolder, newFolder } = req.body || {};
+    if (newFolder === undefined || newFolder === null) { res.status(400).json({ error: 'newFolder required' }); return; }
+    const oldKey = oldFolder ?? '';
+    const newKey = (newFolder || '').trim();
+    if (oldKey === newKey) { res.json({ ok: true, count: 0 }); return; }
+    const affected = db.prepare(`SELECT id FROM files WHERE folder=? AND status NOT IN ('deleted','deleting')`).all(oldKey);
+    if (!affected.length) { res.status(404).json({ error: 'No files in that folder' }); return; }
+    db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
+    const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
+    for (const f of updated) sseBus.broadcast('file', f);
+    res.json({ ok: true, count: affected.length });
+  });
+
   // Rename a file — any authenticated user (editor or owner)
   router.patch('/:id/rename', (req, res) => {
     const { name } = req.body || {};
