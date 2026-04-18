@@ -1767,28 +1767,76 @@ async function downloadQueueItem(item, idx) {
   }
 }
 
+// ── Resumable chunked download engine ────────────────────────────────────────
+const DL_CHUNK_SIZE = 16 * 1024 * 1024; // 16 MB per chunk
+const _dlHandles    = new Map();          // fileId → writable stream (in-session only)
+
+function _dlKey(id)              { return 'fd_dl_' + id; }
+function _saveDlState(id, state) { try { localStorage.setItem(_dlKey(id), JSON.stringify(state)); } catch {} }
+function _loadDlState(id)        { try { const s = localStorage.getItem(_dlKey(id)); return s ? JSON.parse(s) : null; } catch { return null; } }
+function _clearDlState(id)       { try { localStorage.removeItem(_dlKey(id)); } catch {} }
+
+async function _getFreshDlUrl(id) {
+  const data = await api(`/api/files/${id}/download`, { method: 'POST' });
+  return data?.url || null;
+}
+
+// Core: fetches file in DL_CHUNK_SIZE chunks using Range headers, writes to writable.
+// Refreshes presigned URL automatically if it expires (403/401).
+async function _chunkedDownload(id, totalSize, writable, startByte, onProgress) {
+  let url = await _getFreshDlUrl(id);
+  if (!url) throw new Error('Could not get download URL');
+  let bytesReceived = startByte;
+
+  while (bytesReceived < totalSize) {
+    const end = Math.min(bytesReceived + DL_CHUNK_SIZE - 1, totalSize - 1);
+    let res = await fetch(url, { headers: { Range: `bytes=${bytesReceived}-${end}` } });
+
+    // URL expired — refresh and retry this chunk once
+    if (res.status === 403 || res.status === 401) {
+      url = await _getFreshDlUrl(id);
+      if (!url) throw new Error('Session expired — please log in again');
+      res = await fetch(url, { headers: { Range: `bytes=${bytesReceived}-${end}` } });
+    }
+
+    if (res.status !== 206 && !res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const chunk = await res.arrayBuffer();
+    await writable.write(chunk);
+    bytesReceived += chunk.byteLength;
+
+    _saveDlState(id, { totalSize, bytesReceived });
+    onProgress(Math.round(bytesReceived / totalSize * 100));
+  }
+
+  await writable.close();
+  _dlHandles.delete(id);
+  _clearDlState(id);
+}
+
 async function streamFile(item, idx, url) {
-  if (downloadDirHandle) {
-    const fileHandle = await downloadDirHandle.getFileHandle(item.name, { create: true });
-    const writable   = await fileHandle.createWritable();
-    const response   = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const contentLength = parseInt(response.headers.get('content-length') || '0');
-    let received = 0;
-    const transform = new TransformStream({
-      transform(chunk, controller) {
-        received += chunk.byteLength;
-        if (contentLength) {
-          item.progress = Math.round(received / contentLength * 100);
-          updateDlQueueItem(idx);
-          updateDlQueueOverall();
-        }
-        controller.enqueue(chunk);
-      }
-    });
-    await response.body.pipeThrough(transform).pipeTo(writable);
+  // Get file size via HEAD so we can show chunk progress and support resume
+  const head = await fetch(url, { method: 'HEAD' });
+  const totalSize = parseInt(head.headers.get('content-length') || '0');
+
+  const onProgress = pct => {
+    item.progress = pct;
+    updateDlQueueItem(idx);
+    updateDlQueueOverall();
+  };
+
+  if ((downloadDirHandle || window.showSaveFilePicker) && totalSize) {
+    let writable;
+    if (downloadDirHandle) {
+      const fh = await downloadDirHandle.getFileHandle(item.name, { create: true });
+      writable = await fh.createWritable();
+    } else {
+      const fh = await window.showSaveFilePicker({ suggestedName: item.name });
+      writable = await fh.createWritable();
+    }
+    await _chunkedDownload(item.id, totalSize, writable, 0, onProgress);
   } else {
-    // Fallback: anchor download (no per-file progress)
+    // Fallback: anchor (no per-file progress)
     const a = document.createElement('a');
     a.href = url; a.download = item.name;
     document.body.appendChild(a); a.click(); a.remove();
@@ -1806,38 +1854,94 @@ async function retryFailedDownloads() {
 }
 
 async function downloadSingleFile(id, name, btn) {
-  const orig = btn ? btn.textContent : '';
-  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
-  try {
-    const data = await api(`/api/files/${id}/download`, { method: 'POST' });
-    if (!data) { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+  const orig = btn?.textContent || '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; btn.style.background = ''; btn.style.color = ''; }
 
-    if (downloadDirHandle) {
-      // Stream directly into chosen folder
-      if (btn) btn.textContent = 'Saving…';
-      const fileHandle = await downloadDirHandle.getFileHandle(name, { create: true });
-      const writable   = await fileHandle.createWritable();
-      const response   = await fetch(data.url);
-      await response.body.pipeTo(writable);
-    } else if (window.showSaveFilePicker) {
-      // Ask where to save this file (HTTPS only)
-      const handle   = await window.showSaveFilePicker({ suggestedName: name });
-      if (btn) btn.textContent = 'Saving…';
-      const writable = await handle.createWritable();
-      const response = await fetch(data.url);
-      await response.body.pipeTo(writable);
-    } else {
-      // HTTP fallback: browser anchor → Downloads folder
-      const a = document.createElement('a');
-      a.href = data.url; a.download = name;
+  try {
+    // Get file size before deciding how to download
+    const firstUrl = await _getFreshDlUrl(id);
+    if (!firstUrl) { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+
+    const head = await fetch(firstUrl, { method: 'HEAD' });
+    const totalSize = parseInt(head.headers.get('content-length') || '0');
+
+    // No content-length (very rare with R2) — anchor fallback
+    if (!totalSize) {
+      const a = document.createElement('a'); a.href = firstUrl; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      return;
     }
 
-    if (btn) { btn.textContent = '✓ Done'; btn.style.background = 'var(--success)'; }
+    const onProgress = pct => { if (btn) btn.textContent = `↓ ${pct}%`; };
+
+    let writable, startByte = 0;
+
+    if (_dlHandles.has(id)) {
+      // In-session resume: writable stream is still open, seek position is correct
+      writable  = _dlHandles.get(id);
+      startByte = _loadDlState(id)?.bytesReceived || 0;
+      onProgress(Math.round(startByte / totalSize * 100));
+
+    } else if (downloadDirHandle) {
+      const saved = _loadDlState(id);
+      if (saved?.bytesReceived > 0 && saved.totalSize === totalSize) {
+        // Cross-reload resume: re-open file and seek to last written byte
+        startByte = saved.bytesReceived;
+        const fh  = await downloadDirHandle.getFileHandle(name, { create: true });
+        writable  = await fh.createWritable({ keepExistingData: true });
+        await writable.seek(startByte);
+        if (btn) btn.textContent = `Resuming ${Math.round(startByte / totalSize * 100)}%…`;
+      } else {
+        _clearDlState(id);
+        const fh = await downloadDirHandle.getFileHandle(name, { create: true });
+        writable = await fh.createWritable();
+      }
+      _dlHandles.set(id, writable);
+
+    } else if (window.showSaveFilePicker) {
+      _clearDlState(id);
+      const fh = await window.showSaveFilePicker({ suggestedName: name });
+      writable = await fh.createWritable();
+      _dlHandles.set(id, writable);
+
+    } else {
+      // Anchor fallback — browser manages the download, no resume
+      const a = document.createElement('a'); a.href = firstUrl; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      if (btn) { btn.textContent = '✓ Done'; btn.style.background = 'var(--success)'; }
+      return;
+    }
+
+    await _chunkedDownload(id, totalSize, writable, startByte, onProgress);
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '✓ Done';
+      btn.style.background = 'var(--success)';
+      btn.style.color = '#fff';
+    }
+
   } catch(e) {
     if (e.name === 'AbortError') { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
-    toast(`Failed: ${e.message}`, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = orig; }
+
+    // Keep the writable closed — can't reuse after an error
+    _dlHandles.delete(id);
+
+    const saved = _loadDlState(id);
+    if (saved?.bytesReceived > 0 && saved.totalSize) {
+      const pct = Math.round(saved.bytesReceived / saved.totalSize * 100);
+      if (btn) {
+        btn.disabled = false;
+        btn.style.background = 'var(--warn)';
+        btn.style.color = '#fff';
+        btn.textContent = `↓ Resume (${pct}%)`;
+      }
+      toast(`Download paused at ${pct}% — click Resume to continue from where it stopped`, 'error');
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      toast(`Download failed: ${e.message}`, 'error');
+    }
   }
 }
 
