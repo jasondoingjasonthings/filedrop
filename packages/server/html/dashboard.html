@@ -1295,6 +1295,7 @@ function renderLibrary() {
           <span class="status-badge ${gStatus}">${gStatus}</span>
           ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
           ${summary.available_count > 0 ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
