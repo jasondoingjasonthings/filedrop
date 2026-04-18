@@ -274,6 +274,9 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 .upload-name { font-weight: 700; font-size: 13px; }
 .upload-detail { font-size: 12px; color: var(--muted); grid-column: 1; }
 .upload-pct { font-size: 13px; font-weight: 800; color: var(--accent); }
+.upload-item.queued-item { opacity: 0.6; }
+.upload-item.queued-item .progress-bar { background: var(--border2) !important; }
+.queue-summary { font-size: 12px; color: var(--muted); margin-bottom: 10px; display: none; gap: 6px; flex-wrap: wrap; align-items: center; }
 
 /* ── Settings ───────────────────────────────────────────────────────────── */
 .settings-section {
@@ -597,14 +600,14 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
       <div class="section-header">
         <div>
           <div class="section-title">Active Uploads</div>
-          <div class="section-sub">Files currently transferring to R2</div>
+          <div class="section-sub">Files currently transferring — upload files from the Browse tab</div>
         </div>
       </div>
       <div class="upload-list" id="uploadList"></div>
       <div class="empty" id="uploadEmpty" style="display:none">
         <div class="empty-icon">⬆️</div>
         <h3>No active uploads</h3>
-        <p>The agent will appear here when uploading.</p>
+        <p>Go to <strong>Browse</strong> and drag files in to start uploading.</p>
       </div>
     </div>
 
@@ -625,7 +628,8 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
           <div style="font-size:12px;color:var(--muted)">Any file type, any size</div>
           <input type="file" id="ownerFilePickerInput" multiple style="display:none">
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div id="ownerUploadQueueSummary" class="queue-summary"></div>
           <button class="btn-ghost" id="ownerCancelAllUploads" style="font-size:12px;display:none" onclick="document.querySelectorAll('.owner-upload-cancel').forEach(b=>b.click())">Cancel all</button>
         </div>
         <div id="ownerUploadQueue" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -766,7 +770,8 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
           <div style="font-size:12px;color:var(--muted)">Any file type, any size</div>
           <input type="file" id="filePickerInput" multiple style="display:none">
         </div>
-        <div style="display:flex;justify-content:flex-end;margin-bottom:4px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div id="uploadQueueSummary" class="queue-summary"></div>
           <button class="btn-ghost" id="cancelAllUploads" style="font-size:12px;display:none" onclick="document.querySelectorAll('.upload-cancel').forEach(b=>b.click())">Cancel all</button>
         </div>
         <div id="uploadQueue" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -2022,19 +2027,63 @@ const UPLOAD_CONCURRENCY  = 3;                   // max simultaneous file upload
 
 // ── Upload queue — limits to UPLOAD_CONCURRENCY files at once ─────────────────
 let _activeUploads = 0;
-const _uploadQueue = []; // { file, folder, ctx }
+const _uploadQueue = []; // { file, folder, ctx, _row }
+
+function _updateQueueSummary(ctx) {
+  const el = document.getElementById(ctx.queueId + 'Summary');
+  if (!el) return;
+  const pending = _uploadQueue.filter(t => t.ctx.queueId === ctx.queueId);
+  const activeCount = document.querySelectorAll('#' + ctx.queueId + ' .upload-item:not(.queued-item)').length;
+  const queuedCount = pending.length;
+  if (activeCount + queuedCount === 0) { el.style.display = 'none'; return; }
+  const waitBytes = pending.reduce((a, t) => a + t.file.size, 0);
+  const parts = [];
+  if (activeCount) parts.push(`<strong>${activeCount}</strong> uploading`);
+  if (queuedCount) parts.push(`<strong>${queuedCount}</strong> queued${waitBytes ? ' (' + fmtBytes(waitBytes) + ' waiting)' : ''}`);
+  el.style.display = 'flex';
+  el.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+}
 
 function enqueueUpload(file, folder, ctx) {
-  _uploadQueue.push({ file, folder, ctx });
+  // Create a "Queued" row immediately so all pending files are visible
+  const queue = document.getElementById(ctx.queueId);
+  const row = document.createElement('div');
+  row.className = 'upload-item queued-item';
+  row.innerHTML = `
+    <div class="upload-name">${esc(file.name)}</div>
+    <div class="upload-pct" style="color:var(--muted2);font-size:12px;font-weight:600">Queued</div>
+    <div class="upload-detail">${fmtBytes(file.size)}${folder ? ' · ' + esc(folder) : ''}</div>
+    <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
+    <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
+  queue.appendChild(row);
+  document.getElementById(ctx.cancelAllId).style.display = 'block';
+
+  const task = { file, folder, ctx, _row: row };
+
+  // Cancel button removes from queue before it starts
+  row.querySelector('.' + ctx.cancelClass).addEventListener('click', () => {
+    const idx = _uploadQueue.indexOf(task);
+    if (idx !== -1) _uploadQueue.splice(idx, 1);
+    row.remove();
+    if (!document.querySelectorAll('#' + ctx.queueId + ' .' + ctx.cancelClass).length)
+      document.getElementById(ctx.cancelAllId).style.display = 'none';
+    _updateQueueSummary(ctx);
+  });
+
+  _uploadQueue.push(task);
+  _updateQueueSummary(ctx);
   _drainUploadQueue();
 }
 
 function _drainUploadQueue() {
+  // Smallest files first — quick wins while large files go last
+  _uploadQueue.sort((a, b) => a.file.size - b.file.size);
   while (_activeUploads < UPLOAD_CONCURRENCY && _uploadQueue.length > 0) {
     const task = _uploadQueue.shift();
     _activeUploads++;
-    uploadBrowserFile(task.file, task.folder, task.ctx).finally(() => {
+    uploadBrowserFile(task.file, task.folder, task.ctx, task._row).finally(() => {
       _activeUploads--;
+      _updateQueueSummary(task.ctx);
       _drainUploadQueue();
     });
   }
@@ -2078,18 +2127,33 @@ async function _xhrPut(url, body, onProgress, isCancelled, label, maxAttempts = 
 
 // ── Main upload function ──────────────────────────────────────────────────────
 
-async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' }) {
+async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' }, existingRow = null) {
   const queue = document.getElementById(ctx.queueId);
-  const row   = document.createElement('div');
-  row.className = 'upload-item';
-  row.innerHTML = `
-    <div class="upload-name">${esc(file.name)}</div>
-    <div class="upload-pct">0%</div>
-    <div class="upload-detail">${fmtBytes(file.size)}${folder ? ' · ' + esc(folder) : ''}</div>
-    <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
-    <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
-  queue.prepend(row);
-  document.getElementById(ctx.cancelAllId).style.display = 'block';
+  let row;
+  if (existingRow) {
+    // Transition the queued placeholder into an active upload row
+    row = existingRow;
+    row.classList.remove('queued-item');
+    row.innerHTML = `
+      <div class="upload-name">${esc(file.name)}</div>
+      <div class="upload-pct">0%</div>
+      <div class="upload-detail">${fmtBytes(file.size)}${folder ? ' · ' + esc(folder) : ''}</div>
+      <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
+      <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
+    queue.prepend(row); // move to top so active uploads show above queued ones
+  } else {
+    row = document.createElement('div');
+    row.className = 'upload-item';
+    row.innerHTML = `
+      <div class="upload-name">${esc(file.name)}</div>
+      <div class="upload-pct">0%</div>
+      <div class="upload-detail">${fmtBytes(file.size)}${folder ? ' · ' + esc(folder) : ''}</div>
+      <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
+      <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
+    queue.prepend(row);
+    document.getElementById(ctx.cancelAllId).style.display = 'block';
+  }
+  _updateQueueSummary(ctx);
 
   const bar       = row.querySelector('.progress-bar');
   const pctEl     = row.querySelector('.upload-pct');
