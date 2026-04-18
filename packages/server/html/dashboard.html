@@ -811,7 +811,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
     <div class="tab-panel" id="tab-prefs" style="display:none">
       <div class="settings-section">
         <h3>Download Location</h3>
-        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Choose where downloaded files are saved on your computer. This resets when you close the tab.</p>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Choose where downloaded files are saved. Your folder is remembered — next session just click Re-grant to restore access in one click.</p>
 
         <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:14px">
           <span style="font-size:26px" id="dlPrefIcon">📂</span>
@@ -827,6 +827,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
         <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
           <button class="btn-primary" id="chooseDlFolderBtn">Choose Download Folder…</button>
+          <button class="btn-primary" id="regrantDlFolderBtn" style="display:none;background:var(--warn)">Re-grant Access</button>
           <button class="btn-ghost" id="clearDlFolderBtn" style="display:none">Reset to default</button>
         </div>
       </div>
@@ -1051,7 +1052,7 @@ async function showApp() {
     });
     document.getElementById('tab-available').classList.add('active');
     document.getElementById('tab-available').style.display = 'block';
-    renderDlPrefs();
+    restoreDownloadFolder();
     initBrowserUpload();
   }
 
@@ -1876,18 +1877,13 @@ async function streamFile(item, idx, url) {
     updateDlQueueOverall();
   };
 
-  if ((downloadDirHandle || window.showSaveFilePicker) && totalSize) {
-    let writable;
-    if (downloadDirHandle) {
-      const fh = await downloadDirHandle.getFileHandle(item.name, { create: true });
-      writable = await fh.createWritable();
-    } else {
-      const fh = await window.showSaveFilePicker({ suggestedName: item.name });
-      writable = await fh.createWritable();
-    }
+  if (downloadDirHandle && totalSize) {
+    // Auto-folder set: chunked download with progress
+    const fh = await downloadDirHandle.getFileHandle(item.name, { create: true });
+    const writable = await fh.createWritable();
     await _chunkedDownload(item.id, totalSize, writable, 0, onProgress);
   } else {
-    // Fallback: anchor (no per-file progress)
+    // No folder set: anchor download — never show a save dialog per file in bulk
     const a = document.createElement('a');
     a.href = url; a.download = item.name;
     document.body.appendChild(a); a.click(); a.remove();
@@ -2566,29 +2562,93 @@ async function dismissRequest(id) {
 }
 
 // ── Editor Preferences ────────────────────────────────────────────────────────
+// ── IndexedDB: persist FileSystemDirectoryHandle across sessions ──────────────
+let _pendingDirHandle = null; // stored handle awaiting permission re-grant
+
+function _openHandleDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('filedrop_handles', 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore('handles');
+    req.onsuccess = e => resolve(e.target.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+async function _saveHandleToDb(handle) {
+  try {
+    const db = await _openHandleDb();
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').put(handle, 'downloadDir');
+    await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+    db.close();
+  } catch {}
+}
+async function _loadHandleFromDb() {
+  try {
+    const db  = await _openHandleDb();
+    const tx  = db.transaction('handles', 'readonly');
+    const req = tx.objectStore('handles').get('downloadDir');
+    const h   = await new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = rej; });
+    db.close();
+    return h || null;
+  } catch { return null; }
+}
+async function _clearHandleFromDb() {
+  try {
+    const db = await _openHandleDb();
+    const tx = db.transaction('handles', 'readwrite');
+    tx.objectStore('handles').delete('downloadDir');
+    db.close();
+  } catch {}
+}
+
+async function restoreDownloadFolder() {
+  if (!window.showDirectoryPicker) return;
+  const handle = await _loadHandleFromDb();
+  if (!handle) return;
+  try {
+    const perm = await handle.queryPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      downloadDirHandle = handle;
+    } else {
+      _pendingDirHandle = handle; // permission needs re-grant on next user click
+    }
+  } catch { await _clearHandleFromDb(); }
+  renderDlPrefs();
+}
+
 function renderDlPrefs() {
-  const nameEl   = document.getElementById('dlPrefName');
-  const subEl    = document.getElementById('dlPrefSub');
-  const iconEl   = document.getElementById('dlPrefIcon');
-  const clearBtn = document.getElementById('clearDlFolderBtn');
-  const warnEl   = document.getElementById('dlPrefHttpWarn');
+  const nameEl    = document.getElementById('dlPrefName');
+  const subEl     = document.getElementById('dlPrefSub');
+  const iconEl    = document.getElementById('dlPrefIcon');
+  const clearBtn  = document.getElementById('clearDlFolderBtn');
+  const chooseBtn = document.getElementById('chooseDlFolderBtn');
+  const regrantBtn = document.getElementById('regrantDlFolderBtn');
+  const warnEl    = document.getElementById('dlPrefHttpWarn');
   if (!nameEl) return;
+
+  const supported = ('showDirectoryPicker' in window);
+  warnEl.style.display = supported ? 'none' : 'block';
+  chooseBtn.style.display = supported ? 'inline-flex' : 'none';
 
   if (downloadDirHandle) {
     iconEl.textContent = '✅';
     nameEl.textContent = downloadDirHandle.name;
-    subEl.textContent  = 'Files will save directly into this folder';
+    subEl.textContent  = 'Files save directly into this folder — remembered for next session';
     clearBtn.style.display = 'inline-flex';
+    if (regrantBtn) regrantBtn.style.display = 'none';
+  } else if (_pendingDirHandle) {
+    iconEl.textContent = '🔒';
+    nameEl.textContent = _pendingDirHandle.name;
+    subEl.textContent  = 'Click Re-grant to restore access to this folder';
+    clearBtn.style.display = 'none';
+    if (regrantBtn) regrantBtn.style.display = 'inline-flex';
   } else {
     iconEl.textContent = '📂';
     nameEl.textContent = 'Default Downloads folder';
     subEl.textContent  = 'Files save to wherever your browser puts downloads';
     clearBtn.style.display = 'none';
+    if (regrantBtn) regrantBtn.style.display = 'none';
   }
-
-  const supported = ('showDirectoryPicker' in window);
-  warnEl.style.display = supported ? 'none' : 'block';
-  document.getElementById('chooseDlFolderBtn').style.display = supported ? 'inline-flex' : 'none';
 }
 
 document.getElementById('chooseDlFolderBtn')?.addEventListener('click', async () => {
@@ -2598,15 +2658,34 @@ document.getElementById('chooseDlFolderBtn')?.addEventListener('click', async ()
   }
   try {
     downloadDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
-    toast('Download folder set to: ' + downloadDirHandle.name);
+    _pendingDirHandle = null;
+    await _saveHandleToDb(downloadDirHandle);
+    toast('Download folder set — remembered for future sessions');
     renderDlPrefs();
   } catch(e) {
     if (e.name !== 'AbortError') toast('Could not select folder: ' + e.message, 'error');
   }
 });
 
-document.getElementById('clearDlFolderBtn')?.addEventListener('click', () => {
+document.getElementById('regrantDlFolderBtn')?.addEventListener('click', async () => {
+  if (!_pendingDirHandle) return;
+  try {
+    const perm = await _pendingDirHandle.requestPermission({ mode: 'readwrite' });
+    if (perm === 'granted') {
+      downloadDirHandle = _pendingDirHandle;
+      _pendingDirHandle = null;
+      toast('Access restored — ' + downloadDirHandle.name);
+      renderDlPrefs();
+    } else {
+      toast('Permission denied — choose a new folder', 'error');
+    }
+  } catch(e) { toast(e.message, 'error'); }
+});
+
+document.getElementById('clearDlFolderBtn')?.addEventListener('click', async () => {
   downloadDirHandle = null;
+  _pendingDirHandle = null;
+  await _clearHandleFromDb();
   toast('Download location reset to default');
   renderDlPrefs();
 });
