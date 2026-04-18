@@ -964,7 +964,11 @@ async function api(path, opts={}) {
     ...opts,
     headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json', ...(opts.headers||{}) }
   });
-  if (res.status === 401) { logout(); return null; }
+  if (res.status === 401) {
+    // Only auto-logout for non-upload paths — don't kick the user out mid-transfer
+    if (!path.includes('/upload/')) logout();
+    return null;
+  }
   if (!res.ok) {
     const j = await res.json().catch(()=>({}));
     throw new Error(j.error || `HTTP ${res.status}`);
@@ -2760,13 +2764,14 @@ function connectSSE() {
     es.close();
     const b = document.getElementById('connBadge');
     b.textContent = 'disconnected'; b.className = 'conn-badge error';
-    // Check if token is still valid before retrying
+    // Only logout on explicit 401 — network errors just reconnect
     fetch('/api/files/folders', { headers: { Authorization: 'Bearer '+token } })
       .then(r => {
         if (r.ok) setTimeout(connectSSE, 5000);
-        else logout();
+        else if (r.status === 401) logout();
+        else setTimeout(connectSSE, 5000); // server error — keep retrying
       })
-      .catch(() => setTimeout(connectSSE, 5000));
+      .catch(() => setTimeout(connectSSE, 8000)); // network error — retry after 8s
   };
 }
 
@@ -2811,8 +2816,12 @@ document.getElementById('addUserBtn')?.addEventListener('click', addUser);
 // ── Auto-login ────────────────────────────────────────────────────────────────
 if (token) {
   fetch('/api/files/folders', { headers: { Authorization: 'Bearer '+token, 'Content-Type':'application/json' } })
-    .then(r => { if (r.ok) showApp(); else logout(); })
-    .catch(() => logout());
+    .then(r => {
+      if (r.ok) showApp();
+      else if (r.status === 401) logout(); // token genuinely invalid — clear it
+      // else: server error — keep token, show login screen so user can retry
+    })
+    .catch(() => { /* network error — keep token, user can click Sign In to retry */ });
 }
 
 // Refresh countdown timers every minute
