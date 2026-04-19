@@ -742,6 +742,11 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
     <!-- ── Editor: Available ── -->
     <div class="tab-panel active" id="tab-available">
       <div class="stats-bar" id="editorStatsBar"></div>
+      <div id="resumeBanner" style="display:none;background:var(--warn);color:#fff;border-radius:var(--r);padding:14px 18px;margin-bottom:14px;align-items:center;gap:14px;font-size:13px;font-weight:600;flex-wrap:wrap">
+        <span id="resumeBannerText" style="flex:1;min-width:200px"></span>
+        <button onclick="resumeInterruptedDownloads()" style="background:#fff;color:var(--warn);border:none;border-radius:6px;padding:7px 16px;font-weight:800;cursor:pointer;font-size:12px;white-space:nowrap">Resume All</button>
+        <button onclick="dismissResumeBanner()" style="background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,0.5);border-radius:6px;padding:7px 14px;font-weight:700;cursor:pointer;font-size:12px;white-space:nowrap">Dismiss</button>
+      </div>
       <div class="section-header">
         <div>
           <div class="section-title">Available Files</div>
@@ -1053,6 +1058,7 @@ async function showApp() {
     document.getElementById('tab-available').classList.add('active');
     document.getElementById('tab-available').style.display = 'block';
     restoreDownloadFolder();
+    checkInterruptedDownloads();
     initBrowserUpload();
   }
 
@@ -1116,10 +1122,17 @@ function renderStats() {
   `;
 }
 
-let expandedFolders       = new Set(); // owner library
-let editorExpandedFolders = new Set(); // editor available files
-let autoDownloadFolders   = new Set(); // editor folders set to auto-download
+let expandedFolders        = new Set(); // owner library
+let editorExpandedFolders  = new Set(); // editor available files
+let editorCollapsedGroups  = new Set(); // top-level tree groups collapsed by the editor
+let autoDownloadFolders    = new Set(); // editor folders set to auto-download
 let downloadDirHandle     = null;      // FileSystemDirectoryHandle for saving downloads
+
+function toggleTreeGroup(topKey) {
+  if (editorCollapsedGroups.has(topKey)) editorCollapsedGroups.delete(topKey);
+  else editorCollapsedGroups.add(topKey);
+  renderEditor();
+}
 
 async function toggleFolder(key) {
   if (role === 'owner') {
@@ -1456,11 +1469,10 @@ async function cancelFolderUploads(folder) {
 
 // ── Editor render ─────────────────────────────────────────────────────────────
 function renderEditor() {
-  // Stats from folder summaries
-  const totalAvailable  = folderSummaries.reduce((s, f) => s + (f.available_count  || 0), 0);
-  const totalUploading  = folderSummaries.reduce((s, f) => s + (f.uploading_count  || 0), 0);
-  const totalSize       = folderSummaries.reduce((s, f) => s + (f.total_size       || 0), 0);
-  const downloaded      = Object.values(files).filter(f => f.downloaded_at);
+  const totalAvailable = folderSummaries.reduce((s, f) => s + (f.available_count  || 0), 0);
+  const totalUploading = folderSummaries.reduce((s, f) => s + (f.uploading_count  || 0), 0);
+  const totalSize      = folderSummaries.reduce((s, f) => s + (f.total_size       || 0), 0);
+  const downloaded     = Object.values(files).filter(f => f.downloaded_at);
 
   document.getElementById('editorStatsBar').innerHTML = `
     <div class="stat"><div class="stat-val">${totalAvailable + totalUploading}</div><div class="stat-label">Ready to download</div></div>
@@ -1469,19 +1481,37 @@ function renderEditor() {
   `;
 
   const folderList = document.getElementById('folderList');
-  const empty = document.getElementById('availableEmpty');
+  const empty      = document.getElementById('availableEmpty');
 
-  if (!folderSummaries.length) { folderList.innerHTML=''; empty.style.display='flex'; return; }
-  empty.style.display='none';
+  if (!folderSummaries.length) { folderList.innerHTML = ''; empty.style.display = 'flex'; return; }
+  empty.style.display = 'none';
 
-  folderList.innerHTML = folderSummaries.map(summary => {
-    const key        = summary.folder ?? '';
-    const isExpanded = editorExpandedFolders.has(key);
-    const isLoading  = loadingFolders.has(key);
+  // ── Inner: render one folder card (used for both standalone and child cards)
+  function renderFolderCard(summary, displayLabel, isChild) {
+    const key          = summary.folder ?? '';
+    const isExpanded   = editorExpandedFolders.has(key);
+    const isLoading    = loadingFolders.has(key);
     const anyUploading = summary.uploading_count > 0;
-    const allReady   = summary.uploading_count === 0 && summary.available_count > 0;
-    const safeKey    = key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const label      = key || '(root)';
+    const allReady     = summary.uploading_count === 0 && summary.available_count > 0;
+    const safeKey      = key.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    // Download status badge
+    let dlBadgeHtml;
+    if (loadedFolders.has(key)) {
+      const ff      = Object.values(files).filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting');
+      const dlCount = ff.filter(f => f.downloaded_at).length;
+      const total   = ff.length;
+      if (total > 0 && dlCount === total)
+        dlBadgeHtml = `<span class="status-badge" style="background:var(--warn);color:#fff">All downloaded</span>`;
+      else if (dlCount > 0)
+        dlBadgeHtml = `<span class="status-badge" style="background:var(--warn);color:#fff">${dlCount}/${total} downloaded</span>`;
+      else if (anyUploading)
+        dlBadgeHtml = `<span class="status-badge uploading">Uploading</span>`;
+      else
+        dlBadgeHtml = `<span class="status-badge available">Ready</span>`;
+    } else {
+      dlBadgeHtml = `<span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>`;
+    }
 
     let expandedContent = '';
     if (isExpanded) {
@@ -1509,15 +1539,19 @@ function renderEditor() {
       }
     }
 
+    const outerStyle = isChild
+      ? 'margin-bottom:0;box-shadow:none;border-color:var(--border)'
+      : '';
+
     return `
-      <div class="folder-group">
+      <div class="folder-group" style="${outerStyle}">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
-            <div class="folder-group-name">${esc(label)}</div>
+            <div class="folder-group-name">${esc(displayLabel)}</div>
             <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
           </div>
-          <span class="status-badge ${allReady?'available':'uploading'}">${allReady?'Ready':'Uploading'}</span>
+          ${dlBadgeHtml}
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ All</button>` : ''}
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2);flex-shrink:0" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
@@ -1527,14 +1561,61 @@ function renderEditor() {
         </div>
         ${expandedContent}
       </div>`;
+  }
+
+  // ── Group folderSummaries by their first path component ──────────────────
+  const treeGroupMap = new Map(); // topKey → summary[]
+  for (const s of folderSummaries) {
+    const folder = s.folder ?? '';
+    const slash  = folder.indexOf('/');
+    const topKey = slash === -1 ? folder : folder.slice(0, slash);
+    if (!treeGroupMap.has(topKey)) treeGroupMap.set(topKey, []);
+    treeGroupMap.get(topKey).push(s);
+  }
+
+  folderList.innerHTML = [...treeGroupMap.entries()].map(([topKey, summaries]) => {
+    // Single folder with no sub-folders → render exactly as before
+    if (summaries.length === 1 && (summaries[0].folder ?? '') === topKey) {
+      return renderFolderCard(summaries[0], topKey || '(root)', false);
+    }
+
+    // Multiple folders sharing the same top-level → tree wrapper
+    const isCollapsed = editorCollapsedGroups.has(topKey);
+    const combined = summaries.reduce((a, s) => ({
+      file_count:     a.file_count     + (s.file_count     || 0),
+      total_size:     a.total_size     + (s.total_size     || 0),
+      uploading_count:a.uploading_count+ (s.uploading_count|| 0),
+    }), { file_count: 0, total_size: 0, uploading_count: 0 });
+    const safeTopKey = topKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    const childCards = isCollapsed ? '' : summaries.map(s => {
+      const sub = (s.folder ?? '').slice(topKey.length).replace(/^\//, '') || '(root files)';
+      return renderFolderCard(s, sub, true);
+    }).join('');
+
+    return `
+      <div class="folder-group" style="margin-bottom:10px">
+        <div class="folder-group-header" onclick="toggleTreeGroup('${safeTopKey}')" style="border-radius:${isCollapsed?'var(--r)':'var(--r) var(--r) 0 0'}">
+          <span class="folder-group-icon">${isCollapsed ? ICON_FOLDER_CLOSED : ICON_FOLDER_OPEN}</span>
+          <div class="folder-group-info">
+            <div class="folder-group-name">${esc(topKey || '(root)')}</div>
+            <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size)} · ${summaries.length} sub-folders${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
+          </div>
+          <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
+        </div>
+        ${isCollapsed ? '' : `
+          <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--bg);border-top:1.5px solid var(--border);border-radius:0 0 var(--r) var(--r)">
+            ${childCards}
+          </div>`}
+      </div>`;
   }).join('');
 
   // History — from any loaded folders
-  const historyGrid = document.getElementById('historyGrid');
+  const historyGrid  = document.getElementById('historyGrid');
   const historyEmpty = document.getElementById('historyEmpty');
-  if (!downloaded.length) { historyGrid.innerHTML=''; historyEmpty.style.display='flex'; }
+  if (!downloaded.length) { historyGrid.innerHTML = ''; historyEmpty.style.display = 'flex'; }
   else {
-    historyEmpty.style.display='none';
+    historyEmpty.style.display = 'none';
     historyGrid.innerHTML = downloaded.sort((a,b)=>b.downloaded_at?.localeCompare(a.downloaded_at||'')||0).map(f=>fileCard(f)).join('');
   }
 }
@@ -1828,6 +1909,44 @@ function _saveDlState(id, state) { try { localStorage.setItem(_dlKey(id), JSON.s
 function _loadDlState(id)        { try { const s = localStorage.getItem(_dlKey(id)); return s ? JSON.parse(s) : null; } catch { return null; } }
 function _clearDlState(id)       { try { localStorage.removeItem(_dlKey(id)); } catch {} }
 
+// ── Interrupted download resume banner ───────────────────────────────────────
+
+function checkInterruptedDownloads() {
+  const interrupted = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !key.startsWith('fd_dl_')) continue;
+    try {
+      const state = JSON.parse(localStorage.getItem(key));
+      if (state && state.bytesReceived > 0 && state.bytesReceived < state.totalSize) {
+        const id = key.slice('fd_dl_'.length);
+        interrupted.push({ id, name: state.name || 'a file', bytesReceived: state.bytesReceived, totalSize: state.totalSize });
+      }
+    } catch {}
+  }
+  if (!interrupted.length) return;
+  const banner = document.getElementById('resumeBanner');
+  const text   = document.getElementById('resumeBannerText');
+  if (!banner || !text) return;
+  const pcts = interrupted.map(i => `${i.name} (${Math.round(i.bytesReceived / i.totalSize * 100)}% done)`);
+  text.textContent = `${interrupted.length} download${interrupted.length > 1 ? 's were' : ' was'} interrupted — ${pcts.join(', ')}`;
+  banner.style.display = 'flex';
+  window._interruptedDownloads = interrupted;
+}
+
+async function resumeInterruptedDownloads() {
+  const interrupted = window._interruptedDownloads || [];
+  document.getElementById('resumeBanner').style.display = 'none';
+  for (const item of interrupted) {
+    const btn = document.getElementById('dlbtn-' + item.id);
+    downloadSingleFile(item.id, item.name, btn || null);
+  }
+}
+
+function dismissResumeBanner() {
+  document.getElementById('resumeBanner').style.display = 'none';
+}
+
 async function _getFreshDlUrl(id) {
   const data = await api(`/api/files/${id}/download`, { method: 'POST' });
   return data?.url || null;
@@ -1835,7 +1954,7 @@ async function _getFreshDlUrl(id) {
 
 // Core: fetches file in DL_CHUNK_SIZE chunks using Range headers, writes to writable.
 // Refreshes presigned URL automatically if it expires (403/401).
-async function _chunkedDownload(id, totalSize, writable, startByte, onProgress) {
+async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, name) {
   let url = await _getFreshDlUrl(id);
   if (!url) throw new Error('Could not get download URL');
   let bytesReceived = startByte;
@@ -1857,7 +1976,7 @@ async function _chunkedDownload(id, totalSize, writable, startByte, onProgress) 
     await writable.write(chunk);
     bytesReceived += chunk.byteLength;
 
-    _saveDlState(id, { totalSize, bytesReceived });
+    _saveDlState(id, { totalSize, bytesReceived, name });
     onProgress(Math.round(bytesReceived / totalSize * 100));
   }
 
@@ -1881,7 +2000,7 @@ async function streamFile(item, idx, url) {
     // Auto-folder set: chunked download with progress
     const fh = await downloadDirHandle.getFileHandle(item.name, { create: true });
     const writable = await fh.createWritable();
-    await _chunkedDownload(item.id, totalSize, writable, 0, onProgress);
+    await _chunkedDownload(item.id, totalSize, writable, 0, onProgress, item.name);
   } else {
     // No folder set: anchor download — never show a save dialog per file in bulk
     const a = document.createElement('a');
@@ -1960,7 +2079,7 @@ async function downloadSingleFile(id, name, btn) {
       return;
     }
 
-    await _chunkedDownload(id, totalSize, writable, startByte, onProgress);
+    await _chunkedDownload(id, totalSize, writable, startByte, onProgress, name);
 
     if (btn) {
       btn.disabled = false;
@@ -2224,9 +2343,33 @@ const MULTIPART_THRESHOLD = 64 * 1024 * 1024;   // use multipart above 64 MB
 const PART_PARALLELISM    = 2;                   // concurrent part uploads per file
 const UPLOAD_CONCURRENCY  = 3;                   // max simultaneous file uploads
 
+// ── Upload speed tracker — rolling 20s window ────────────────────────────────
+const _SPEED_WINDOW_MS  = 20000;
+let   _uploadSpeedLog   = []; // { t, delta } — bytes uploaded per sample
+
+function _trackUploadDelta(bytes) {
+  if (bytes <= 0) return;
+  const now = Date.now();
+  _uploadSpeedLog.push({ t: now, delta: bytes });
+  const cutoff = now - _SPEED_WINDOW_MS;
+  while (_uploadSpeedLog.length && _uploadSpeedLog[0].t < cutoff) _uploadSpeedLog.shift();
+}
+
+function _getUploadSpeed() {
+  if (_uploadSpeedLog.length < 2) return 0;
+  const now    = Date.now();
+  const cutoff = now - _SPEED_WINDOW_MS;
+  const recent = _uploadSpeedLog.filter(s => s.t >= cutoff);
+  if (recent.length < 2) return 0;
+  const totalBytes = recent.reduce((a, s) => a + s.delta, 0);
+  const windowMs   = now - recent[0].t;
+  return windowMs > 500 ? totalBytes / (windowMs / 1000) : 0;
+}
+
 // ── Upload queue — limits to UPLOAD_CONCURRENCY files at once ─────────────────
 let _activeUploads = 0;
-const _uploadQueue = []; // { file, folder, ctx, _row }
+const _uploadQueue  = []; // { file, folder, ctx, _row }
+let   _summaryTimer = null;
 
 function _updateQueueSummary(ctx) {
   const el = document.getElementById(ctx.queueId + 'Summary');
@@ -2239,6 +2382,11 @@ function _updateQueueSummary(ctx) {
   const parts = [];
   if (activeCount) parts.push(`<strong>${activeCount}</strong> uploading`);
   if (queuedCount) parts.push(`<strong>${queuedCount}</strong> queued${waitBytes ? ' (' + fmtBytes(waitBytes) + ' waiting)' : ''}`);
+  const speed = _getUploadSpeed();
+  if (speed > 50000) {
+    parts.push(`${fmtBytes(Math.round(speed))}/s`);
+    if (waitBytes > 0) parts.push(fmtDuration(waitBytes / speed));
+  }
   el.style.display = 'flex';
   el.innerHTML = parts.join(' &nbsp;·&nbsp; ');
 }
@@ -2280,6 +2428,16 @@ function _drainUploadQueue() {
   while (_activeUploads < UPLOAD_CONCURRENCY && _uploadQueue.length > 0) {
     const task = _uploadQueue.shift();
     _activeUploads++;
+    // Start 1-second refresh timer for speed/ETA display
+    if (!_summaryTimer) {
+      _summaryTimer = setInterval(() => {
+        if (_activeUploads === 0 && _uploadQueue.length === 0) {
+          clearInterval(_summaryTimer); _summaryTimer = null; return;
+        }
+        const activeCtxs = new Set(_uploadQueue.map(t => t.ctx));
+        activeCtxs.forEach(ctx => _updateQueueSummary(ctx));
+      }, 1000);
+    }
     uploadBrowserFile(task.file, task.folder, task.ctx, task._row).finally(() => {
       _activeUploads--;
       _updateQueueSummary(task.ctx);
@@ -2308,7 +2466,13 @@ async function _xhrPut(url, body, onProgress, isCancelled, label, maxAttempts = 
       return await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open('PUT', url);
-        if (onProgress) xhr.upload.onprogress = onProgress;
+        let _lastLoaded = 0;
+        xhr.upload.onprogress = e => {
+          const delta = e.loaded - _lastLoaded;
+          _lastLoaded = e.loaded;
+          if (delta > 0) _trackUploadDelta(delta);
+          if (onProgress) onProgress(e);
+        };
         xhr.onload  = () => xhr.status < 300 ? resolve(xhr) : reject(new Error(`${label} failed: HTTP ${xhr.status}`));
         xhr.onerror = () => reject(new Error('Network error'));
         xhr.onabort = () => reject(new Error('Cancelled'));
