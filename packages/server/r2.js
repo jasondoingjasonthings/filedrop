@@ -15,8 +15,13 @@ const client = new S3Client({
   credentials: { accessKeyId: ACCESS_KEY, secretAccessKey: SECRET_KEY },
 });
 
-async function presignDownload(key, expiresIn = 3600) {
-  return getSignedUrl(client, new GetObjectCommand({ Bucket: BUCKET, Key: key }), { expiresIn });
+async function presignDownload(key, expiresIn = 3600, filename) {
+  const cmd = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    ...(filename ? { ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(filename)}` } : {}),
+  });
+  return getSignedUrl(client, cmd, { expiresIn });
 }
 
 async function presignUpload(key, expiresIn = 86400) {

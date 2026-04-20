@@ -87,7 +87,7 @@ function makeSharesPublicRouter(db) {
     `).get(req.params.fileId, link.folder);
     if (!file) { res.status(404).json({ error: 'File not found' }); return; }
 
-    const url = await presignDownload(file.r2_key, 3600);
+    const url = await presignDownload(file.r2_key, 3600, file.name);
     res.json({ url, name: file.name });
   });
 

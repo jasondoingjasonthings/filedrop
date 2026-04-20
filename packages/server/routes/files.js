@@ -56,7 +56,7 @@ function makeFilesRouter(db, sseBus) {
     }
 
     try {
-      const url = await presignDownload(file.r2_key, 3600);
+      const url = await presignDownload(file.r2_key, 3600, file.name);
 
       // On first download: record who downloaded it — status stays 'available' so
       // multiple editors can download and the file is never auto-deleted.
@@ -83,7 +83,7 @@ function makeFilesRouter(db, sseBus) {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     if (!file || file.status === 'deleted') { res.status(404).json({ error: 'Not found' }); return; }
     try {
-      const url = await presignDownload(file.r2_key, 3600);
+      const url = await presignDownload(file.r2_key, 3600, file.name);
       res.json({ url, name: file.name });
     } catch (err) {
       res.status(500).json({ error: 'Failed to generate download URL' });
