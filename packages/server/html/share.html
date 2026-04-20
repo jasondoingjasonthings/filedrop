@@ -194,37 +194,36 @@ async function downloadOne(fileId, name, btn) {
 
 async function downloadAll() {
   const btn = document.getElementById('dlAllBtn');
-  btn.disabled = true; btn.textContent = 'Preparing…';
-  try {
-    // Fetch all presigned URLs in parallel
-    const results = await Promise.all(
-      allFiles.map(f =>
-        fetch(`/share/${token}/download/${f.id}`, { method: 'POST' })
-          .then(r => r.json())
-          .then(data => ({ url: data.url, name: f.name }))
-          .catch(() => null)
-      )
-    );
-    const valid = results.filter(Boolean);
+  btn.disabled = true;
 
-    // Staggered downloads within user gesture context
-    valid.forEach(({ url, name }, i) => {
-      setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = url; a.download = name;
-        document.body.appendChild(a); a.click(); a.remove();
-      }, i * 1200);
-    });
+  let completed = 0;
+  const total = allFiles.length;
 
-    btn.textContent = `↓ ${valid.length} downloading…`;
-    setTimeout(() => {
-      btn.textContent = '✓ All done';
-      btn.classList.add('done');
-    }, valid.length * 1200);
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '↓ Download All';
-    toast('Failed: ' + e.message, 'error');
+  for (const f of allFiles) {
+    btn.textContent = `↓ ${completed + 1} / ${total}…`;
+    try {
+      const res  = await fetch(`/share/${token}/download/${f.id}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // Content-Disposition: attachment is set server-side on the presigned URL,
+      // so the browser saves the file regardless of a.download attribute.
+      const a = document.createElement('a');
+      a.href = data.url; a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+
+      completed++;
+      const dlBtn = document.getElementById('dl-' + f.id);
+      if (dlBtn) { dlBtn.textContent = '✓ Done'; dlBtn.classList.add('done'); }
+
+      // Brief pause so the browser registers each download before the next
+      if (completed < total) await new Promise(r => setTimeout(r, 1500));
+    } catch(e) {
+      toast(`Failed to download ${f.name}: ${e.message}`, 'error');
+    }
   }
+
+  btn.textContent = completed === total ? `✓ All ${total} saved` : `✓ ${completed} / ${total} saved`;
 }
 
 init();
