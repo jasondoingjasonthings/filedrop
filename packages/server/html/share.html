@@ -175,55 +175,41 @@ async function init() {
   `).join('');
 }
 
-async function downloadOne(fileId, name, btn) {
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Preparing…';
-  try {
-    const res  = await fetch(`/share/${token}/download/${fileId}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    const a = document.createElement('a');
-    a.href = data.url; a.download = name;
-    document.body.appendChild(a); a.click(); a.remove();
-    btn.textContent = '✓ Done'; btn.classList.add('done');
-  } catch(e) {
-    btn.disabled = false; btn.textContent = orig;
-    toast('Download failed: ' + e.message, 'error');
-  }
+function downloadOne(fileId, name, btn) {
+  // Same-origin redirect → R2 with Content-Disposition: attachment
+  // a.download is honoured (same-origin), file goes straight to Downloads folder
+  btn.disabled = true; btn.textContent = 'Downloading…';
+  const a = document.createElement('a');
+  a.href = `/share/${token}/dl/${fileId}`;
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => { btn.textContent = '✓ Done'; btn.classList.add('done'); }, 800);
 }
 
-async function downloadAll() {
+function downloadAll() {
   const btn = document.getElementById('dlAllBtn');
   btn.disabled = true;
-
-  let completed = 0;
   const total = allFiles.length;
 
-  for (const f of allFiles) {
-    btn.textContent = `↓ ${completed + 1} / ${total}…`;
-    try {
-      const res  = await fetch(`/share/${token}/download/${f.id}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+  // Hidden iframes navigate to the same-origin redirect endpoint.
+  // Each iframe follows the 302 → R2 URL with Content-Disposition: attachment,
+  // triggering a silent download to the Downloads folder — no dialog, no gesture needed.
+  allFiles.forEach((f, i) => {
+    setTimeout(() => {
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+      iframe.src = `/share/${token}/dl/${f.id}`;
+      document.body.appendChild(iframe);
+      setTimeout(() => iframe.remove(), 60000);
 
-      // Content-Disposition: attachment is set server-side on the presigned URL,
-      // so the browser saves the file regardless of a.download attribute.
-      const a = document.createElement('a');
-      a.href = data.url; a.download = f.name;
-      document.body.appendChild(a); a.click(); a.remove();
-
-      completed++;
       const dlBtn = document.getElementById('dl-' + f.id);
-      if (dlBtn) { dlBtn.textContent = '✓ Done'; dlBtn.classList.add('done'); }
+      if (dlBtn) { dlBtn.textContent = '↓ Downloading…'; }
+      setTimeout(() => { if (dlBtn) { dlBtn.textContent = '✓ Done'; dlBtn.classList.add('done'); } }, 2000);
+    }, i * 1500);
+  });
 
-      // Brief pause so the browser registers each download before the next
-      if (completed < total) await new Promise(r => setTimeout(r, 1500));
-    } catch(e) {
-      toast(`Failed to download ${f.name}: ${e.message}`, 'error');
-    }
-  }
-
-  btn.textContent = completed === total ? `✓ All ${total} saved` : `✓ ${completed} / ${total} saved`;
+  btn.textContent = `↓ Downloading ${total} files…`;
+  setTimeout(() => { btn.textContent = `✓ All ${total} sent to Downloads`; }, total * 1500 + 1000);
 }
 
 init();

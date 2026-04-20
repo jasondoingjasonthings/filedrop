@@ -75,7 +75,7 @@ function makeSharesPublicRouter(db) {
     res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files });
   });
 
-  // ── Public: generate presigned download URL ───────────────────────────────
+  // ── Public: generate presigned download URL (kept for legacy) ───────────────
   router.post('/:token/download/:fileId', async (req, res) => {
     const link = db.prepare(`
       SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
@@ -89,6 +89,27 @@ function makeSharesPublicRouter(db) {
 
     const url = await presignDownload(file.r2_key, 3600, file.name);
     res.json({ url, name: file.name });
+  });
+
+  // ── Public: same-origin redirect — browser follows to R2 with Content-Disposition
+  // This lets a.download work (same-origin) and avoids any save dialog.
+  router.get('/:token/dl/:fileId', async (req, res) => {
+    const link = db.prepare(`
+      SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).send('Link expired'); return; }
+
+    const file = db.prepare(`
+      SELECT * FROM files WHERE id=? AND folder=? AND status='available'
+    `).get(req.params.fileId, link.folder);
+    if (!file) { res.status(404).send('File not found'); return; }
+
+    try {
+      const url = await presignDownload(file.r2_key, 300, file.name);
+      res.redirect(302, url);
+    } catch (err) {
+      res.status(500).send('Failed to generate download URL');
+    }
   });
 
   return router;
