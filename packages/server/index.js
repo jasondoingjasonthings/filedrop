@@ -19,6 +19,7 @@ const { makeFsRouter }    = require('./routes/fs');
 const { makeSharesApiRouter, makeSharesPublicRouter } = require('./routes/shares');
 const { makeUploadLinksRouter } = require('./routes/uploadlinks');
 const { makeRequestsRouter }   = require('./routes/requests');
+const { presignDownload }      = require('./r2');
 
 const PORT       = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -57,6 +58,22 @@ app.get('/api/events', (req, res) => {
 });
 
 const auth = makeAuthMiddleware(JWT_SECRET);
+
+// Same-origin download redirect — accepts ?token= so iframes/anchors can trigger downloads
+// without needing Authorization headers (which iframes cannot set)
+app.get('/api/files/:id/dl', async (req, res) => {
+  const tok = req.query.token;
+  if (!tok) { res.status(401).send('Missing token'); return; }
+  try { verifyToken(tok, JWT_SECRET); } catch { res.status(401).send('Invalid token'); return; }
+  const file = db.prepare(`SELECT * FROM files WHERE id=? AND status='available'`).get(req.params.id);
+  if (!file) { res.status(404).send('File not found'); return; }
+  try {
+    const url = await presignDownload(file.r2_key, 300, file.name);
+    res.redirect(302, url);
+  } catch (err) {
+    res.status(500).send('Failed to generate download URL');
+  }
+});
 
 app.use('/api/auth',   makeAuthRouter(db, JWT_SECRET));
 app.use('/api/files',  auth, makeFilesRouter(db, sseBus));

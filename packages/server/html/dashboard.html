@@ -2001,10 +2001,14 @@ async function streamFile(item, idx, url) {
     const writable = await fh.createWritable();
     await _chunkedDownload(item.id, totalSize, writable, 0, onProgress, item.name);
   } else {
-    // No folder set: anchor download — never show a save dialog per file in bulk
-    const a = document.createElement('a');
-    a.href = url; a.download = item.name;
-    document.body.appendChild(a); a.click(); a.remove();
+    // No folder set: same-origin iframe redirect → R2 with Content-Disposition: attachment
+    // a.download is ignored for cross-origin URLs; iframes following a same-origin 302 work
+    // reliably and don't trigger save dialogs or get blocked by Chrome after ~10 clicks
+    const iframe = document.createElement('iframe');
+    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+    iframe.src = `/api/files/${item.id}/dl?token=${encodeURIComponent(token)}`;
+    document.body.appendChild(iframe);
+    setTimeout(() => iframe.remove(), 60000);
     item.progress = 100;
     updateDlQueueItem(idx);
   }
