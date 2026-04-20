@@ -1986,9 +1986,8 @@ async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, 
 }
 
 async function streamFile(item, idx, url) {
-  // Get file size via HEAD so we can show chunk progress and support resume
-  const head = await fetch(url, { method: 'HEAD' });
-  const totalSize = parseInt(head.headers.get('content-length') || '0');
+  // Use size from DB (already in item) — avoids cross-origin HEAD request to R2
+  const totalSize = item.size || 0;
 
   const onProgress = pct => {
     item.progress = pct;
@@ -2024,14 +2023,13 @@ async function downloadSingleFile(id, name, btn) {
   if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; btn.style.background = ''; btn.style.color = ''; }
 
   try {
-    // Get file size before deciding how to download
-    const firstUrl = await _getFreshDlUrl(id);
-    if (!firstUrl) { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+    // Get URL + size from server in one call (avoids cross-origin HEAD to R2)
+    const dlInfo = await api(`/api/files/${id}/download`, { method: 'POST' });
+    if (!dlInfo) { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+    const firstUrl = dlInfo.url;
+    const totalSize = dlInfo.size || 0;
 
-    const head = await fetch(firstUrl, { method: 'HEAD' });
-    const totalSize = parseInt(head.headers.get('content-length') || '0');
-
-    // No content-length (very rare with R2) — anchor fallback
+    // No size in DB — anchor fallback
     if (!totalSize) {
       const a = document.createElement('a'); a.href = firstUrl; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();

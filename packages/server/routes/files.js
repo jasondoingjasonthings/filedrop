@@ -71,7 +71,7 @@ function makeFilesRouter(db, sseBus) {
         sseBus.broadcast('file', updated);
       }
 
-      res.json({ url });
+      res.json({ url, size: file.size || 0 });
     } catch (err) {
       console.error('[files] presign error:', err.message);
       res.status(500).json({ error: 'Failed to generate download URL' });
