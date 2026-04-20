@@ -507,6 +507,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 }
 .toast.success { background: #15803d; }
 .toast.error   { background: #b91c1c; }
+.toast.warn    { background: #d97706; }
 @keyframes slideIn {
   from { transform: translateX(20px); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
@@ -1732,7 +1733,18 @@ const DL_RETRY_DELAY  = 5000;
 let dlQueueItems = []; // { id, name, size, status, progress, attempts, error }
 let dlQueueRunning = false;
 
+function switchToPrefsTab() {
+  const prefsBtn = document.querySelector('#editorTabs .tab-btn[data-tab="prefs"]');
+  if (prefsBtn) prefsBtn.click();
+}
+
 async function downloadFolderAll(folder, btn) {
+  if (!downloadDirHandle) {
+    toast('Set a download folder first — going to Preferences', 'warn');
+    switchToPrefsTab();
+    return;
+  }
+
   if (!loadedFolders.has(folder)) await loadFolderFiles(folder);
   const toDownload = Object.values(files).filter(f =>
     (f.folder || '') === folder && f.status === 'available'
