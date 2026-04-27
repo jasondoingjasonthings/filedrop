@@ -83,6 +83,11 @@ function migrate(db) {
       status     TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','fulfilled')),
       created_at TEXT DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 }
 

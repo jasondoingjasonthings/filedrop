@@ -35,6 +35,11 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
 
   console.log('[watcher] Ready.');
 
+  function close() {
+    watcher.close();
+    console.log(`[watcher] Stopped watching: ${watchDir}`);
+  }
+
   function scheduleUpload(filePath, event) {
     if (pending.has(filePath)) {
       clearTimeout(pending.get(filePath));
@@ -61,6 +66,8 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
       console.error(`[watcher] Upload failed for ${rel}:`, err.message);
     }
   }
+
+  return { close };
 }
 
 module.exports = { startWatcher };

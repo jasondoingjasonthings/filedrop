@@ -78,6 +78,20 @@ function makeFsRouter(db, jwtSecret) {
     res.json({ ok: true });
   });
 
+  // ── Agent: read config (watch dir etc.) ──────────────────────────────────
+  router.get('/agent-config', agentAuth, (req, res) => {
+    const row = db.prepare(`SELECT value FROM settings WHERE key='watch_dir'`).get();
+    res.json({ watchDir: row ? row.value : null });
+  });
+
+  // ── Owner: update agent config ────────────────────────────────────────────
+  router.patch('/agent-config', jwtAuth, requireOwner, (req, res) => {
+    const { watchDir } = req.body || {};
+    if (!watchDir || !watchDir.trim()) { res.status(400).json({ error: 'watchDir required' }); return; }
+    db.prepare(`INSERT OR REPLACE INTO settings (key, value) VALUES ('watch_dir', ?)`).run(watchDir.trim());
+    res.json({ ok: true });
+  });
+
   return router;
 }
 

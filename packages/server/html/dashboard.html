@@ -725,6 +725,18 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
         <div class="token-box" id="agentTokenBox">Loading…</div>
       </div>
       <div class="settings-section">
+        <h3>Watch Folder</h3>
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px">The folder on your Windows machine the agent watches for new files. Changes take effect within 30 seconds — no agent restart needed.</p>
+        <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:220px">
+            <label>Folder path</label>
+            <input type="text" id="watchDirInput" placeholder="e.g. C:\Users\Jason\FileDrop" style="font-family:monospace;font-size:13px">
+          </div>
+          <button class="btn-primary" id="saveWatchDirBtn" style="white-space:nowrap;padding:9px 18px">Save</button>
+        </div>
+        <div id="watchDirStatus" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
+      </div>
+      <div class="settings-section">
         <h3>Users</h3>
         <div id="userList"></div>
         <div class="add-user-form" style="margin-top:16px">
@@ -2250,6 +2262,32 @@ async function loadAgentToken() {
   } catch(e) { console.error(e); }
 }
 
+async function loadWatchDir() {
+  const data = await api('/api/fs/agent-config');
+  if (!data) return;
+  const input  = document.getElementById('watchDirInput');
+  const status = document.getElementById('watchDirStatus');
+  if (data.watchDir) {
+    input.value     = data.watchDir;
+    status.textContent = `Currently watching: ${data.watchDir}`;
+  } else {
+    status.textContent = 'Not set — agent is using its default (~/FileDrop or .env value)';
+  }
+}
+
+document.getElementById('saveWatchDirBtn').addEventListener('click', async () => {
+  const watchDir = document.getElementById('watchDirInput').value.trim();
+  if (!watchDir) { toast('Enter a folder path', 'error'); return; }
+  const btn = document.getElementById('saveWatchDirBtn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  const data = await api('/api/fs/agent-config', { method: 'PATCH', body: { watchDir } });
+  btn.disabled = false; btn.textContent = 'Save';
+  if (data) {
+    document.getElementById('watchDirStatus').textContent = `Currently watching: ${watchDir}`;
+    toast('Watch folder updated — agent will switch within 30 seconds');
+  }
+});
+
 async function loadUsers() {
   try {
     const users = await api('/api/users');
@@ -3347,7 +3385,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     const active = document.getElementById('tab-'+tab);
     if (active) { active.classList.add('active'); active.style.display='block'; }
     if (tab === 'prefs') renderDlPrefs();
-    if (tab === 'settings') { loadUploadLinks(); loadRequests(); }
+    if (tab === 'settings') { loadUploadLinks(); loadRequests(); loadWatchDir(); }
   });
 });
 
