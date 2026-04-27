@@ -1739,9 +1739,8 @@ function switchToPrefsTab() {
 }
 
 async function downloadFolderAll(folder, btn) {
-  if (!downloadDirHandle) {
-    toast('Set a download folder first — going to Preferences', 'warn');
-    switchToPrefsTab();
+  if (dlQueueRunning) {
+    toast('A download is already in progress — wait for it to finish', 'error');
     return;
   }
 
@@ -1750,6 +1749,10 @@ async function downloadFolderAll(folder, btn) {
     (f.folder || '') === folder && f.status === 'available'
   );
   if (!toDownload.length) return;
+
+  if (!downloadDirHandle) {
+    toast('No download folder set — files will go to your default Downloads folder', 'warn');
+  }
 
   if (btn) { btn.disabled = true; btn.textContent = 'Queued…'; }
 
@@ -2095,31 +2098,38 @@ async function downloadSingleFile(id, name, btn) {
 
     await _chunkedDownload(id, totalSize, writable, startByte, onProgress, name);
 
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '✓ Done';
-      btn.style.background = 'var(--success)';
-      btn.style.color = '#fff';
+    // Re-query button by stable ID — a re-render during the download may have replaced the original element
+    const liveBtn = document.getElementById('dlbtn-' + id) || btn;
+    if (liveBtn) {
+      liveBtn.disabled = false;
+      liveBtn.textContent = '✓ Done';
+      liveBtn.style.background = 'var(--success)';
+      liveBtn.style.color = '#fff';
     }
 
   } catch(e) {
-    if (e.name === 'AbortError') { if (btn) { btn.disabled = false; btn.textContent = orig; } return; }
+    if (e.name === 'AbortError') {
+      const liveBtn = document.getElementById('dlbtn-' + id) || btn;
+      if (liveBtn) { liveBtn.disabled = false; liveBtn.textContent = orig; }
+      return;
+    }
 
     // Keep the writable closed — can't reuse after an error
     _dlHandles.delete(id);
 
     const saved = _loadDlState(id);
+    const liveBtn = document.getElementById('dlbtn-' + id) || btn;
     if (saved?.bytesReceived > 0 && saved.totalSize) {
       const pct = Math.round(saved.bytesReceived / saved.totalSize * 100);
-      if (btn) {
-        btn.disabled = false;
-        btn.style.background = 'var(--warn)';
-        btn.style.color = '#fff';
-        btn.textContent = `↓ Resume (${pct}%)`;
+      if (liveBtn) {
+        liveBtn.disabled = false;
+        liveBtn.style.background = 'var(--warn)';
+        liveBtn.style.color = '#fff';
+        liveBtn.textContent = `↓ Resume (${pct}%)`;
       }
       toast(`Download paused at ${pct}% — click Resume to continue from where it stopped`, 'error');
     } else {
-      if (btn) { btn.disabled = false; btn.textContent = orig; }
+      if (liveBtn) { liveBtn.disabled = false; liveBtn.textContent = orig; }
       toast(`Download failed: ${e.message}`, 'error');
     }
   }
@@ -2134,6 +2144,7 @@ async function deleteFile(id) {
 }
 
 async function deleteFolder(key) {
+  if (!loadedFolders.has(key)) await loadFolderFiles(key);
   const folderFiles = Object.values(files).filter(f => (f.folder || '') === key && f.status !== 'deleted');
   if (!folderFiles.length) return;
   const label = key || 'root';
@@ -3187,11 +3198,10 @@ function connectSSE() {
     const folderKey = f.folder ?? '';
     const prev = files[f.id];
 
-    // Always track uploading files (needed for Uploads tab)
-    // Also update if we already have this file (e.g. was uploading → now available)
+    // Track files in memory — uploading always, others only if folder loaded or already tracked
     if (f.status === 'uploading') {
       files[f.id] = f;
-    } else if (f.status === 'deleted') {
+    } else if (f.status === 'deleted' || f.status === 'deleting') {
       delete files[f.id];
     } else if (loadedFolders.has(folderKey) || files[f.id]) {
       files[f.id] = f;
@@ -3204,24 +3214,44 @@ function connectSSE() {
       folderSummaries.unshift(summary);
     }
     if (loadedFolders.has(folderKey)) {
-      // Recalculate from loaded files
+      // Recalculate precisely from the full loaded set
       const loaded = Object.values(files).filter(ff => (ff.folder ?? '') === folderKey && ff.status !== 'deleted' && ff.status !== 'deleting');
-      summary.file_count = loaded.length;
-      summary.total_size = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
+      summary.file_count       = loaded.length;
+      summary.total_size       = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
       summary.uploading_count  = loaded.filter(ff => ff.status === 'uploading').length;
       summary.available_count  = loaded.filter(ff => ff.status === 'available').length;
       summary.downloaded_count = loaded.filter(ff => ff.downloaded_at).length;
+    } else {
+      // Folder not loaded — update counts incrementally from prev→current transition
+      const prevActive = prev && prev.status !== 'deleted' && prev.status !== 'deleting';
+      const currActive = f.status !== 'deleted' && f.status !== 'deleting';
+      if (prevActive) {
+        if (prev.status === 'uploading') summary.uploading_count  = Math.max(0, summary.uploading_count  - 1);
+        if (prev.status === 'available') summary.available_count  = Math.max(0, summary.available_count  - 1);
+        if (prev.downloaded_at)          summary.downloaded_count = Math.max(0, summary.downloaded_count - 1);
+        summary.file_count = Math.max(0, summary.file_count - 1);
+        summary.total_size = Math.max(0, (summary.total_size || 0) - (prev.size || 0));
+      }
+      if (currActive) {
+        if (f.status === 'uploading') summary.uploading_count++;
+        if (f.status === 'available') summary.available_count++;
+        if (f.downloaded_at)          summary.downloaded_count++;
+        summary.file_count++;
+        summary.total_size = (summary.total_size || 0) + (f.size || 0);
+      }
     }
 
     render();
 
     // If editor has the folder open and a file just became available
     if (role === 'editor' && f.status === 'available' && (!prev || prev.status !== 'available')) {
-      const key = f.folder || '(root)';
-      // Auto-expand folder (only if already loaded to avoid triggering a fetch mid-session)
-      if (loadedFolders.has(folderKey) && !editorExpandedFolders.has(key)) { editorExpandedFolders.add(key); render(); }
+      // Auto-expand folder — use folderKey ('' for root) to match editorExpandedFolders key convention
+      if (loadedFolders.has(folderKey) && !editorExpandedFolders.has(folderKey)) {
+        editorExpandedFolders.add(folderKey);
+        render();
+      }
       // Auto-download if folder is in auto-download mode
-      if (autoDownloadFolders.has(key)) {
+      if (autoDownloadFolders.has(folderKey)) {
         setTimeout(() => {
           const btn = document.getElementById('dlbtn-' + f.id);
           if (btn) downloadSingleFile(f.id, f.name, btn);

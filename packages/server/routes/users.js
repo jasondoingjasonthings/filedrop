@@ -48,15 +48,10 @@ function makeUsersRouter(db) {
       res.status(400).json({ error: 'Cannot delete yourself' });
       return;
     }
-    try {
-      db.prepare(`DELETE FROM users WHERE id=?`).run(req.params.id);
-      res.json({ ok: true });
-    } catch(e) {
-      // Clear the foreign key reference first, then delete
-      db.prepare(`UPDATE files SET downloaded_by=NULL WHERE downloaded_by=?`).run(req.params.id);
-      db.prepare(`DELETE FROM users WHERE id=?`).run(req.params.id);
-      res.json({ ok: true });
-    }
+    db.prepare(`UPDATE files SET downloaded_by=NULL WHERE downloaded_by=?`).run(req.params.id);
+    db.prepare(`DELETE FROM file_requests WHERE user_id=?`).run(req.params.id);
+    db.prepare(`DELETE FROM users WHERE id=?`).run(req.params.id);
+    res.json({ ok: true });
   });
 
   return router;

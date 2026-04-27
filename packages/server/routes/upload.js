@@ -189,11 +189,12 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
   router.post('/browser/start', jwtAuth, async (req, res) => {
     const { name, size, folder, r2Key: resumeR2Key } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
-    const id    = uuid();
-    const ext   = name.slice(name.lastIndexOf('.'));
-    const base  = name.slice(0, name.lastIndexOf('.')).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
+    const id     = uuid();
+    const dotIdx = name.lastIndexOf('.');
+    const ext    = dotIdx > 0 ? name.slice(dotIdx) : '';
+    const base   = (dotIdx > 0 ? name.slice(0, dotIdx) : name).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
     // Use provided r2Key when resuming an interrupted upload, otherwise generate fresh key
-    const r2Key = resumeR2Key || (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
+    const r2Key  = resumeR2Key || (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
 
     db.prepare(`
       INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)

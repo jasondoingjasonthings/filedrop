@@ -23,16 +23,16 @@ function makeSharesApiRouter(db, jwtSecret) {
     res.json({ token, expiresAt });
   });
 
-  // ── Owner: list share links ───────────────────────────────────────────────
-  router.get('/', jwtAuth, requireOwner, (req, res) => {
+  // ── List share links ─────────────────────────────────────────────────────
+  router.get('/', jwtAuth, (req, res) => {
     const links = db.prepare(`
       SELECT * FROM share_links WHERE expires_at > datetime('now') ORDER BY created_at DESC
     `).all();
     res.json(links);
   });
 
-  // ── Owner: revoke share link ──────────────────────────────────────────────
-  router.delete('/:id', jwtAuth, requireOwner, (req, res) => {
+  // ── Revoke share link ────────────────────────────────────────────────────
+  router.delete('/:id', jwtAuth, (req, res) => {
     db.prepare(`DELETE FROM share_links WHERE id=?`).run(req.params.id);
     res.json({ ok: true });
   });

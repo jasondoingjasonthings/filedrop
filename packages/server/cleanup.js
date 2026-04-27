@@ -15,7 +15,7 @@ async function runCleanup(db, sseBus) {
   // Queued (progress=0): give 7 days — large batches (200GB+) can queue for days
   // Active (progress>0): 30 min no heartbeat = something went wrong
   const stale = db.prepare(`
-    SELECT id FROM files
+    SELECT id, r2_key FROM files
     WHERE status = 'uploading'
       AND (
         (upload_progress > 0 AND (last_seen_at IS NULL OR last_seen_at < datetime('now', '-30 minutes')))
@@ -24,6 +24,7 @@ async function runCleanup(db, sseBus) {
       )
   `).all();
   for (const f of stale) {
+    try { await deleteObject(f.r2_key); } catch {}
     db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(f.id);
     sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(f.id));
     console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);

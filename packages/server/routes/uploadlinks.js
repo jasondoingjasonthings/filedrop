@@ -68,10 +68,11 @@ function makeUploadLinksRouter(db, sseBus, jwtSecret) {
     const { name, size } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
 
-    const id    = uuid();
-    const ext   = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
-    const base  = name.slice(0, name.lastIndexOf('.')).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
-    const r2Key = `${link.folder}/${Date.now()}-${base}${ext}`;
+    const id     = uuid();
+    const dotIdx = name.lastIndexOf('.');
+    const ext    = dotIdx > 0 ? name.slice(dotIdx) : '';
+    const base   = (dotIdx > 0 ? name.slice(0, dotIdx) : name).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
+    const r2Key  = `${link.folder}/${Date.now()}-${base}${ext}`;
 
     db.prepare(`
       INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
@@ -97,18 +98,29 @@ function makeUploadLinksRouter(db, sseBus, jwtSecret) {
     `).get(req.params.token);
     if (!link) { res.status(404).json({ error: 'Link expired' }); return; }
 
+    const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
+    if (!file || file.folder !== link.folder) { res.status(404).json({ error: 'File not found' }); return; }
+
     const { size } = req.body || {};
     db.prepare(`
       UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'), size=COALESCE(?,size)
       WHERE id=?
     `).run(size || null, req.params.id);
-    const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
-    sseBus.broadcast('file', file);
+    const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
+    sseBus.broadcast('file', updated);
     res.json({ ok: true });
   });
 
   // ── Public: fail upload ───────────────────────────────────────────────────
   router.post('/:token/fail/:id', (req, res) => {
+    const link = db.prepare(`
+      SELECT * FROM upload_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).json({ error: 'Link expired' }); return; }
+
+    const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
+    if (!file || file.folder !== link.folder) { res.status(404).json({ error: 'File not found' }); return; }
+
     db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(req.params.id);
     res.json({ ok: true });
   });

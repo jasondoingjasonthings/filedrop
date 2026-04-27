@@ -15,9 +15,9 @@ function makeFilesRouter(db, sseBus) {
         COUNT(*) as file_count,
         SUM(size) as total_size,
         MAX(COALESCE(uploaded_at, created_at)) as latest_at,
-        SUM(CASE WHEN status='uploading'  THEN 1 ELSE 0 END) as uploading_count,
-        SUM(CASE WHEN status='available'  THEN 1 ELSE 0 END) as available_count,
-        SUM(CASE WHEN status='downloaded' THEN 1 ELSE 0 END) as downloaded_count
+        SUM(CASE WHEN status='uploading'          THEN 1 ELSE 0 END) as uploading_count,
+        SUM(CASE WHEN status='available'          THEN 1 ELSE 0 END) as available_count,
+        SUM(CASE WHEN downloaded_at IS NOT NULL   THEN 1 ELSE 0 END) as downloaded_count
       FROM files
       WHERE status NOT IN ('deleted', 'deleting')
       GROUP BY folder
@@ -29,9 +29,7 @@ function makeFilesRouter(db, sseBus) {
   // Files in a specific folder (used when expanding a folder)
   router.get('/in', (req, res) => {
     const folder = req.query.folder ?? '';
-    const list = req.user.role === 'owner'
-      ? db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder)
-      : db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder);
+    const list = db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder);
     res.json(list);
   });
 
@@ -90,8 +88,8 @@ function makeFilesRouter(db, sseBus) {
     }
   });
 
-  // Owner deletes a file from R2 immediately
-  router.delete('/:id', requireOwner, async (req, res) => {
+  // Delete a file from R2
+  router.delete('/:id', async (req, res) => {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     if (!file) { res.status(404).json({ error: 'Not found' }); return; }
 
@@ -135,8 +133,8 @@ function makeFilesRouter(db, sseBus) {
     res.json({ ok: true });
   });
 
-  // Owner cancels auto-delete
-  router.post('/:id/keep', requireOwner, (req, res) => {
+  // Cancel auto-delete
+  router.post('/:id/keep', (req, res) => {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     if (!file) { res.status(404).json({ error: 'Not found' }); return; }
     db.prepare(`UPDATE files SET delete_at=NULL, status='available' WHERE id=?`).run(file.id);
