@@ -66,11 +66,25 @@ function makeSharesPublicRouter(db) {
 
     if (!link) { res.status(404).json({ error: 'Link expired or not found' }); return; }
 
-    const files = db.prepare(`
-      SELECT id, name, size, folder, uploaded_at, created_at
+    const rows = db.prepare(`
+      SELECT id, name, size, folder, uploaded_at, created_at, r2_key, thumbnail_key
       FROM files WHERE folder=? AND status='available'
       ORDER BY created_at DESC
     `).all(link.folder);
+
+    // Presign thumbnail and full-size URLs for JPEG files (1-hour expiry)
+    const files = await Promise.all(rows.map(async f => {
+      const ext = (f.name || '').split('.').pop().toLowerCase();
+      const isImage = ext === 'jpg' || ext === 'jpeg';
+      const out = { id: f.id, name: f.name, size: f.size, uploaded_at: f.uploaded_at, created_at: f.created_at, isImage };
+      if (isImage) {
+        if (f.thumbnail_key) {
+          try { out.thumbnailUrl = await presignDownload(f.thumbnail_key, 3600); } catch {}
+        }
+        try { out.fullUrl = await presignDownload(f.r2_key, 3600, f.name); } catch {}
+      }
+      return out;
+    }));
 
     res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files });
   });

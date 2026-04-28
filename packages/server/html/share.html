@@ -14,63 +14,41 @@
   --muted: #6a96aa; --success: #16a34a; --danger: #dc2626;
   --r: 10px;
 }
-body {
-  background: var(--bg); color: var(--text);
-  font-family: 'Montserrat', system-ui, sans-serif;
-  font-size: 14px; line-height: 1.5; min-height: 100vh;
-}
-header {
-  background: var(--text); padding: 0 24px; height: 58px;
-  display: flex; align-items: center; gap: 10px;
-  box-shadow: 0 2px 12px rgba(11,31,42,0.15);
-}
+body { background: var(--bg); color: var(--text); font-family: 'Montserrat', system-ui, sans-serif; font-size: 14px; line-height: 1.5; min-height: 100vh; }
+header { background: var(--text); padding: 0 24px; height: 58px; display: flex; align-items: center; gap: 10px; box-shadow: 0 2px 12px rgba(11,31,42,0.15); }
 .logo-circles { display: flex; gap: 3px; }
-.logo-circles span {
-  width: 26px; height: 26px; border-radius: 50%;
-  background: #fff; color: var(--text);
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Playfair Display', Georgia, serif;
-  font-size: 11px; font-weight: 700;
-}
+.logo-circles span { width: 26px; height: 26px; border-radius: 50%; background: #fff; color: var(--text); display: flex; align-items: center; justify-content: center; font-family: 'Playfair Display', Georgia, serif; font-size: 11px; font-weight: 700; }
 .logo-text { font-size: 15px; font-weight: 900; letter-spacing: .02em; color: #fff; text-transform: uppercase; }
 .logo-text em { color: var(--accent); font-style: normal; }
 
-.wrap { max-width: 680px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 24px; }
+.wrap { max-width: 1100px; margin: 0 auto; padding: 40px 20px; display: flex; flex-direction: column; gap: 28px; }
 
 .page-header { display: flex; flex-direction: column; gap: 6px; }
-.folder-name { font-size: 26px; font-weight: 900; letter-spacing: -.03em; text-transform: uppercase; }
+.folder-name { font-size: 28px; font-weight: 900; letter-spacing: -.03em; text-transform: uppercase; }
 .meta { font-size: 13px; color: var(--muted); font-weight: 600; }
+.expiry { background: #fff; border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 16px; font-size: 12px; color: var(--muted); font-weight: 700; display: inline-block; }
 
-.expiry {
-  background: #fff; border: 1.5px solid var(--border);
-  border-radius: 8px; padding: 10px 16px;
-  font-size: 12px; color: var(--muted); font-weight: 700;
-}
+.top-bar { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 
-.dl-all-bar {
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-}
-.dl-all-bar .section-label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-
-.btn {
-  background: var(--accent); color: #fff; border: none; border-radius: 8px;
-  padding: 9px 18px; font-size: 12px; font-weight: 800; font-family: inherit;
-  letter-spacing: .04em; text-transform: uppercase;
-  cursor: pointer; transition: background .15s, opacity .15s; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 6px;
-}
+.btn { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 9px 18px; font-size: 12px; font-weight: 800; font-family: inherit; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; transition: background .15s; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .btn:hover { background: var(--accent-d); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
 .btn.done { background: var(--success); }
 
+/* ── Gallery grid ── */
+.gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.thumb-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r); overflow: hidden; cursor: pointer; transition: border-color .15s, transform .15s; aspect-ratio: 1; position: relative; }
+.thumb-card:hover { border-color: var(--accent); transform: scale(1.02); }
+.thumb-card img { width: 100%; height: 100%; object-fit: cover; display: block; background: var(--bg); }
+.thumb-card .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 32px; background: var(--bg); color: var(--muted); }
+.thumb-name { position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(11,31,42,0.75)); color: #fff; font-size: 10px; font-weight: 700; padding: 16px 8px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: 0; transition: opacity .15s; }
+.thumb-card:hover .thumb-name { opacity: 1; }
+
+/* ── File list (non-images) ── */
+.section-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); margin-bottom: 10px; }
 .file-list { display: flex; flex-direction: column; gap: 8px; }
-.file-row {
-  background: var(--surface); border: 1.5px solid var(--border);
-  border-radius: var(--r); padding: 14px 18px;
-  display: flex; align-items: center; gap: 14px;
-  box-shadow: 0 1px 4px rgba(91,200,232,0.06);
-  transition: border-color .15s;
-}
+.file-row { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--r); padding: 14px 18px; display: flex; align-items: center; gap: 14px; transition: border-color .15s; }
 .file-row:hover { border-color: var(--accent); }
 .file-icon { font-size: 20px; flex-shrink: 0; }
 .file-info { flex: 1; min-width: 0; }
@@ -80,15 +58,25 @@ header {
 .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
 .empty h3 { font-size: 16px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; margin-bottom: 8px; }
 
-#toasts {
-  position: fixed; bottom: 24px; right: 24px;
-  display: flex; flex-direction: column; gap: 8px; z-index: 999;
-}
-.toast {
-  background: var(--text); color: #fff; border-radius: 10px;
-  padding: 12px 16px; font-size: 13px; font-weight: 600; min-width: 220px;
-  box-shadow: 0 8px 32px rgba(11,31,42,0.2); animation: slideIn .2s ease;
-}
+/* ── Lightbox ── */
+.lightbox { display: none; position: fixed; inset: 0; background: rgba(11,31,42,0.95); z-index: 1000; flex-direction: column; align-items: center; justify-content: center; }
+.lightbox.open { display: flex; }
+.lb-img-wrap { flex: 1; display: flex; align-items: center; justify-content: center; width: 100%; padding: 20px; min-height: 0; }
+.lb-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 4px; box-shadow: 0 8px 40px rgba(0,0,0,0.6); }
+.lb-spinner { color: #fff; font-size: 14px; font-weight: 600; opacity: .6; }
+.lb-bar { flex-shrink: 0; width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 16px 24px; gap: 12px; background: rgba(11,31,42,0.6); }
+.lb-name { color: #fff; font-size: 13px; font-weight: 700; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-count { color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.lb-nav { background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 18px; cursor: pointer; transition: background .15s; }
+.lb-nav:hover { background: rgba(255,255,255,0.2); }
+.lb-nav:disabled { opacity: .2; cursor: not-allowed; }
+.lb-close { background: rgba(255,255,255,0.1); border: none; color: #fff; border-radius: 8px; padding: 8px 14px; font-size: 18px; cursor: pointer; transition: background .15s; }
+.lb-close:hover { background: rgba(255,255,255,0.2); }
+.lb-dl { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 8px 18px; font-size: 12px; font-weight: 800; font-family: inherit; letter-spacing: .04em; text-transform: uppercase; cursor: pointer; white-space: nowrap; }
+.lb-dl:hover { background: var(--accent-d); }
+
+#toasts { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+.toast { background: var(--text); color: #fff; border-radius: 10px; padding: 12px 16px; font-size: 13px; font-weight: 600; min-width: 220px; box-shadow: 0 8px 32px rgba(11,31,42,0.2); animation: slideIn .2s ease; }
 .toast.error { background: #b91c1c; }
 .toast.success { background: #15803d; }
 @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
@@ -106,11 +94,40 @@ header {
     <div class="meta" id="meta"></div>
   </div>
   <div class="expiry" id="expiry"></div>
-  <div class="dl-all-bar">
+
+  <div class="top-bar">
     <span class="section-label" id="fileCount"></span>
     <button class="btn" id="dlAllBtn" style="display:none" onclick="downloadAll()">↓ Download All</button>
   </div>
-  <div class="file-list" id="fileList"></div>
+
+  <div id="gallerySection" style="display:none">
+    <div class="gallery-grid" id="gallery"></div>
+  </div>
+
+  <div id="filesSection" style="display:none">
+    <div class="section-title" id="filesLabel"></div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+  <div class="empty" id="emptyState" style="display:none">
+    <h3>Nothing here yet</h3>
+    <p>No files available.</p>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox">
+  <div class="lb-img-wrap" id="lbImgWrap">
+    <span class="lb-spinner">Loading…</span>
+  </div>
+  <div class="lb-bar">
+    <button class="lb-nav" id="lbPrev" onclick="lbStep(-1)">‹</button>
+    <button class="lb-nav" id="lbNext" onclick="lbStep(1)">›</button>
+    <div class="lb-name" id="lbName"></div>
+    <div class="lb-count" id="lbCount"></div>
+    <button class="lb-dl" id="lbDlBtn" onclick="lbDownload()">↓ Download</button>
+    <button class="lb-close" onclick="closeLightbox()">✕</button>
+  </div>
 </div>
 
 <div id="toasts"></div>
@@ -118,7 +135,10 @@ header {
 <script>
 'use strict';
 const token = location.pathname.split('/').filter(Boolean).pop();
-let allFiles = [];
+let allFiles   = [];
+let imageFiles = [];
+let otherFiles = [];
+let lbIndex    = 0;
 
 function fmtBytes(b) {
   if (!b) return '0 B';
@@ -127,14 +147,9 @@ function fmtBytes(b) {
   if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB';
   return (b/1073741824).toFixed(2) + ' GB';
 }
-function fmtDate(iso) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleDateString([], { dateStyle: 'medium' });
-}
-function esc(s) {
-  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-function toast(msg, type = 'success') {
+function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString([], { dateStyle: 'medium' }) : ''; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function toast(msg, type='success') {
   const el = document.createElement('div');
   el.className = `toast ${type}`; el.textContent = msg;
   document.getElementById('toasts').appendChild(el);
@@ -145,39 +160,132 @@ async function init() {
   const res = await fetch(`/share/${token}/files`);
   if (!res.ok) {
     document.getElementById('folderName').textContent = 'Link expired';
-    document.getElementById('fileList').innerHTML = '<div class="empty"><h3>Not found</h3><p>This download link has expired or is no longer valid.</p></div>';
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('emptyState').innerHTML = '<h3>Not found</h3><p>This download link has expired or is no longer valid.</p>';
     return;
   }
   const data = await res.json();
-  allFiles = data.files;
+  allFiles   = data.files;
+  imageFiles = allFiles.filter(f => f.isImage);
+  otherFiles = allFiles.filter(f => !f.isImage);
 
+  const totalSize = allFiles.reduce((s, f) => s + (f.size || 0), 0);
   document.title = `FileDrop · ${data.label}`;
   document.getElementById('folderName').textContent = data.label;
-  document.getElementById('meta').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''} · ${fmtBytes(data.files.reduce((s,f)=>s+(f.size||0),0))}`;
+  document.getElementById('meta').textContent = `${allFiles.length} file${allFiles.length !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}`;
   document.getElementById('expiry').textContent = `🔗 Link expires ${fmtDate(data.expiresAt)}`;
-  document.getElementById('fileCount').textContent = `${data.files.length} file${data.files.length !== 1 ? 's' : ''}`;
+  document.getElementById('fileCount').textContent = `${allFiles.length} file${allFiles.length !== 1 ? 's' : ''}`;
 
-  if (!data.files.length) {
-    document.getElementById('fileList').innerHTML = '<div class="empty"><h3>Nothing here yet</h3><p>No files available yet.</p></div>';
-    return;
+  if (!allFiles.length) { document.getElementById('emptyState').style.display = 'block'; return; }
+  document.getElementById('dlAllBtn').style.display = 'inline-flex';
+
+  if (imageFiles.length) {
+    document.getElementById('gallerySection').style.display = 'block';
+    renderGallery();
   }
 
-  document.getElementById('dlAllBtn').style.display = 'inline-flex';
-  document.getElementById('fileList').innerHTML = data.files.map(f => `
-    <div class="file-row">
-      <span class="file-icon">📄</span>
-      <div class="file-info">
-        <div class="file-name">${esc(f.name)}</div>
-        <div class="file-size">${fmtBytes(f.size)}</div>
-      </div>
-      <button class="btn" id="dl-${esc(f.id)}" onclick="downloadOne('${esc(f.id)}','${esc(f.name)}',this)">↓ Download</button>
-    </div>
-  `).join('');
+  if (otherFiles.length) {
+    document.getElementById('filesSection').style.display = 'block';
+    document.getElementById('filesLabel').textContent = imageFiles.length
+      ? `Other files (${otherFiles.length})`
+      : `Files (${otherFiles.length})`;
+    document.getElementById('fileList').innerHTML = otherFiles.map(f => `
+      <div class="file-row">
+        <span class="file-icon">📄</span>
+        <div class="file-info">
+          <div class="file-name">${esc(f.name)}</div>
+          <div class="file-size">${fmtBytes(f.size)}</div>
+        </div>
+        <button class="btn" id="dl-${esc(f.id)}" onclick="downloadOne('${esc(f.id)}','${esc(f.name)}',this)">↓ Download</button>
+      </div>`).join('');
+  }
 }
 
+function renderGallery() {
+  const grid = document.getElementById('gallery');
+  grid.innerHTML = imageFiles.map((f, i) => `
+    <div class="thumb-card" onclick="openLightbox(${i})">
+      ${f.thumbnailUrl
+        ? `<img data-src="${esc(f.thumbnailUrl)}" alt="${esc(f.name)}" loading="lazy">`
+        : `<div class="thumb-placeholder">🖼</div>`}
+      <div class="thumb-name">${esc(f.name)}</div>
+    </div>`).join('');
+
+  // Lazy-load thumbnails via IntersectionObserver
+  const imgs = grid.querySelectorAll('img[data-src]');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        img.src = img.dataset.src;
+        observer.unobserve(img);
+      }
+    });
+  }, { rootMargin: '200px' });
+  imgs.forEach(img => observer.observe(img));
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+
+function openLightbox(index) {
+  lbIndex = index;
+  document.getElementById('lightbox').classList.add('open');
+  lbRender();
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function lbStep(dir) {
+  lbIndex = Math.max(0, Math.min(imageFiles.length - 1, lbIndex + dir));
+  lbRender();
+}
+
+function lbRender() {
+  const f = imageFiles[lbIndex];
+  document.getElementById('lbName').textContent  = f.name;
+  document.getElementById('lbCount').textContent = `${lbIndex + 1} / ${imageFiles.length}`;
+  document.getElementById('lbPrev').disabled = lbIndex === 0;
+  document.getElementById('lbNext').disabled = lbIndex === imageFiles.length - 1;
+
+  const wrap = document.getElementById('lbImgWrap');
+  wrap.innerHTML = '<span class="lb-spinner">Loading…</span>';
+
+  if (f.fullUrl) {
+    const img = new Image();
+    img.onload = () => { wrap.innerHTML = ''; wrap.appendChild(img); };
+    img.onerror = () => { wrap.innerHTML = '<span class="lb-spinner">Failed to load image</span>'; };
+    img.src = f.fullUrl;
+    img.alt = f.name;
+  } else {
+    wrap.innerHTML = '<span class="lb-spinner">No preview available</span>';
+  }
+}
+
+function lbDownload() {
+  const f = imageFiles[lbIndex];
+  const a = document.createElement('a');
+  a.href = `/share/${token}/dl/${f.id}`;
+  a.download = f.name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+// Close lightbox on backdrop click or Escape
+document.getElementById('lightbox').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeLightbox();
+});
+document.addEventListener('keydown', e => {
+  const lb = document.getElementById('lightbox');
+  if (!lb.classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft')  lbStep(-1);
+  if (e.key === 'ArrowRight') lbStep(1);
+});
+
+// ── Downloads ─────────────────────────────────────────────────────────────────
+
 function downloadOne(fileId, name, btn) {
-  // Same-origin redirect → R2 with Content-Disposition: attachment
-  // a.download is honoured (same-origin), file goes straight to Downloads folder
   btn.disabled = true; btn.textContent = 'Downloading…';
   const a = document.createElement('a');
   a.href = `/share/${token}/dl/${fileId}`;
@@ -187,15 +295,12 @@ function downloadOne(fileId, name, btn) {
 }
 
 function downloadAll() {
-  const btn = document.getElementById('dlAllBtn');
-  btn.disabled = true;
+  const btn   = document.getElementById('dlAllBtn');
   const total = allFiles.length;
   let dispatched = 0;
+  btn.disabled = true;
+  btn.textContent = `↓ Downloading ${total} files…`;
 
-  // Hidden iframes navigate to the same-origin redirect endpoint.
-  // Each iframe follows the 302 → R2 URL with Content-Disposition: attachment,
-  // triggering a silent download to the Downloads folder — no dialog, no gesture needed.
-  // iframe.onload fires after the redirect completes (success or error).
   allFiles.forEach((f, i) => {
     setTimeout(() => {
       const iframe = document.createElement('iframe');
@@ -208,19 +313,13 @@ function downloadAll() {
       iframe.onload = () => {
         iframe.remove();
         dispatched++;
-        if (dlBtn) { dlBtn.textContent = '↓ Sent'; dlBtn.classList.add('done'); }
-        if (dispatched === total) {
-          btn.textContent = `✓ All ${total} sent to Downloads`;
-        }
+        if (dlBtn) { dlBtn.textContent = '✓ Sent'; dlBtn.classList.add('done'); }
+        if (dispatched === total) btn.textContent = `✓ All ${total} sent to Downloads`;
       };
-
       document.body.appendChild(iframe);
-      // Fallback removal in case onload never fires (e.g. navigation blocked)
       setTimeout(() => { if (iframe.parentNode) iframe.remove(); }, 60000);
     }, i * 1500);
   });
-
-  btn.textContent = `↓ Downloading ${total} files…`;
 }
 
 init();

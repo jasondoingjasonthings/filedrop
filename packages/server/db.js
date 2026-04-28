@@ -100,6 +100,9 @@ function migrateAlter(db) {
   if (!cols.includes('checksum')) {
     db.exec(`ALTER TABLE files ADD COLUMN checksum TEXT`);
   }
+  if (!cols.includes('thumbnail_key')) {
+    db.exec(`ALTER TABLE files ADD COLUMN thumbnail_key TEXT`);
+  }
 }
 
 function ownerExists(db) {

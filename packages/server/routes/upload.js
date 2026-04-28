@@ -4,6 +4,7 @@ const express = require('express');
 const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
 const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject } = require('../r2');
+const { generateThumbnail } = require('../thumbnail');
 
 function makeUploadRouter(db, sseBus, jwtSecret) {
   const router = express.Router();
@@ -88,7 +89,10 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       WHERE id=? AND status='uploading'
     `).run(size || null, checksum || null, req.params.id);
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
-    if (file) sseBus.broadcast('file', file);
+    if (file) {
+      sseBus.broadcast('file', file);
+      generateThumbnail(file, db, sseBus).catch(() => {});
+    }
     res.json({ ok: true });
   });
 
@@ -223,7 +227,10 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       WHERE id=?
     `).run(size || null, checksum || null, req.params.id);
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
-    sseBus.broadcast('file', file);
+    if (file) {
+      sseBus.broadcast('file', file);
+      generateThumbnail(file, db, sseBus).catch(() => {});
+    }
     res.json({ ok: true });
   });
 

@@ -40,6 +40,17 @@ async function headObject(key) {
   }
 }
 
+async function getObject(key) {
+  const res    = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  const chunks = [];
+  for await (const chunk of res.Body) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+async function putObject(key, buffer, contentType = 'application/octet-stream') {
+  await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buffer, ContentType: contentType }));
+}
+
 // Multipart helpers (used by agent)
 async function createMultipart(key) {
   const r = await client.send(new CreateMultipartUploadCommand({ Bucket: BUCKET, Key: key }));
@@ -68,7 +79,7 @@ async function abortMultipart(key, uploadId) {
 }
 
 module.exports = {
-  presignDownload, presignUpload, deleteObject, headObject,
+  presignDownload, presignUpload, deleteObject, headObject, getObject, putObject,
   createMultipart, presignPart, completeMultipart, abortMultipart,
   BUCKET,
 };
