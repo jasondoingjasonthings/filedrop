@@ -78,8 +78,14 @@ function makeFsRouter(db, jwtSecret) {
     res.json({ ok: true });
   });
 
-  // ── Agent: read config (watch dir etc.) ──────────────────────────────────
+  // ── Agent: read config (uses Agent token — not callable from dashboard) ────
   router.get('/agent-config', agentAuth, (req, res) => {
+    const row = db.prepare(`SELECT value FROM settings WHERE key='watch_dir'`).get();
+    res.json({ watchDir: row ? row.value : null });
+  });
+
+  // ── Owner dashboard: read watch dir (JWT) ─────────────────────────────────
+  router.get('/watch-dir', jwtAuth, requireOwner, (req, res) => {
     const row = db.prepare(`SELECT value FROM settings WHERE key='watch_dir'`).get();
     res.json({ watchDir: row ? row.value : null });
   });

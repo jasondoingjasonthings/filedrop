@@ -1060,6 +1060,7 @@ async function showApp() {
     loadUsers();
     loadUploadLinks();
     loadRequests();
+    loadWatchDir();
     initOwnerUpload();
   } else {
     document.getElementById('ownerTabs').style.display = 'none';
@@ -2264,16 +2265,19 @@ async function loadAgentToken() {
 }
 
 async function loadWatchDir() {
-  const data = await api('/api/fs/agent-config');
-  if (!data) return;
-  const input  = document.getElementById('watchDirInput');
-  const status = document.getElementById('watchDirStatus');
-  if (data.watchDir) {
-    input.value     = data.watchDir;
-    status.textContent = `Currently watching: ${data.watchDir}`;
-  } else {
-    status.textContent = 'Not set — agent is using its default (~/FileDrop or .env value)';
-  }
+  try {
+    const data = await api('/api/fs/watch-dir');
+    if (!data) return;
+    const input  = document.getElementById('watchDirInput');
+    const status = document.getElementById('watchDirStatus');
+    if (!input) return;
+    if (data.watchDir) {
+      input.value        = data.watchDir;
+      status.textContent = `Currently watching: ${data.watchDir}`;
+    } else {
+      status.textContent = 'Not set — agent is using its default (~/FileDrop or .env value)';
+    }
+  } catch(e) { console.error('[loadWatchDir]', e); }
 }
 
 document.getElementById('saveWatchDirBtn')?.addEventListener('click', async () => {
