@@ -11,6 +11,18 @@ const MULTIPART_ABOVE  =  10 * 1024 * 1024; // use multipart above 10 MB
 const PART_CONCURRENCY = 3;                 // parallel parts per file
 const RESUME_DIR       = path.join(os.homedir(), '.filedrop', 'resume');
 
+// ── Checksum ──────────────────────────────────────────────────────────────────
+
+function computeSha256(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash   = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end',  ()    => resolve(hash.digest('hex')));
+    stream.on('error', reject);
+  });
+}
+
 // ── Resume state ──────────────────────────────────────────────────────────────
 // Keyed by hash of filePath + size + mtime so a changed file starts fresh.
 
@@ -87,12 +99,13 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   const rKey    = resumeKey(filePath, size, mtimeMs);
   const resume  = loadResume(filePath, size, mtimeMs);
 
-  // If we have resume state, re-register with the SAME r2Key so the existing
-  // R2 multipart session can be continued. The server creates a fresh DB record.
-  const reg = await registerFile({
-    serverUrl, agentToken, filePath, name, folder,
-    forceR2Key: resume?.r2Key,
-  });
+  // Compute SHA-256 of file content and register with the server concurrently.
+  // Hashing runs a second read pass but local disk is fast and the network
+  // upload is always the bottleneck, so wall-clock time is essentially unchanged.
+  const [reg, checksum] = await Promise.all([
+    registerFile({ serverUrl, agentToken, filePath, name, folder, forceR2Key: resume?.r2Key }),
+    computeSha256(filePath),
+  ]);
 
   if (!reg) {
     clearResume(rKey); // file already available — no point keeping resume state
@@ -100,7 +113,7 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   }
 
   const { id, r2Key } = reg;
-  console.log(`[uploader] Uploading ${name} (${fmtBytes(size)}) → id=${id}`);
+  console.log(`[uploader] Uploading ${name} (${fmtBytes(size)}) sha256=${checksum.slice(0, 12)}… → id=${id}`);
 
   try {
     if (size > MULTIPART_ABOVE) {
@@ -109,7 +122,7 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
       await simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size });
     }
 
-    await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/complete`, { size });
+    await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/complete`, { size, checksum });
 
     // Verify the object landed in R2 with the right size
     await verifyUpload(serverUrl, agentToken, id, size, name);

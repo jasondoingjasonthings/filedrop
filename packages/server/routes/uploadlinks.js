@@ -101,11 +101,12 @@ function makeUploadLinksRouter(db, sseBus, jwtSecret) {
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     if (!file || file.folder !== link.folder) { res.status(404).json({ error: 'File not found' }); return; }
 
-    const { size } = req.body || {};
+    const { size, checksum } = req.body || {};
     db.prepare(`
-      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'), size=COALESCE(?,size)
+      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'),
+        size=COALESCE(?,size), checksum=COALESCE(?,checksum)
       WHERE id=?
-    `).run(size || null, req.params.id);
+    `).run(size || null, checksum || null, req.params.id);
     const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     sseBus.broadcast('file', updated);
     res.json({ ok: true });

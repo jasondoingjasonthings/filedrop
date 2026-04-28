@@ -81,11 +81,12 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
 
   // Mark upload complete (only if still uploading — won't revive a cancelled file)
   router.patch('/:id/complete', agentAuth, (req, res) => {
-    const { size } = req.body || {};
+    const { size, checksum } = req.body || {};
     db.prepare(`
-      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'), size=COALESCE(?,size)
+      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'),
+        size=COALESCE(?,size), checksum=COALESCE(?,checksum)
       WHERE id=? AND status='uploading'
-    `).run(size || null, req.params.id);
+    `).run(size || null, checksum || null, req.params.id);
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     if (file) sseBus.broadcast('file', file);
     res.json({ ok: true });
@@ -215,11 +216,12 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
 
   // Browser upload complete
   router.post('/browser/complete/:id', jwtAuth, (req, res) => {
-    const { size } = req.body || {};
+    const { size, checksum } = req.body || {};
     db.prepare(`
-      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'), size=COALESCE(?,size)
+      UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'),
+        size=COALESCE(?,size), checksum=COALESCE(?,checksum)
       WHERE id=?
-    `).run(size || null, req.params.id);
+    `).run(size || null, checksum || null, req.params.id);
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
     sseBus.broadcast('file', file);
     res.json({ ok: true });

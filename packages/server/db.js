@@ -97,6 +97,9 @@ function migrateAlter(db) {
   if (!cols.includes('last_seen_at')) {
     db.exec(`ALTER TABLE files ADD COLUMN last_seen_at TEXT`);
   }
+  if (!cols.includes('checksum')) {
+    db.exec(`ALTER TABLE files ADD COLUMN checksum TEXT`);
+  }
 }
 
 function ownerExists(db) {

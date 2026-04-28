@@ -1284,7 +1284,7 @@ function renderLibrary() {
               <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
               <td class="lib-size">${fmtBytes(f.size)}</td>
               <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
-              <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}</td>
+              <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}${f.checksum ? `<span title="SHA-256: ${esc(f.checksum)}" style="color:var(--success);font-size:11px;font-weight:700;margin-left:6px;cursor:default">✓</span>` : ''}</td>
               <td class="lib-actions">
                 ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
                 ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
@@ -1541,6 +1541,7 @@ function renderEditor() {
                 <div class="file-name" id="fn-${f.id}">${esc(f.name)}</div>
                 <div class="file-meta">
                   <span>${fmtBytes(f.size)}</span>
+                  ${f.checksum ? `<span title="SHA-256: ${esc(f.checksum)}" style="color:var(--success);font-weight:700;cursor:default">✓ verified</span>` : ''}
                   ${f.downloaded_at ? `<span style="color:var(--warn)">Downloaded ${fmtDate(f.downloaded_at)}</span>` : ''}
                 </div>
                 <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
