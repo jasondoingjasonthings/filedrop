@@ -47,6 +47,11 @@ async function getObject(key) {
   return Buffer.concat(chunks);
 }
 
+async function getObjectStream(key) {
+  const res = await client.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }));
+  return res.Body;
+}
+
 async function putObject(key, buffer, contentType = 'application/octet-stream') {
   await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buffer, ContentType: contentType }));
 }
@@ -79,7 +84,7 @@ async function abortMultipart(key, uploadId) {
 }
 
 module.exports = {
-  presignDownload, presignUpload, deleteObject, headObject, getObject, putObject,
+  presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject,
   createMultipart, presignPart, completeMultipart, abortMultipart,
   BUCKET,
 };

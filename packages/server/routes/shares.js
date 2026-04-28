@@ -5,7 +5,8 @@ const crypto   = require('crypto');
 const path     = require('path');
 const fs       = require('fs');
 const { makeAuthMiddleware, requireOwner } = require('../auth');
-const { presignDownload } = require('../r2');
+const archiver = require('archiver');
+const { presignDownload, getObjectStream } = require('../r2');
 
 function makeSharesApiRouter(db, jwtSecret) {
   const router  = express.Router();
@@ -103,6 +104,38 @@ function makeSharesPublicRouter(db) {
 
     const url = await presignDownload(file.r2_key, 3600, file.name);
     res.json({ url, name: file.name });
+  });
+
+  // ── Public: download all files as a ZIP ──────────────────────────────────
+  router.get('/:token/zip', async (req, res) => {
+    const link = db.prepare(`
+      SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).send('Link expired'); return; }
+
+    const files = db.prepare(`
+      SELECT id, name, r2_key FROM files WHERE folder=? AND status='available' ORDER BY created_at DESC
+    `).all(link.folder);
+    if (!files.length) { res.status(404).send('No files'); return; }
+
+    const zipName = (link.label || link.folder || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 1 } }); // level 1 = fast; JPEGs don't compress
+    archive.pipe(res);
+    archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
+
+    for (const f of files) {
+      try {
+        const stream = await getObjectStream(f.r2_key);
+        archive.append(stream, { name: f.name });
+      } catch (err) {
+        console.error(`[zip] skipping ${f.name}:`, err.message);
+      }
+    }
+
+    await archive.finalize();
   });
 
   // ── Public: same-origin redirect — browser follows to R2 with Content-Disposition

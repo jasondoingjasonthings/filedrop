@@ -97,7 +97,7 @@ header { background: var(--text); padding: 0 24px; height: 58px; display: flex; 
 
   <div class="top-bar">
     <span class="section-label" id="fileCount"></span>
-    <button class="btn" id="dlAllBtn" style="display:none" onclick="downloadAll()">↓ Download All</button>
+    <a class="btn" id="dlAllBtn" style="display:none" href="#" download>↓ Download All as ZIP</a>
   </div>
 
   <div id="gallerySection" style="display:none">
@@ -177,7 +177,9 @@ async function init() {
   document.getElementById('fileCount').textContent = `${allFiles.length} file${allFiles.length !== 1 ? 's' : ''}`;
 
   if (!allFiles.length) { document.getElementById('emptyState').style.display = 'block'; return; }
-  document.getElementById('dlAllBtn').style.display = 'inline-flex';
+  const dlBtn = document.getElementById('dlAllBtn');
+  dlBtn.href = `/share/${token}/zip`;
+  dlBtn.style.display = 'inline-flex';
 
   if (imageFiles.length) {
     document.getElementById('gallerySection').style.display = 'block';
@@ -294,33 +296,6 @@ function downloadOne(fileId, name, btn) {
   setTimeout(() => { btn.textContent = '✓ Done'; btn.classList.add('done'); }, 800);
 }
 
-function downloadAll() {
-  const btn   = document.getElementById('dlAllBtn');
-  const total = allFiles.length;
-  let dispatched = 0;
-  btn.disabled = true;
-  btn.textContent = `↓ Downloading ${total} files…`;
-
-  allFiles.forEach((f, i) => {
-    setTimeout(() => {
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'display:none;width:0;height:0;border:0';
-      iframe.src = `/share/${token}/dl/${f.id}`;
-
-      const dlBtn = document.getElementById('dl-' + f.id);
-      if (dlBtn) { dlBtn.disabled = true; dlBtn.textContent = '↓ Sending…'; }
-
-      iframe.onload = () => {
-        iframe.remove();
-        dispatched++;
-        if (dlBtn) { dlBtn.textContent = '✓ Sent'; dlBtn.classList.add('done'); }
-        if (dispatched === total) btn.textContent = `✓ All ${total} sent to Downloads`;
-      };
-      document.body.appendChild(iframe);
-      setTimeout(() => { if (iframe.parentNode) iframe.remove(); }, 60000);
-    }, i * 1500);
-  });
-}
 
 init();
 </script>
