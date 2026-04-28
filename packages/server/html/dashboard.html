@@ -2276,7 +2276,7 @@ async function loadWatchDir() {
   }
 }
 
-document.getElementById('saveWatchDirBtn').addEventListener('click', async () => {
+document.getElementById('saveWatchDirBtn')?.addEventListener('click', async () => {
   const watchDir = document.getElementById('watchDirInput').value.trim();
   if (!watchDir) { toast('Enter a folder path', 'error'); return; }
   const btn = document.getElementById('saveWatchDirBtn');
