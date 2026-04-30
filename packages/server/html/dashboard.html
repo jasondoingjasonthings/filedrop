@@ -1140,6 +1140,7 @@ function renderStats() {
 let expandedFolders        = new Set(); // owner library
 let editorExpandedFolders  = new Set(); // editor available files
 let editorCollapsedGroups  = new Set(); // top-level tree groups collapsed by the editor
+let ownerCollapsedGroups   = new Set(); // top-level tree groups collapsed by the owner
 let autoDownloadFolders    = new Set(); // editor folders set to auto-download
 let downloadDirHandle     = null;      // FileSystemDirectoryHandle for saving downloads
 
@@ -1147,6 +1148,12 @@ function toggleTreeGroup(topKey) {
   if (editorCollapsedGroups.has(topKey)) editorCollapsedGroups.delete(topKey);
   else editorCollapsedGroups.add(topKey);
   renderEditor();
+}
+
+function toggleOwnerGroup(topKey) {
+  if (ownerCollapsedGroups.has(topKey)) ownerCollapsedGroups.delete(topKey);
+  else ownerCollapsedGroups.add(topKey);
+  renderLibrary();
 }
 
 async function toggleFolder(key) {
@@ -1222,7 +1229,6 @@ function updateFolderProgress(folder) {
 }
 
 function renderLibrary() {
-  // Filter folder summaries by active filter
   let summaries = folderSummaries;
   if (activeFilter !== 'all') {
     summaries = folderSummaries.filter(s => {
@@ -1239,30 +1245,28 @@ function renderLibrary() {
   if (!summaries.length) { grid.innerHTML = ''; empty.style.display = 'flex'; return; }
   empty.style.display = 'none';
 
-  grid.innerHTML = summaries.map(summary => {
-    const key        = summary.folder ?? '';
-    const isExpanded = expandedFolders.has(key);
-    const isLoading  = loadingFolders.has(key);
-    const domId      = folderDomId(key);
-    const totalSize  = summary.total_size || 0;
+  // ── Render a single folder card (leaf level) ─────────────────────────────
+  function renderOwnerFolderCard(summary, displayLabel, isChild) {
+    const key          = summary.folder ?? '';
+    const isExpanded   = expandedFolders.has(key);
+    const isLoading    = loadingFolders.has(key);
+    const domId        = folderDomId(key);
+    const totalSize    = summary.total_size || 0;
     const hasUploading = summary.uploading_count > 0;
+    const safeKey      = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
     let gStatus = 'available';
-    if (hasUploading)              gStatus = 'uploading';
+    if (hasUploading)                      gStatus = 'uploading';
     else if (summary.downloaded_count > 0) gStatus = 'downloaded';
 
-    // Progress bar (from loaded files if available, else indeterminate)
     let folderPct = 0;
     if (hasUploading && loadedFolders.has(key)) {
-      const uploading = Object.values(files).filter(f => (f.folder||'') === key && f.status === 'uploading');
-      const upTotal   = uploading.reduce((s, f) => s + (f.size||0), 0);
-      const upDone    = uploading.reduce((s, f) => s + (f.size||0) * ((f.upload_progress||0)/100), 0);
-      folderPct = upTotal > 0 ? Math.round(upDone / upTotal * 100) : 0;
+      const up    = Object.values(files).filter(f => (f.folder||'') === key && f.status === 'uploading');
+      const upT   = up.reduce((s, f) => s + (f.size||0), 0);
+      const upD   = up.reduce((s, f) => s + (f.size||0) * ((f.upload_progress||0)/100), 0);
+      folderPct   = upT > 0 ? Math.round(upD / upT * 100) : 0;
     }
 
-    const safeKey = key.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-
-    // Expanded file rows — only shown when folder is loaded
     let expandedContent = '';
     if (isExpanded) {
       if (isLoading) {
@@ -1305,12 +1309,16 @@ function renderLibrary() {
       }
     }
 
+    const outerStyle = isChild
+      ? 'margin-bottom:0;box-shadow:none;border-color:var(--border);border-radius:0'
+      : 'margin-bottom:12px';
+
     return `
-      <div class="folder-group" style="margin-bottom:12px">
+      <div class="folder-group" style="${outerStyle}">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info" style="flex:1;min-width:0">
-            <div class="folder-group-name">${key ? esc(key) : '<span style="color:var(--muted)">No folder</span>'}</div>
+            <div class="folder-group-name">${displayLabel ? esc(displayLabel) : '<span style="color:var(--muted)">No folder</span>'}</div>
             <div class="folder-group-meta">${summary.file_count} file${summary.file_count !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
             ${hasUploading ? `
               <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
@@ -1330,6 +1338,53 @@ function renderLibrary() {
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
         ${expandedContent}
+      </div>`;
+  }
+
+  // ── Group by top-level folder component ──────────────────────────────────
+  const treeGroupMap = new Map();
+  for (const s of summaries) {
+    const folder = s.folder ?? '';
+    const slash  = folder.indexOf('/');
+    const topKey = slash === -1 ? folder : folder.slice(0, slash);
+    if (!treeGroupMap.has(topKey)) treeGroupMap.set(topKey, []);
+    treeGroupMap.get(topKey).push(s);
+  }
+
+  grid.innerHTML = [...treeGroupMap.entries()].map(([topKey, groupSummaries]) => {
+    // Single folder at this level — no grouping needed
+    if (groupSummaries.length === 1 && (groupSummaries[0].folder ?? '') === topKey) {
+      return renderOwnerFolderCard(groupSummaries[0], topKey || '(root)', false);
+    }
+
+    // Multiple sub-folders under same top-level — wrap in collapsible parent
+    const isCollapsed = ownerCollapsedGroups.has(topKey);
+    const combined    = groupSummaries.reduce((a, s) => ({
+      file_count:      (a.file_count      || 0) + (s.file_count      || 0),
+      total_size:      (a.total_size      || 0) + (s.total_size      || 0),
+      uploading_count: (a.uploading_count || 0) + (s.uploading_count || 0),
+    }), {});
+    const safeTopKey  = topKey.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+
+    const childCards = isCollapsed ? '' : groupSummaries.map(s => {
+      const sub = (s.folder ?? '').slice(topKey.length).replace(/^\//, '') || '(root files)';
+      return renderOwnerFolderCard(s, sub, true);
+    }).join('');
+
+    return `
+      <div class="folder-group" style="margin-bottom:12px">
+        <div class="folder-group-header" onclick="toggleOwnerGroup('${safeTopKey}')" style="border-radius:${isCollapsed?'var(--r)':'var(--r) var(--r) 0 0'}">
+          <span class="folder-group-icon">${isCollapsed ? ICON_FOLDER_CLOSED : ICON_FOLDER_OPEN}</span>
+          <div class="folder-group-info" style="flex:1;min-width:0">
+            <div class="folder-group-name">${esc(topKey || '(root)')}</div>
+            <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)} · ${groupSummaries.length} sub-folder${groupSummaries.length!==1?'s':''}${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
+          </div>
+          <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
+        </div>
+        ${isCollapsed ? '' : `
+          <div style="display:flex;flex-direction:column;background:var(--bg);border-top:1.5px solid var(--border);border-radius:0 0 var(--r) var(--r);overflow:hidden">
+            ${childCards}
+          </div>`}
       </div>`;
   }).join('');
 
