@@ -2286,7 +2286,7 @@ document.getElementById('saveWatchDirBtn')?.addEventListener('click', async () =
   if (!watchDir) { toast('Enter a folder path', 'error'); return; }
   const btn = document.getElementById('saveWatchDirBtn');
   btn.disabled = true; btn.textContent = 'Saving…';
-  const data = await api('/api/fs/agent-config', { method: 'PATCH', body: { watchDir } });
+  const data = await api('/api/fs/agent-config', { method: 'PATCH', body: JSON.stringify({ watchDir }) });
   btn.disabled = false; btn.textContent = 'Save';
   if (data) {
     document.getElementById('watchDirStatus').textContent = `Currently watching: ${watchDir}`;
@@ -3568,11 +3568,16 @@ document.getElementById('watchDirSelectBtn').addEventListener('click', async () 
   // Auto-save so the user doesn't need to click Save separately
   const btn = document.getElementById('saveWatchDirBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-  const data = await api('/api/fs/agent-config', { method: 'PATCH', body: { watchDir: chosen } });
-  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
-  if (data) {
-    document.getElementById('watchDirStatus').textContent = `Currently watching: ${chosen}`;
-    toast('Watch folder saved — agent will start uploading within 30 seconds');
+  try {
+    const data = await api('/api/fs/agent-config', { method: 'PATCH', body: JSON.stringify({ watchDir: chosen }) });
+    if (data) {
+      document.getElementById('watchDirStatus').textContent = `Currently watching: ${chosen}`;
+      toast('Watch folder saved — agent will start uploading within 30 seconds');
+    }
+  } catch (e) {
+    toast('Failed to save watch folder: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 });
 </script>
