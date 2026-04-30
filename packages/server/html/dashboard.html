@@ -3559,13 +3559,21 @@ setInterval(() => { if (role==='owner') render(); }, 60000);
 <script>
 document.getElementById('watchDirModalClose').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
 document.getElementById('watchDirModalCancel').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
-document.getElementById('watchDirSelectBtn').addEventListener('click', () => {
+document.getElementById('watchDirSelectBtn').addEventListener('click', async () => {
   const chosen = wdModalSelected || wdModalPath;
   if (!chosen) { toast('Navigate into or select a folder first', 'error'); return; }
   document.getElementById('watchDirInput').value = chosen;
   document.getElementById('watchDirModal').style.display = 'none';
   wdModalSelected = null;
-  toast('Path selected — click Save to apply');
+  // Auto-save so the user doesn't need to click Save separately
+  const btn = document.getElementById('saveWatchDirBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+  const data = await api('/api/fs/agent-config', { method: 'PATCH', body: { watchDir: chosen } });
+  if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
+  if (data) {
+    document.getElementById('watchDirStatus').textContent = `Currently watching: ${chosen}`;
+    toast('Watch folder saved — agent will start uploading within 30 seconds');
+  }
 });
 </script>
 </body>
