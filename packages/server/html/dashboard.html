@@ -2407,8 +2407,9 @@ document.getElementById('browseWatchDirBtn')?.addEventListener('click', openWatc
 document.getElementById('watchDirModalClose')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
 document.getElementById('watchDirModalCancel')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
 document.getElementById('watchDirSelectBtn')?.addEventListener('click', () => {
-  if (!wdModalSelected) { toast('Click a folder to select it first', 'error'); return; }
-  document.getElementById('watchDirInput').value = wdModalSelected;
+  const chosen = wdModalSelected || wdModalPath;
+  if (!chosen) { toast('Navigate into or select a folder first', 'error'); return; }
+  document.getElementById('watchDirInput').value = chosen;
   document.getElementById('watchDirModal').style.display = 'none';
   wdModalSelected = null;
   toast('Path selected — click Save to apply');
