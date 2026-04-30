@@ -1331,7 +1331,7 @@ function renderLibrary() {
           </div>
           <span class="status-badge ${gStatus}">${gStatus}</span>
           ${hasUploading ? `<button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
-          ${summary.available_count > 0 ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadFolderOwner('${safeKey}')">↓ All</button>` : ''}
+          ${summary.available_count > 0 ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
@@ -1379,6 +1379,8 @@ function renderLibrary() {
             <div class="folder-group-name">${esc(topKey || '(root)')}</div>
             <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)} · ${groupSummaries.length} sub-folder${groupSummaries.length!==1?'s':''}${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
           </div>
+          ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
+          <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `
@@ -1530,6 +1532,31 @@ async function downloadFolderOwner(folder) {
   });
 }
 
+// Download all files under a folder prefix (including subfolders) as a ZIP
+function downloadZip(folder) {
+  const qs = folder ? '?folder=' + encodeURIComponent(folder) : '';
+  const a  = document.createElement('a');
+  // Include Bearer token so the server can auth the download
+  // We use a temporary form POST trick so the token goes in the header.
+  // Simpler: open via fetch + blob URL so we can pass the Authorization header.
+  const url = '/api/files/zip' + qs;
+  toast('Preparing ZIP — download will start shortly…');
+  fetch(url, { headers: { Authorization: 'Bearer ' + token } })
+    .then(res => {
+      if (!res.ok) return res.json().then(j => { throw new Error(j.error || 'ZIP failed'); });
+      return res.blob();
+    })
+    .then(blob => {
+      const name = (folder || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_') + '.zip';
+      const burl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = burl; a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(burl), 10000);
+    })
+    .catch(e => toast(e.message, 'error'));
+}
+
 async function cancelFolderUploads(folder) {
   const uploading = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'uploading');
   if (!uploading.length) return;
@@ -1624,7 +1651,7 @@ function renderEditor() {
           </div>
           ${dlBadgeHtml}
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
-          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ All</button>` : ''}
+          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2);flex-shrink:0" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeKey}')">Upload link</button>
@@ -1672,6 +1699,7 @@ function renderEditor() {
             <div class="folder-group-name">${esc(topKey || '(root)')}</div>
             <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size)} · ${summaries.length} sub-folders${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
           </div>
+          ${!combined.uploading_count ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `

@@ -67,11 +67,12 @@ function makeSharesPublicRouter(db) {
 
     if (!link) { res.status(404).json({ error: 'Link expired or not found' }); return; }
 
+    const prefix = link.folder;
     const rows = db.prepare(`
       SELECT id, name, size, folder, uploaded_at, created_at, r2_key, thumbnail_key
-      FROM files WHERE folder=? AND status='available'
-      ORDER BY created_at DESC
-    `).all(link.folder);
+      FROM files WHERE (folder=? OR folder LIKE ?) AND status='available'
+      ORDER BY folder, name
+    `).all(prefix, prefix + '/%');
 
     // Presign thumbnail and full-size URLs for JPEG files (1-hour expiry)
     const files = await Promise.all(rows.map(async f => {
@@ -106,30 +107,37 @@ function makeSharesPublicRouter(db) {
     res.json({ url, name: file.name });
   });
 
-  // ── Public: download all files as a ZIP ──────────────────────────────────
+  // ── Public: download all files as a ZIP (preserves subfolder structure) ──
   router.get('/:token/zip', async (req, res) => {
     const link = db.prepare(`
       SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
     `).get(req.params.token);
     if (!link) { res.status(404).send('Link expired'); return; }
 
+    const prefix = link.folder;
     const files = db.prepare(`
-      SELECT id, name, r2_key FROM files WHERE folder=? AND status='available' ORDER BY created_at DESC
-    `).all(link.folder);
+      SELECT id, name, r2_key, folder FROM files
+      WHERE (folder=? OR folder LIKE ?) AND status='available'
+      ORDER BY folder, name
+    `).all(prefix, prefix + '/%');
     if (!files.length) { res.status(404).send('No files'); return; }
 
     const zipName = (link.label || link.folder || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_');
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 1 } }); // level 1 = fast; JPEGs don't compress
+    const archive = archiver('zip', { zlib: { level: 1 } });
     archive.pipe(res);
     archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
 
     for (const f of files) {
       try {
         const stream = await getObjectStream(f.r2_key);
-        archive.append(stream, { name: f.name });
+        const relFolder = prefix
+          ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
+          : f.folder;
+        const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
+        archive.append(stream, { name: archivePath });
       } catch (err) {
         console.error(`[zip] skipping ${f.name}:`, err.message);
       }

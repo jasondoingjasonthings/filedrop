@@ -1,8 +1,9 @@
 'use strict';
 
-const express = require('express');
+const express  = require('express');
+const archiver = require('archiver');
 const { requireOwner } = require('../auth');
-const { presignDownload, deleteObject } = require('../r2');
+const { presignDownload, deleteObject, getObjectStream } = require('../r2');
 
 function makeFilesRouter(db, sseBus) {
   const router = express.Router();
@@ -104,6 +105,40 @@ function makeFilesRouter(db, sseBus) {
       console.error('[files] delete error:', err.message);
       res.status(500).json({ error: 'Delete failed' });
     }
+  });
+
+  // ZIP download — all files under a folder prefix, preserving subfolder structure
+  router.get('/zip', async (req, res) => {
+    const prefix = req.query.folder ?? '';
+    const rows = db.prepare(`
+      SELECT id, name, r2_key, folder FROM files
+      WHERE (folder=? OR folder LIKE ?) AND status='available'
+      ORDER BY folder, name
+    `).all(prefix, prefix + '/%');
+
+    if (!rows.length) { res.status(404).json({ error: 'No files' }); return; }
+
+    const zipName = (prefix || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_') || 'files';
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 1 } });
+    archive.pipe(res);
+    archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
+
+    for (const f of rows) {
+      try {
+        const stream = await getObjectStream(f.r2_key);
+        const relFolder = prefix
+          ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
+          : f.folder;
+        const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
+        archive.append(stream, { name: archivePath });
+      } catch (err) {
+        console.error(`[zip] skipping ${f.name}:`, err.message);
+      }
+    }
+    await archive.finalize();
   });
 
   // Rename a folder — updates folder field on all files in that folder
