@@ -2295,19 +2295,22 @@ document.getElementById('saveWatchDirBtn')?.addEventListener('click', async () =
 });
 
 // ── Watch Folder Picker ───────────────────────────────────────────────────────
-let wdModalPath = '';
-let wdModalHistory = [];
+let wdModalPath     = '';   // folder currently being browsed
+let wdModalHistory  = [];
+let wdModalSelected = null; // folder the user has clicked to select
 
 function openWatchDirModal() {
-  wdModalPath = document.getElementById('watchDirInput').value.trim() || '';
-  wdModalHistory = [];
+  wdModalPath     = document.getElementById('watchDirInput').value.trim() || '';
+  wdModalHistory  = [];
+  wdModalSelected = null;
   document.getElementById('watchDirModal').style.display = 'flex';
   wdModalNavigate(wdModalPath, false);
 }
 
 async function wdModalNavigate(dirPath, addHistory = true) {
   if (addHistory && wdModalPath !== dirPath) wdModalHistory.push(wdModalPath);
-  wdModalPath = dirPath;
+  wdModalPath     = dirPath;
+  wdModalSelected = null;
 
   const list   = document.getElementById('watchDirFolderList');
   const pathEl = document.getElementById('watchDirCurrentPath');
@@ -2331,24 +2334,48 @@ async function wdModalNavigate(dirPath, addHistory = true) {
     } else {
       html += dirs.map(e => `
         <div class="wd-row" data-path="${esc(e.path)}" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
-          <span>📁</span>
+          <span class="wd-radio" style="width:16px;height:16px;border-radius:50%;border:2px solid var(--border2);flex-shrink:0;transition:background .1s,border-color .1s"></span>
           <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px">${esc(e.name)}</span>
-          <span style="color:var(--muted2);font-size:18px;line-height:1">›</span>
+          <span class="wd-enter" data-path="${esc(e.path)}" style="padding:3px 10px;border-radius:6px;color:var(--muted2);font-size:18px;line-height:1" title="Open folder">›</span>
         </div>`).join('');
     }
     list.innerHTML = html;
 
-    list.querySelectorAll('.wd-row').forEach(row => {
-      row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg)'; });
-      row.addEventListener('mouseleave', () => { row.style.background = ''; });
-      row.addEventListener('click', () => {
-        if (row.classList.contains('wd-back')) {
-          const prev = wdModalHistory.pop();
-          wdModalNavigate(prev, false);
-        } else {
-          wdModalNavigate(row.dataset.path);
-        }
+    const backRow = list.querySelector('.wd-back');
+    if (backRow) {
+      backRow.addEventListener('mouseenter', () => { backRow.style.background = 'var(--bg)'; });
+      backRow.addEventListener('mouseleave', () => { backRow.style.background = ''; });
+      backRow.addEventListener('click', () => { const prev = wdModalHistory.pop(); wdModalNavigate(prev, false); });
+    }
+
+    list.querySelectorAll('.wd-row:not(.wd-back)').forEach(row => {
+      row.addEventListener('mouseenter', () => { if (!row.classList.contains('wd-selected')) row.style.background = 'var(--bg)'; });
+      row.addEventListener('mouseleave', () => { if (!row.classList.contains('wd-selected')) row.style.background = ''; });
+
+      // Click row (not ›) → select this folder
+      row.addEventListener('click', (e) => {
+        if (e.target.classList.contains('wd-enter')) return;
+        list.querySelectorAll('.wd-row').forEach(r => {
+          r.classList.remove('wd-selected');
+          r.style.background = '';
+          const radio = r.querySelector('.wd-radio');
+          if (radio) { radio.style.background = ''; radio.style.borderColor = 'var(--border2)'; }
+        });
+        row.classList.add('wd-selected');
+        row.style.background = 'rgba(91,200,232,0.1)';
+        const radio = row.querySelector('.wd-radio');
+        if (radio) { radio.style.background = 'var(--accent)'; radio.style.borderColor = 'var(--accent)'; }
+        wdModalSelected = row.dataset.path;
+        document.getElementById('watchDirCurrentPath').textContent = wdModalSelected;
       });
+
+      // Click › → navigate into folder
+      const enterBtn = row.querySelector('.wd-enter');
+      if (enterBtn) {
+        enterBtn.addEventListener('mouseenter', () => { enterBtn.style.background = 'var(--bg)'; });
+        enterBtn.addEventListener('mouseleave', () => { enterBtn.style.background = ''; });
+        enterBtn.addEventListener('click', (e) => { e.stopPropagation(); wdModalNavigate(row.dataset.path); });
+      }
     });
   } catch (err) {
     list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--danger);font-size:13px">Agent not responding: ${esc(err.message)}</div>`;
@@ -2377,12 +2404,13 @@ function wdModalRenderCrumb(dirPath) {
 }
 
 document.getElementById('browseWatchDirBtn')?.addEventListener('click', openWatchDirModal);
-document.getElementById('watchDirModalClose')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; });
-document.getElementById('watchDirModalCancel')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; });
+document.getElementById('watchDirModalClose')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
+document.getElementById('watchDirModalCancel')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
 document.getElementById('watchDirSelectBtn')?.addEventListener('click', () => {
-  if (!wdModalPath) { toast('Navigate into a folder first', 'error'); return; }
-  document.getElementById('watchDirInput').value = wdModalPath;
+  if (!wdModalSelected) { toast('Click a folder to select it first', 'error'); return; }
+  document.getElementById('watchDirInput').value = wdModalSelected;
   document.getElementById('watchDirModal').style.display = 'none';
+  wdModalSelected = null;
   toast('Path selected — click Save to apply');
 });
 
