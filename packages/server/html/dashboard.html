@@ -2404,16 +2404,8 @@ function wdModalRenderCrumb(dirPath) {
 }
 
 document.getElementById('browseWatchDirBtn')?.addEventListener('click', openWatchDirModal);
-document.getElementById('watchDirModalClose')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
-document.getElementById('watchDirModalCancel')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
-document.getElementById('watchDirSelectBtn')?.addEventListener('click', () => {
-  const chosen = wdModalSelected || wdModalPath;
-  if (!chosen) { toast('Navigate into or select a folder first', 'error'); return; }
-  document.getElementById('watchDirInput').value = chosen;
-  document.getElementById('watchDirModal').style.display = 'none';
-  wdModalSelected = null;
-  toast('Path selected — click Save to apply');
-});
+// NOTE: watchDirModal buttons are wired in the inline <script> after the modal HTML below,
+// because the modal element is injected after this script block.
 
 async function loadUsers() {
   try {
@@ -3564,5 +3556,17 @@ setInterval(() => { if (role==='owner') render(); }, 60000);
     </div>
   </div>
 </div>
+<script>
+document.getElementById('watchDirModalClose').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
+document.getElementById('watchDirModalCancel').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
+document.getElementById('watchDirSelectBtn').addEventListener('click', () => {
+  const chosen = wdModalSelected || wdModalPath;
+  if (!chosen) { toast('Navigate into or select a folder first', 'error'); return; }
+  document.getElementById('watchDirInput').value = chosen;
+  document.getElementById('watchDirModal').style.display = 'none';
+  wdModalSelected = null;
+  toast('Path selected — click Save to apply');
+});
+</script>
 </body>
 </html>
