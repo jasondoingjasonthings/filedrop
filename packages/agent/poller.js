@@ -71,7 +71,15 @@ async function handleCommand(cmd, serverUrl, agentToken) {
 
 async function handleUpload({ paths, folder }, serverUrl, agentToken) {
   const allFiles = [];
-  for (const p of paths) expandPath(p, allFiles);
+  for (const p of paths) {
+    try {
+      const stat = fs.statSync(p);
+      const baseDir = stat.isDirectory() ? p : path.dirname(p);
+      expandPath(p, baseDir, allFiles);
+    } catch (err) {
+      console.warn(`[poller] Skipping inaccessible path: ${p} — ${err.message}`);
+    }
+  }
   const total = allFiles.length;
   console.log(`[poller] Found ${total} file(s) to upload`);
 
@@ -85,14 +93,15 @@ async function handleUpload({ paths, folder }, serverUrl, agentToken) {
     for (let i = 0; i < items.length; i += UPLOAD_CONCURRENCY) {
       const batch = items.slice(i, i + UPLOAD_CONCURRENCY);
 
-      const results = await Promise.allSettled(batch.map(filePath =>
-        uploadFile({ serverUrl, agentToken, filePath, name: path.basename(filePath), folder: folder || '' })
-      ));
+      const results = await Promise.allSettled(batch.map(item => {
+        const targetFolder = [folder || '', item.relDir].filter(Boolean).join('/');
+        return uploadFile({ serverUrl, agentToken, filePath: item.filePath, name: path.basename(item.filePath), folder: targetFolder });
+      }));
 
       for (let j = 0; j < results.length; j++) {
         const r = results[j];
         if (r.status === 'rejected') {
-          console.error(`[poller] Failed: ${path.basename(batch[j])} — ${r.reason?.message}`);
+          console.error(`[poller] Failed: ${path.basename(batch[j].filePath)} — ${r.reason?.message}`);
           stillFailing.push(batch[j]);
           failed++;
         } else if (r.value === 'skipped') {
@@ -139,15 +148,16 @@ async function sendQueueStatus(serverUrl, agentToken, folder, total, done, faile
 
 // ── File system helpers ───────────────────────────────────────────────────────
 
-function expandPath(filePath, out) {
+function expandPath(filePath, baseDir, out) {
   try {
     const stat = fs.statSync(filePath);
     if (stat.isDirectory()) {
       for (const item of fs.readdirSync(filePath, { withFileTypes: true })) {
-        if (!item.name.startsWith('.')) expandPath(path.join(filePath, item.name), out);
+        if (!item.name.startsWith('.')) expandPath(path.join(filePath, item.name), baseDir, out);
       }
     } else {
-      out.push(filePath);
+      const relDir = path.relative(baseDir, path.dirname(filePath)).replace(/\\/g, '/');
+      out.push({ filePath, relDir: relDir === '.' ? '' : relDir });
     }
   } catch (err) {
     console.warn(`[poller] Skipping inaccessible path: ${filePath} — ${err.message}`);

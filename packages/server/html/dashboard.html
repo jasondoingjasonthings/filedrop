@@ -732,6 +732,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
             <label>Folder path</label>
             <input type="text" id="watchDirInput" placeholder="e.g. C:\Users\Jason\FileDrop" style="font-family:monospace;font-size:13px">
           </div>
+          <button class="btn-ghost" id="browseWatchDirBtn" style="white-space:nowrap;padding:9px 14px">Browse…</button>
           <button class="btn-primary" id="saveWatchDirBtn" style="white-space:nowrap;padding:9px 18px">Save</button>
         </div>
         <div id="watchDirStatus" style="font-size:12px;color:var(--muted);margin-top:8px"></div>
@@ -2293,6 +2294,98 @@ document.getElementById('saveWatchDirBtn')?.addEventListener('click', async () =
   }
 });
 
+// ── Watch Folder Picker ───────────────────────────────────────────────────────
+let wdModalPath = '';
+let wdModalHistory = [];
+
+function openWatchDirModal() {
+  wdModalPath = document.getElementById('watchDirInput').value.trim() || '';
+  wdModalHistory = [];
+  document.getElementById('watchDirModal').style.display = 'flex';
+  wdModalNavigate(wdModalPath, false);
+}
+
+async function wdModalNavigate(dirPath, addHistory = true) {
+  if (addHistory && wdModalPath !== dirPath) wdModalHistory.push(wdModalPath);
+  wdModalPath = dirPath;
+
+  const list   = document.getElementById('watchDirFolderList');
+  const pathEl = document.getElementById('watchDirCurrentPath');
+  pathEl.textContent = dirPath || 'My Computer';
+  list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--muted)">Loading…</div>';
+  wdModalRenderCrumb(dirPath);
+
+  try {
+    const result = await agentCommand('browse', { path: dirPath });
+    if (!result) return;
+    const dirs = result.entries.filter(e => e.isDir);
+
+    let html = '';
+    if (wdModalHistory.length) {
+      html += `<div class="wd-row wd-back" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border);color:var(--muted);font-weight:600">
+        <span style="font-size:16px">←</span><span>Back</span>
+      </div>`;
+    }
+    if (!dirs.length) {
+      html += '<div style="padding:24px;text-align:center;color:var(--muted);font-size:13px">No subfolders here</div>';
+    } else {
+      html += dirs.map(e => `
+        <div class="wd-row" data-path="${esc(e.path)}" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+          <span>📁</span>
+          <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px">${esc(e.name)}</span>
+          <span style="color:var(--muted2);font-size:18px;line-height:1">›</span>
+        </div>`).join('');
+    }
+    list.innerHTML = html;
+
+    list.querySelectorAll('.wd-row').forEach(row => {
+      row.addEventListener('mouseenter', () => { row.style.background = 'var(--bg)'; });
+      row.addEventListener('mouseleave', () => { row.style.background = ''; });
+      row.addEventListener('click', () => {
+        if (row.classList.contains('wd-back')) {
+          const prev = wdModalHistory.pop();
+          wdModalNavigate(prev, false);
+        } else {
+          wdModalNavigate(row.dataset.path);
+        }
+      });
+    });
+  } catch (err) {
+    list.innerHTML = `<div style="padding:24px;text-align:center;color:var(--danger);font-size:13px">Agent not responding: ${esc(err.message)}</div>`;
+  }
+}
+
+function wdModalRenderCrumb(dirPath) {
+  const crumb = document.getElementById('watchDirCrumb');
+  if (!dirPath) { crumb.innerHTML = '<span class="breadcrumb-part current">My Computer</span>'; return; }
+  const sep   = dirPath.includes('\\') ? '\\' : '/';
+  const parts = dirPath.split(/[\\/]/).filter(Boolean);
+  let html  = `<span class="breadcrumb-part crumb-nav wd-crumb" data-path="">My Computer</span>`;
+  let built = '';
+  parts.forEach((p, i) => {
+    built = built ? built + sep + p : (dirPath.match(/^[A-Z]:\\/i) ? p + sep : sep + p);
+    const isLast = i === parts.length - 1;
+    html += `<span class="breadcrumb-sep">/</span>`;
+    html += isLast
+      ? `<span class="breadcrumb-part current">${esc(p)}</span>`
+      : `<span class="breadcrumb-part crumb-nav wd-crumb" data-path="${esc(built)}">${esc(p)}</span>`;
+  });
+  crumb.innerHTML = html;
+  crumb.querySelectorAll('.wd-crumb').forEach(el => {
+    el.addEventListener('click', () => wdModalNavigate(el.dataset.path));
+  });
+}
+
+document.getElementById('browseWatchDirBtn')?.addEventListener('click', openWatchDirModal);
+document.getElementById('watchDirModalClose')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; });
+document.getElementById('watchDirModalCancel')?.addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; });
+document.getElementById('watchDirSelectBtn')?.addEventListener('click', () => {
+  if (!wdModalPath) { toast('Navigate into a folder first', 'error'); return; }
+  document.getElementById('watchDirInput').value = wdModalPath;
+  document.getElementById('watchDirModal').style.display = 'none';
+  toast('Path selected — click Save to apply');
+});
+
 async function loadUsers() {
   try {
     const users = await api('/api/users');
@@ -3424,5 +3517,23 @@ if (token) {
 // Refresh countdown timers every minute
 setInterval(() => { if (role==='owner') render(); }, 60000);
 </script>
+<!-- ── Watch Folder Picker Modal ─────────────────────────────────────────── -->
+<div id="watchDirModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(11,31,42,0.55);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:var(--r);width:min(560px,95vw);max-height:78vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(11,31,42,0.22)">
+    <div style="padding:14px 18px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-weight:700;font-size:15px">Select Watch Folder</div>
+      <button id="watchDirModalClose" class="btn-ghost" style="padding:4px 10px;font-size:16px">✕</button>
+    </div>
+    <div style="padding:10px 16px;border-bottom:1.5px solid var(--border);background:var(--bg);flex-shrink:0">
+      <div class="breadcrumb" id="watchDirCrumb"></div>
+    </div>
+    <div id="watchDirFolderList" style="flex:1;overflow-y:auto"></div>
+    <div style="padding:12px 16px;border-top:1.5px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0">
+      <div style="flex:1;font-size:12px;color:var(--muted);font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" id="watchDirCurrentPath">My Computer</div>
+      <button class="btn-ghost" id="watchDirModalCancel" style="padding:7px 16px">Cancel</button>
+      <button class="btn-primary" id="watchDirSelectBtn" style="padding:7px 18px">Select this folder</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

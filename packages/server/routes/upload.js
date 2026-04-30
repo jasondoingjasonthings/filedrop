@@ -160,8 +160,8 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     }
   });
 
-  // Verify upload integrity — browser or agent calls after /complete to confirm R2 has the object
-  router.get('/:id/verify', jwtAuth, async (req, res) => {
+  // Verify upload integrity — agent calls after /complete to confirm R2 has the object
+  router.get('/:id/verify', agentAuth, async (req, res) => {
     const file = db.prepare(`SELECT r2_key, size FROM files WHERE id=?`).get(req.params.id);
     if (!file) { res.status(404).json({ error: 'Not found' }); return; }
     try {

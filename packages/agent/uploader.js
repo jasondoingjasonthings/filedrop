@@ -189,14 +189,21 @@ async function simpleUpload({ serverUrl, agentToken, id, filePath, r2Key, size }
   const stopHeartbeat = startHeartbeat(serverUrl, agentToken, id);
   try {
     await withRetry(async () => {
-      const stream = fs.createReadStream(filePath);
-      const res = await fetch(url, {
-        method: 'PUT',
-        body: stream,
-        headers: { 'Content-Length': String(size) },
-        duplex: 'half',
-      });
-      if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+      try {
+        const stream = fs.createReadStream(filePath);
+        const res = await fetch(url, {
+          method: 'PUT',
+          body: stream,
+          headers: { 'Content-Length': String(size) },
+          duplex: 'half',
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error(`R2 PUT failed: ${res.status}`);
+      } finally {
+        clearTimeout(timer);
+      }
     }, { label: 'simple upload' });
     await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress: 100 });
   } finally {
@@ -248,15 +255,22 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
             const { url } = await api(serverUrl, agentToken, 'POST', '/api/upload/multipart/part-url', {
               r2_key: r2Key, uploadId, partNumber,
             });
-            const stream = fs.createReadStream(filePath, { start: offset, end: offset + partSize - 1 });
-            const res = await fetch(url, {
-              method: 'PUT',
-              body: stream,
-              headers: { 'Content-Length': String(partSize) },
-              duplex: 'half',
-            });
-            if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
-            allParts[i] = { PartNumber: partNumber, ETag: res.headers.get('etag') };
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+            try {
+              const stream = fs.createReadStream(filePath, { start: offset, end: offset + partSize - 1 });
+              const res = await fetch(url, {
+                method: 'PUT',
+                body: stream,
+                headers: { 'Content-Length': String(partSize) },
+                duplex: 'half',
+                signal: controller.signal,
+              });
+              if (!res.ok) throw new Error(`Part ${partNumber} failed: ${res.status}`);
+              allParts[i] = { PartNumber: partNumber, ETag: res.headers.get('etag') };
+            } finally {
+              clearTimeout(timer);
+            }
           }, { label: `part ${partNumber}/${numParts}` });
         }));
       }
