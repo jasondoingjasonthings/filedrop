@@ -24,7 +24,71 @@ function makeFilesRouter(db, sseBus) {
       GROUP BY folder
       ORDER BY MAX(COALESCE(uploaded_at, created_at)) DESC
     `).all();
+
+    // Merge explicitly-created empty folders
+    const fileFolderSet = new Set(rows.map(r => r.folder ?? ''));
+    const emptyFolders = db.prepare(
+      `SELECT path FROM folders WHERE path NOT IN (SELECT DISTINCT folder FROM files WHERE status NOT IN ('deleted','deleting'))`
+    ).all();
+    for (const f of emptyFolders) {
+      if (!fileFolderSet.has(f.path)) {
+        rows.push({ folder: f.path, file_count: 0, total_size: 0, uploading_count: 0, available_count: 0, downloaded_count: 0 });
+      }
+    }
+
     res.json(rows);
+  });
+
+  // Create a named empty folder
+  router.post('/folders', (req, res) => {
+    const { path: folderPath } = req.body || {};
+    if (!folderPath || !folderPath.trim()) { res.status(400).json({ error: 'path required' }); return; }
+    const p = folderPath.trim();
+    db.prepare(`INSERT OR IGNORE INTO folders (path) VALUES (?)`).run(p);
+    res.json({ ok: true, path: p });
+  });
+
+  // Move files to a new folder
+  router.post('/move', (req, res) => {
+    const { ids, folder } = req.body || {};
+    if (!Array.isArray(ids) || !ids.length) { res.status(400).json({ error: 'ids required' }); return; }
+    const target = folder ?? '';
+    const stmt   = db.prepare(`UPDATE files SET folder=? WHERE id=? AND status NOT IN ('deleted','deleting')`);
+    db.transaction(() => { for (const id of ids) stmt.run(target, id); })();
+    const updated = ids.length <= 50
+      ? db.prepare(`SELECT * FROM files WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids)
+      : [];
+    for (const f of updated) sseBus.broadcast('file', f);
+    res.json({ ok: true, count: ids.length });
+  });
+
+  // Move entire folder (renames the prefix on all files + subfolders)
+  router.post('/folder-move', (req, res) => {
+    const { from, to } = req.body || {};
+    if (from === undefined || to === undefined) { res.status(400).json({ error: 'from and to required' }); return; }
+    const fromKey = from ?? '';
+    const toKey   = to   ?? '';
+    if (fromKey === toKey) { res.json({ ok: true, count: 0 }); return; }
+
+    let count = 0;
+    db.transaction(() => {
+      // Exact folder
+      const r1 = db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(toKey, fromKey);
+      count += r1.changes;
+      // Subfolders: replace prefix
+      if (fromKey) {
+        const r2 = db.prepare(
+          `UPDATE files SET folder=? || SUBSTR(folder, ?) WHERE folder LIKE ? AND status NOT IN ('deleted','deleting')`
+        ).run(toKey, fromKey.length + 1, fromKey + '/%');
+        count += r2.changes;
+        // Same for the folders table
+        db.prepare(`UPDATE folders SET path=? || SUBSTR(path, ?) WHERE path LIKE ?`).run(toKey, fromKey.length + 1, fromKey + '/%');
+      }
+      // Move the explicit folder entry itself
+      db.prepare(`UPDATE folders SET path=? WHERE path=?`).run(toKey, fromKey);
+    })();
+
+    res.json({ ok: true, count });
   });
 
   // Files in a specific folder (used when expanding a folder)
@@ -37,6 +101,41 @@ function makeFilesRouter(db, sseBus) {
   // List all files — kept for SSE token validation only; returns empty array to avoid heavy load
   router.get('/', (req, res) => {
     res.json([]);
+  });
+
+  // ZIP download — all files under a folder prefix, preserving subfolder structure
+  // Must be registered before /:id so Express doesn't treat 'zip' as a file id.
+  router.get('/zip', async (req, res) => {
+    const prefix = req.query.folder ?? '';
+    const rows = db.prepare(`
+      SELECT id, name, r2_key, folder FROM files
+      WHERE (folder=? OR folder LIKE ?) AND status='available'
+      ORDER BY folder, name
+    `).all(prefix, prefix + '/%');
+
+    if (!rows.length) { res.status(404).json({ error: 'No files' }); return; }
+
+    const zipName = (prefix || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_') || 'files';
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 1 } });
+    archive.pipe(res);
+    archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
+
+    for (const f of rows) {
+      try {
+        const stream = await getObjectStream(f.r2_key);
+        const relFolder = prefix
+          ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
+          : f.folder;
+        const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
+        archive.append(stream, { name: archivePath });
+      } catch (err) {
+        console.error(`[zip] skipping ${f.name}:`, err.message);
+      }
+    }
+    await archive.finalize();
   });
 
   // Get a single file
@@ -105,40 +204,6 @@ function makeFilesRouter(db, sseBus) {
       console.error('[files] delete error:', err.message);
       res.status(500).json({ error: 'Delete failed' });
     }
-  });
-
-  // ZIP download — all files under a folder prefix, preserving subfolder structure
-  router.get('/zip', async (req, res) => {
-    const prefix = req.query.folder ?? '';
-    const rows = db.prepare(`
-      SELECT id, name, r2_key, folder FROM files
-      WHERE (folder=? OR folder LIKE ?) AND status='available'
-      ORDER BY folder, name
-    `).all(prefix, prefix + '/%');
-
-    if (!rows.length) { res.status(404).json({ error: 'No files' }); return; }
-
-    const zipName = (prefix || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_') || 'files';
-    res.setHeader('Content-Type', 'application/zip');
-    res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
-
-    const archive = archiver('zip', { zlib: { level: 1 } });
-    archive.pipe(res);
-    archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
-
-    for (const f of rows) {
-      try {
-        const stream = await getObjectStream(f.r2_key);
-        const relFolder = prefix
-          ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
-          : f.folder;
-        const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
-        archive.append(stream, { name: archivePath });
-      } catch (err) {
-        console.error(`[zip] skipping ${f.name}:`, err.message);
-      }
-    }
-    await archive.finalize();
   });
 
   // Rename a folder — updates folder field on all files in that folder

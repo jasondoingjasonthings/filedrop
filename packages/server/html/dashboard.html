@@ -1295,6 +1295,7 @@ function renderLibrary() {
                 ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
                 ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
                 ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
+                ${!isUploading ? `<button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="openMoveFiles(['${f.id}'], '${esc((f.folder||'').replace(/'/g,"\\'"))}')">Move</button>` : ''}
                 ${f.status !== 'deleted' && !isUploading ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
               </td>
             </tr>`;
@@ -1334,6 +1335,7 @@ function renderLibrary() {
           ${summary.available_count > 0 ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
@@ -1381,6 +1383,7 @@ function renderLibrary() {
           </div>
           ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeTopKey}')">Move</button>
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `
@@ -1654,6 +1657,7 @@ function renderEditor() {
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2);flex-shrink:0" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();editorUploadLink('${safeKey}')">Upload link</button>
           <span class="folder-chevron">${isExpanded?'▲':'▼'}</span>
         </div>
@@ -3621,6 +3625,41 @@ if (token) {
 // Refresh countdown timers every minute
 setInterval(() => { if (role==='owner') render(); }, 60000);
 </script>
+<!-- ── Move Modal ──────────────────────────────────────────────────────── -->
+<div id="moveModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(11,31,42,0.55);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:var(--r);width:min(520px,95vw);max-height:80vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(11,31,42,0.22)">
+    <div style="padding:14px 18px;border-bottom:1.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0">
+      <div style="font-weight:700;font-size:15px" id="moveModalTitle">Move to…</div>
+      <button id="moveModalClose" style="padding:4px 10px;font-size:16px;background:none;border:none;cursor:pointer;color:var(--muted)">✕</button>
+    </div>
+    <div style="padding:12px 16px;border-bottom:1.5px solid var(--border);flex-shrink:0">
+      <input id="moveModalInput" type="text" placeholder="Type a folder name or select below…"
+        style="width:100%;padding:8px 12px;border:1.5px solid var(--border2);border-radius:8px;font-size:13px;font-family:monospace;color:var(--text);background:var(--bg);box-sizing:border-box;outline:none">
+    </div>
+    <div id="moveModalList" style="flex:1;overflow-y:auto"></div>
+    <div style="padding:12px 16px;border-top:1.5px solid var(--border);display:flex;gap:10px;justify-content:flex-end;flex-shrink:0">
+      <button id="moveModalCancel" style="padding:7px 18px;background:var(--bg);border:1.5px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Cancel</button>
+      <button id="moveModalConfirm" class="btn-primary" style="padding:7px 22px">Move here</button>
+    </div>
+  </div>
+</div>
+<!-- ── New Folder Modal ──────────────────────────────────────────────── -->
+<div id="newFolderModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(11,31,42,0.55);align-items:center;justify-content:center">
+  <div style="background:var(--surface);border-radius:var(--r);width:min(420px,95vw);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(11,31,42,0.22)">
+    <div style="padding:14px 18px;border-bottom:1.5px solid var(--border)">
+      <div style="font-weight:700;font-size:15px">New Folder</div>
+    </div>
+    <div style="padding:18px 16px">
+      <label style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Folder name</label>
+      <input id="newFolderInput" type="text" placeholder="e.g. Archive 2024"
+        style="width:100%;margin-top:8px;padding:9px 12px;border:1.5px solid var(--border2);border-radius:8px;font-size:14px;font-family:inherit;color:var(--text);background:var(--bg);box-sizing:border-box;outline:none">
+    </div>
+    <div style="padding:12px 16px;border-top:1.5px solid var(--border);display:flex;gap:10px;justify-content:flex-end">
+      <button id="newFolderCancel" style="padding:7px 18px;background:var(--bg);border:1.5px solid var(--border2);border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text)">Cancel</button>
+      <button id="newFolderConfirm" class="btn-primary" style="padding:7px 22px">Create</button>
+    </div>
+  </div>
+</div>
 <!-- ── Watch Folder Picker Modal ─────────────────────────────────────────── -->
 <div id="watchDirModal" style="display:none;position:fixed;inset:0;z-index:300;background:rgba(11,31,42,0.55);align-items:center;justify-content:center">
   <div style="background:var(--surface);border-radius:var(--r);width:min(560px,95vw);max-height:78vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 80px rgba(11,31,42,0.22)">
@@ -3639,6 +3678,131 @@ setInterval(() => { if (role==='owner') render(); }, 60000);
     </div>
   </div>
 </div>
+<script>
+// ── Move Modal ────────────────────────────────────────────────────────────────
+let moveTarget = null; // { type: 'folder', from, name } | { type: 'files', ids, currentFolder }
+let moveSelectedDest = null;
+
+function openMoveFolder(fromKey) {
+  const name = fromKey.includes('/') ? fromKey.split('/').pop() : fromKey;
+  moveTarget = { type: 'folder', from: fromKey, name };
+  document.getElementById('moveModalTitle').textContent = `Move "${name}" to…`;
+  document.getElementById('moveModalInput').value = '';
+  moveSelectedDest = null;
+  renderMoveList();
+  document.getElementById('moveModal').style.display = 'flex';
+}
+
+function openMoveFiles(ids, currentFolder) {
+  moveTarget = { type: 'files', ids, currentFolder };
+  document.getElementById('moveModalTitle').textContent = `Move ${ids.length} file${ids.length !== 1 ? 's' : ''} to…`;
+  document.getElementById('moveModalInput').value = '';
+  moveSelectedDest = null;
+  renderMoveList();
+  document.getElementById('moveModal').style.display = 'flex';
+}
+
+function renderMoveList() {
+  const list = document.getElementById('moveModalList');
+  // Build folder options: root + all known folders (excluding the item being moved)
+  const fromKey = moveTarget?.type === 'folder' ? moveTarget.from : moveTarget?.currentFolder;
+  const options = [''].concat(
+    folderSummaries
+      .map(s => s.folder ?? '')
+      .filter(f => f && f !== fromKey && !f.startsWith(fromKey + '/'))
+      .sort()
+  );
+  const unique = [...new Set(options)];
+
+  list.innerHTML = unique.map(f => `
+    <div class="move-opt" data-dest="${esc(f)}" style="padding:10px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)">
+      <span class="move-radio" style="width:14px;height:14px;border-radius:50%;border:2px solid var(--border2);flex-shrink:0"></span>
+      <span style="font-size:13px;font-family:monospace">${f ? esc(f) : '<span style="color:var(--muted)">(Root)</span>'}</span>
+    </div>`).join('');
+
+  list.querySelectorAll('.move-opt').forEach(row => {
+    row.addEventListener('mouseenter', () => { if (!row.classList.contains('move-selected')) row.style.background = 'var(--bg)'; });
+    row.addEventListener('mouseleave', () => { if (!row.classList.contains('move-selected')) row.style.background = ''; });
+    row.addEventListener('click', () => {
+      list.querySelectorAll('.move-opt').forEach(r => {
+        r.classList.remove('move-selected'); r.style.background = '';
+        const dot = r.querySelector('.move-radio'); if (dot) { dot.style.background = ''; dot.style.borderColor = 'var(--border2)'; }
+      });
+      row.classList.add('move-selected');
+      row.style.background = 'rgba(91,200,232,0.1)';
+      const dot = row.querySelector('.move-radio');
+      if (dot) { dot.style.background = 'var(--accent)'; dot.style.borderColor = 'var(--accent)'; }
+      moveSelectedDest = row.dataset.dest;
+      document.getElementById('moveModalInput').value = moveSelectedDest;
+    });
+  });
+}
+
+document.getElementById('moveModalInput').addEventListener('input', function() {
+  moveSelectedDest = this.value.trim();
+  // Deselect radio rows
+  document.querySelectorAll('.move-opt').forEach(r => {
+    r.classList.remove('move-selected'); r.style.background = '';
+    const dot = r.querySelector('.move-radio'); if (dot) { dot.style.background = ''; dot.style.borderColor = 'var(--border2)'; }
+  });
+});
+
+document.getElementById('moveModalClose').addEventListener('click', () => { document.getElementById('moveModal').style.display = 'none'; });
+document.getElementById('moveModalCancel').addEventListener('click', () => { document.getElementById('moveModal').style.display = 'none'; });
+document.getElementById('moveModalConfirm').addEventListener('click', async () => {
+  const destInput = document.getElementById('moveModalInput').value.trim();
+  const dest = moveSelectedDest !== null ? moveSelectedDest : destInput;
+
+  if (dest === undefined || dest === null) { toast('Select or type a destination', 'error'); return; }
+
+  const btn = document.getElementById('moveModalConfirm');
+  btn.disabled = true; btn.textContent = 'Moving…';
+
+  try {
+    if (moveTarget.type === 'folder') {
+      const { from, name } = moveTarget;
+      const to = dest ? dest + '/' + name : name;
+      if (from === to) { toast('Already there', 'error'); btn.disabled = false; btn.textContent = 'Move here'; return; }
+      await api('/api/files/folder-move', { method: 'POST', body: JSON.stringify({ from, to }) });
+    } else {
+      await api('/api/files/move', { method: 'POST', body: JSON.stringify({ ids: moveTarget.ids, folder: dest }) });
+    }
+    document.getElementById('moveModal').style.display = 'none';
+    toast('Moved successfully');
+    await loadFolders();
+  } catch (e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Move here';
+  }
+});
+
+// ── New Folder Modal ──────────────────────────────────────────────────────────
+function openNewFolderModal() {
+  document.getElementById('newFolderInput').value = '';
+  document.getElementById('newFolderModal').style.display = 'flex';
+  setTimeout(() => document.getElementById('newFolderInput').focus(), 50);
+}
+
+document.getElementById('newFolderCancel').addEventListener('click', () => { document.getElementById('newFolderModal').style.display = 'none'; });
+document.getElementById('newFolderConfirm').addEventListener('click', async () => {
+  const name = document.getElementById('newFolderInput').value.trim();
+  if (!name) { toast('Enter a folder name', 'error'); return; }
+  const btn = document.getElementById('newFolderConfirm');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    await api('/api/folders', { method: 'POST', body: JSON.stringify({ path: name }) });
+    document.getElementById('newFolderModal').style.display = 'none';
+    toast('Folder created');
+    await loadFolders();
+  } catch(e) {
+    toast(e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Create';
+  }
+});
+document.getElementById('newFolderInput').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('newFolderConfirm').click(); });
+</script>
 <script>
 document.getElementById('watchDirModalClose').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });
 document.getElementById('watchDirModalCancel').addEventListener('click', () => { document.getElementById('watchDirModal').style.display = 'none'; wdModalSelected = null; });

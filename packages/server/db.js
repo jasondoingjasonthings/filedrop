@@ -103,6 +103,10 @@ function migrateAlter(db) {
   if (!cols.includes('thumbnail_key')) {
     db.exec(`ALTER TABLE files ADD COLUMN thumbnail_key TEXT`);
   }
+  const hasFoldersTable = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='folders'`).get();
+  if (!hasFoldersTable) {
+    db.exec(`CREATE TABLE folders (path TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`);
+  }
 }
 
 function ownerExists(db) {
