@@ -125,7 +125,7 @@ function migrateAlter(db) {
           finished_at  TEXT,
           proxy_key    TEXT,
           error        TEXT,
-          created_at   TEXT DEFAULT (datetime('now'))
+          created_at   TEXT
         )
       `).run();
       db.prepare(`CREATE INDEX idx_tj_status  ON transcode_jobs(status)`).run();

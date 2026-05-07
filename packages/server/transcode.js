@@ -52,7 +52,7 @@ function queueTranscodeJob(db, file) {
   if (existing) return null;
   const jobId = uuid();
   db.prepare(
-    `INSERT INTO transcode_jobs (id, file_id, status, scheduled_at) VALUES (?, ?, 'pending', ?)`
+    `INSERT INTO transcode_jobs (id, file_id, status, scheduled_at, created_at) VALUES (?, ?, 'pending', ?, datetime('now'))`
   ).run(jobId, file.id, nextOvernightStart());
   console.log(`[transcode] Queued job ${jobId} for ${file.name}`);
   return jobId;
