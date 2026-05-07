@@ -107,8 +107,9 @@ async function runJob(db, sseBus, job) {
       proc.on('error', err => reject(new Error(`ffmpeg spawn failed: ${err.message}`)));
     });
 
-    // Upload proxy to R2
-    const proxyKey  = `proxies/${file.id}_proxy.mp4`;
+    // Upload proxy to R2 — <job>/Proxy/<name>_proxy.mp4
+    const baseName  = file.name.replace(/\.[^/.]+$/, '');
+    const proxyKey  = `${topFolder(file.folder ?? '')}/Proxy/${baseName}_proxy.mp4`;
     const outSize   = fs.statSync(outFile).size;
     const outStream = fs.createReadStream(outFile);
     console.log(`[transcode] Uploading proxy ${proxyKey} (${Math.round(outSize / 1e6)} MB)`);
