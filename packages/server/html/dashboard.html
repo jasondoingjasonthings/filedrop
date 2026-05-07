@@ -1639,8 +1639,18 @@ function downloadZip(folder) {
 
 async function cancelFolderUploads(folder) {
   const uploading = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'uploading');
-  if (!uploading.length) return;
-  if (!confirm(`Cancel all ${uploading.length} uploading file${uploading.length !== 1 ? 's' : ''} in "${folder || 'root'}"?`)) return;
+  const queued    = _uploadQueue.filter(t => (t.folder || '') === folder);
+  const total     = uploading.length + queued.length;
+  if (!total) return;
+  if (!confirm(`Cancel all ${total} upload${total !== 1 ? 's' : ''} in "${folder || 'root'}"?`)) return;
+  // Remove queued-but-not-started tasks
+  for (const task of queued) {
+    const idx = _uploadQueue.indexOf(task);
+    if (idx !== -1) _uploadQueue.splice(idx, 1);
+    task._row.remove();
+    _updateQueueSummary(task.ctx);
+  }
+  // Cancel active uploads already registered in DB
   await Promise.all(uploading.map(f => api(`/api/files/${f.id}`, { method: 'DELETE' }).catch(() => {})));
 }
 
