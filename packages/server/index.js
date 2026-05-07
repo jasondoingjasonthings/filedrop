@@ -2,6 +2,17 @@
 
 require('dotenv').config();
 
+// Must be first — catch anything that slips past route-level error handling.
+// PM2 will restart the process after exit(1).
+process.on('uncaughtException', (err) => {
+  console.error('[filedrop] FATAL uncaughtException:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[filedrop] FATAL unhandledRejection:', reason);
+  process.exit(1);
+});
+
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
@@ -29,6 +40,9 @@ const app    = express();
 const db     = getDb();
 const sseBus = new SseBus();
 
+// Trust the nginx reverse proxy so req.ip reflects the real client address.
+app.set('trust proxy', 1);
+
 app.use(express.json({ limit: '10mb' }));
 
 // Setup wizard (pre-auth)
@@ -43,8 +57,34 @@ app.use((req, res, next) => {
   next();
 });
 
+// Health check — used by monitoring and PM2 readiness checks
+app.get('/health', (req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), clients: sseBus.size });
+});
+
+// Simple in-memory rate limiter for the SSE endpoint.
+// Prevents token-brute-force via rapid reconnects (each attempt hits the DB).
+const _sseIpLog = new Map();
+setInterval(() => {
+  const cutoff = Date.now() - 60_000;
+  for (const [ip, times] of _sseIpLog) {
+    const trimmed = times.filter(t => t > cutoff);
+    if (trimmed.length === 0) _sseIpLog.delete(ip);
+    else _sseIpLog.set(ip, trimmed);
+  }
+}, 120_000).unref();
+
+function sseRateLimited(ip) {
+  const now = Date.now();
+  const times = (_sseIpLog.get(ip) || []).filter(t => now - t < 60_000);
+  times.push(now);
+  _sseIpLog.set(ip, times);
+  return times.length > 30; // 30 connection attempts per minute per IP
+}
+
 // SSE — uses token query param (EventSource can't set headers)
 app.get('/api/events', (req, res) => {
+  if (sseRateLimited(req.ip)) { res.status(429).end(); return; }
   const token = req.query.token;
   if (!token) { res.status(401).end(); return; }
   try {

@@ -92,21 +92,18 @@ function migrate(db) {
 }
 
 function migrateAlter(db) {
-  // Add columns that didn't exist in earlier schema versions
-  const cols = db.prepare(`PRAGMA table_info(files)`).all().map(c => c.name);
-  if (!cols.includes('last_seen_at')) {
-    db.exec(`ALTER TABLE files ADD COLUMN last_seen_at TEXT`);
-  }
-  if (!cols.includes('checksum')) {
-    db.exec(`ALTER TABLE files ADD COLUMN checksum TEXT`);
-  }
-  if (!cols.includes('thumbnail_key')) {
-    db.exec(`ALTER TABLE files ADD COLUMN thumbnail_key TEXT`);
-  }
-  const hasFoldersTable = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='folders'`).get();
-  if (!hasFoldersTable) {
-    db.exec(`CREATE TABLE folders (path TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`);
-  }
+  // Run all schema migrations atomically. Each is guarded so it's idempotent on
+  // retry, and the transaction ensures a crash mid-run doesn't leave a half-applied schema.
+  db.transaction(() => {
+    const cols = db.prepare(`PRAGMA table_info(files)`).all().map(c => c.name);
+    if (!cols.includes('last_seen_at'))  db.prepare(`ALTER TABLE files ADD COLUMN last_seen_at TEXT`).run();
+    if (!cols.includes('checksum'))      db.prepare(`ALTER TABLE files ADD COLUMN checksum TEXT`).run();
+    if (!cols.includes('thumbnail_key')) db.prepare(`ALTER TABLE files ADD COLUMN thumbnail_key TEXT`).run();
+    const hasFolders = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='folders'`).get();
+    if (!hasFolders) {
+      db.prepare(`CREATE TABLE folders (path TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`).run();
+    }
+  })();
 }
 
 function ownerExists(db) {

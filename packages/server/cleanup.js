@@ -4,6 +4,8 @@ const { deleteObject } = require('./r2');
 
 const CHECK_INTERVAL_MS = 60_000; // check every minute
 
+let _running = false;
+
 function startCleanup(db, sseBus) {
   setInterval(() => runCleanup(db, sseBus), CHECK_INTERVAL_MS);
   // Run once at startup too
@@ -11,6 +13,16 @@ function startCleanup(db, sseBus) {
 }
 
 async function runCleanup(db, sseBus) {
+  if (_running) { console.log('[cleanup] Already running, skipping'); return; }
+  _running = true;
+  try {
+    await _doCleanup(db, sseBus);
+  } finally {
+    _running = false;
+  }
+}
+
+async function _doCleanup(db, sseBus) {
   // ── Sweep stale 'uploading' entries ──────────────────────────────────────────
   // Queued (progress=0): give 7 days — large batches (200GB+) can queue for days
   // Active (progress>0): 30 min no heartbeat = something went wrong
@@ -48,18 +60,17 @@ async function runCleanup(db, sseBus) {
   `).all(now);
 
   for (const file of due) {
+    db.prepare(`UPDATE files SET status='deleting' WHERE id=?`).run(file.id);
+    sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
     try {
-      db.prepare(`UPDATE files SET status='deleting' WHERE id=?`).run(file.id);
-      sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
-
       await deleteObject(file.r2_key);
-
-      db.prepare(`
-        UPDATE files SET status='deleted', deleted_at=datetime('now') WHERE id=?
-      `).run(file.id);
+      db.prepare(`UPDATE files SET status='deleted', deleted_at=datetime('now') WHERE id=?`).run(file.id);
       sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
     } catch (err) {
-      console.error(`[cleanup] Failed to delete ${file.r2_key}:`, err.message);
+      console.error(`[cleanup] R2 delete failed for ${file.r2_key}, will retry next run:`, err.message);
+      // Revert so the next cleanup cycle retries rather than leaving it stuck in 'deleting' forever
+      db.prepare(`UPDATE files SET status='downloaded' WHERE id=? AND status='deleting'`).run(file.id);
+      sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
     }
   }
 }
