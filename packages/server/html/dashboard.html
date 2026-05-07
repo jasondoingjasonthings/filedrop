@@ -1389,6 +1389,7 @@ function renderLibrary() {
           ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeTopKey}')">Move</button>
+          <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteTopFolder('${safeTopKey}')">Delete all</button>
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `
@@ -2259,6 +2260,26 @@ async function deleteFolder(key) {
   try {
     await Promise.all(folderFiles.map(f => api(`/api/files/${f.id}`, { method: 'DELETE' })));
     toast(`Deleted ${folderFiles.length} file${folderFiles.length !== 1 ? 's' : ''} from R2`);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteTopFolder(topKey) {
+  // Collect all sub-folder keys that belong to this top-level group
+  const subKeys = folderSummaries
+    .map(s => s.folder ?? '')
+    .filter(k => k === topKey || k.startsWith(topKey + '/'));
+
+  // Load any sub-folders whose files haven't been fetched yet
+  await Promise.all(subKeys.filter(k => !loadedFolders.has(k)).map(k => loadFolderFiles(k)));
+
+  const toDelete = Object.values(files).filter(f =>
+    subKeys.includes(f.folder ?? '') && f.status !== 'deleted'
+  );
+  if (!toDelete.length) { toast('No files to delete'); return; }
+  if (!confirm(`Delete all ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''} in "${topKey}" from R2? This cannot be undone.`)) return;
+  try {
+    await Promise.all(toDelete.map(f => api(`/api/files/${f.id}`, { method: 'DELETE' })));
+    toast(`Deleted ${toDelete.length} file${toDelete.length !== 1 ? 's' : ''} from R2`);
   } catch(e) { toast(e.message, 'error'); }
 }
 
