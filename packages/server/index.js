@@ -98,17 +98,22 @@ app.get('/api/events', (req, res) => {
   if (sseRateLimited(req.ip)) { res.status(429).end(); return; }
   const token = req.query.token;
   if (!token) { res.status(401).end(); return; }
+  let decoded;
   try {
-    verifyToken(token, JWT_SECRET);
+    decoded = verifyToken(token, JWT_SECRET);
   } catch {
     res.status(401).end();
     return;
+  }
+  if (decoded?.jti) {
+    const revoked = db.prepare(`SELECT 1 FROM revoked_tokens WHERE jti=?`).get(decoded.jti);
+    if (revoked) { res.status(401).end(); return; }
   }
   const cleanup = sseBus.connect(res);
   req.on('close', cleanup);
 });
 
-const auth = makeAuthMiddleware(JWT_SECRET);
+const auth = makeAuthMiddleware(JWT_SECRET, db);
 
 // Same-origin download redirect — accepts ?token= so iframes/anchors can trigger downloads
 // without needing Authorization headers (which iframes cannot set)

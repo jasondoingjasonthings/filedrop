@@ -10,7 +10,7 @@ const { presignUpload, createMultipart, presignPart, completeMultipart, abortMul
 
 function makeUploadLinksRouter(db, sseBus, jwtSecret) {
   const router  = express.Router();
-  const jwtAuth = makeAuthMiddleware(jwtSecret);
+  const jwtAuth = makeAuthMiddleware(jwtSecret, db);
 
   // ── Owner or Editor: create upload link ──────────────────────────────────
   router.post('/', jwtAuth, (req, res) => {

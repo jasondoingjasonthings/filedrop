@@ -103,6 +103,10 @@ function migrateAlter(db) {
     if (!hasFolders) {
       db.prepare(`CREATE TABLE folders (path TEXT PRIMARY KEY, created_at TEXT DEFAULT (datetime('now')))`).run();
     }
+    const hasRevoked = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='revoked_tokens'`).get();
+    if (!hasRevoked) {
+      db.prepare(`CREATE TABLE revoked_tokens (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)`).run();
+    }
   })();
 }
 

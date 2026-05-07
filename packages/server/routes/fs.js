@@ -17,7 +17,7 @@ setInterval(() => {
 
 function makeFsRouter(db, jwtSecret) {
   const router    = express.Router();
-  const jwtAuth   = makeAuthMiddleware(jwtSecret);
+  const jwtAuth   = makeAuthMiddleware(jwtSecret, db);
   const agentAuth = makeAgentMiddleware(db);
 
   // ── Dashboard: request browse ─────────────────────────────────────────────

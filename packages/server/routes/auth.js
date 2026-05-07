@@ -1,7 +1,7 @@
 'use strict';
 
 const express = require('express');
-const { signToken, checkPassword } = require('../auth');
+const { signToken, checkPassword, verifyToken, revokeToken } = require('../auth');
 
 // In-memory rate limiter: max 10 login attempts per IP per 15 minutes.
 const _loginLog = new Map();
@@ -24,6 +24,22 @@ function loginRateLimited(ip) {
 
 function makeAuthRouter(db, jwtSecret) {
   const router = express.Router();
+
+  router.post('/logout', (req, res) => {
+    const header = req.headers.authorization;
+    if (header?.startsWith('Bearer ')) {
+      try {
+        const decoded = verifyToken(header.slice(7), jwtSecret);
+        if (decoded.jti && decoded.exp) {
+          revokeToken(decoded.jti, new Date(decoded.exp * 1000).toISOString(), db);
+        }
+      } catch {
+        // Token is already invalid — nothing to revoke
+      }
+    }
+    res.json({ ok: true });
+  });
+
 
   router.post('/login', async (req, res) => {
     if (loginRateLimited(req.ip)) {

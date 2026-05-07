@@ -42,6 +42,9 @@ async function _doCleanup(db, sseBus) {
     console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);
   }
 
+  // ── Prune expired revoked tokens ────────────────────────────────────────────
+  db.prepare(`DELETE FROM revoked_tokens WHERE expires_at <= datetime('now')`).run();
+
   // ── Prune deleted records — keep only the 100 most recent ───────────────────
   db.prepare(`
     DELETE FROM files WHERE status = 'deleted'

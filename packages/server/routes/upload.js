@@ -9,7 +9,7 @@ const { generateThumbnail } = require('../thumbnail');
 function makeUploadRouter(db, sseBus, jwtSecret) {
   const router = express.Router();
   const agentAuth = makeAgentMiddleware(db);
-  const jwtAuth   = makeAuthMiddleware(jwtSecret);
+  const jwtAuth   = makeAuthMiddleware(jwtSecret, db);
 
   // ── Agent endpoints (use Agent token, not JWT) ────────────────────────────
 

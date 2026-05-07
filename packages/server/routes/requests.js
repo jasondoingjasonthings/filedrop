@@ -5,7 +5,7 @@ const { makeAuthMiddleware, requireOwner } = require('../auth');
 
 function makeRequestsRouter(db, jwtSecret) {
   const router  = express.Router();
-  const jwtAuth = makeAuthMiddleware(jwtSecret);
+  const jwtAuth = makeAuthMiddleware(jwtSecret, db);
 
   // Editor: submit a request
   router.post('/', jwtAuth, (req, res) => {

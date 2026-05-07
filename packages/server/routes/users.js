@@ -48,9 +48,11 @@ function makeUsersRouter(db) {
       res.status(400).json({ error: 'Cannot delete yourself' });
       return;
     }
-    db.prepare(`UPDATE files SET downloaded_by=NULL WHERE downloaded_by=?`).run(req.params.id);
-    db.prepare(`DELETE FROM file_requests WHERE user_id=?`).run(req.params.id);
-    db.prepare(`DELETE FROM users WHERE id=?`).run(req.params.id);
+    db.transaction(() => {
+      db.prepare(`UPDATE files SET downloaded_by=NULL WHERE downloaded_by=?`).run(req.params.id);
+      db.prepare(`DELETE FROM file_requests WHERE user_id=?`).run(req.params.id);
+      db.prepare(`DELETE FROM users WHERE id=?`).run(req.params.id);
+    })();
     res.json({ ok: true });
   });
 

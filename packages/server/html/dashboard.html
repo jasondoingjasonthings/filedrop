@@ -1025,6 +1025,10 @@ async function login() {
 }
 
 function logout() {
+  // Revoke server-side first (fire-and-forget — don't block the UI on network)
+  if (token) {
+    fetch('/api/auth/logout', { method: 'POST', headers: { Authorization: 'Bearer ' + token } }).catch(() => {});
+  }
   token = null; role = ''; uname = '';
   localStorage.removeItem('fd_token');
   localStorage.removeItem('fd_role');

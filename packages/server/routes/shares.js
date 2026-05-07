@@ -7,10 +7,11 @@ const fs       = require('fs');
 const { makeAuthMiddleware, requireOwner } = require('../auth');
 const archiver = require('archiver');
 const { presignDownload, getObjectStream } = require('../r2');
+const { getCached, setCached } = require('../urlcache');
 
 function makeSharesApiRouter(db, jwtSecret) {
   const router  = express.Router();
-  const jwtAuth = makeAuthMiddleware(jwtSecret);
+  const jwtAuth = makeAuthMiddleware(jwtSecret, db);
 
   // ── Owner or Editor: create share link ───────────────────────────────────
   router.post('/', jwtAuth, (req, res) => {
@@ -74,16 +75,28 @@ function makeSharesPublicRouter(db) {
       ORDER BY folder, name
     `).all(prefix, prefix + '/%');
 
-    // Presign thumbnail and full-size URLs for JPEG files (1-hour expiry)
+    // Presign thumbnail and full-size URLs for JPEG files (1-hour expiry).
+    // URLs are cached in-memory for 55 minutes so repeated page loads don't
+    // hit R2 for every image on every visit.
+    const PRESIGN_TTL = 3600;
     const files = await Promise.all(rows.map(async f => {
       const ext = (f.name || '').split('.').pop().toLowerCase();
       const isImage = ext === 'jpg' || ext === 'jpeg';
       const out = { id: f.id, name: f.name, size: f.size, uploaded_at: f.uploaded_at, created_at: f.created_at, isImage };
       if (isImage) {
         if (f.thumbnail_key) {
-          try { out.thumbnailUrl = await presignDownload(f.thumbnail_key, 3600); } catch {}
+          let url = getCached(f.thumbnail_key);
+          if (!url) {
+            try { url = await presignDownload(f.thumbnail_key, PRESIGN_TTL); setCached(f.thumbnail_key, url, PRESIGN_TTL); } catch {}
+          }
+          if (url) out.thumbnailUrl = url;
         }
-        try { out.fullUrl = await presignDownload(f.r2_key, 3600, f.name); } catch {}
+        const dlKey = `dl:${f.r2_key}`;
+        let fullUrl = getCached(dlKey);
+        if (!fullUrl) {
+          try { fullUrl = await presignDownload(f.r2_key, PRESIGN_TTL, f.name); setCached(dlKey, fullUrl, PRESIGN_TTL); } catch {}
+        }
+        if (fullUrl) out.fullUrl = fullUrl;
       }
       return out;
     }));
