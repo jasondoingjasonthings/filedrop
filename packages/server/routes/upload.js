@@ -213,10 +213,19 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     // Use provided r2Key when resuming an interrupted upload, otherwise generate fresh key
     const r2Key  = resumeR2Key || (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
 
-    db.prepare(`
-      INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
-      VALUES (?, ?, ?, ?, ?, 'uploading', 0)
-    `).run(id, name, r2Key, size || 0, folder || '');
+    try {
+      db.prepare(`
+        INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
+        VALUES (?, ?, ?, ?, ?, 'uploading', 0)
+      `).run(id, name, r2Key, size || 0, folder || '');
+    } catch (err) {
+      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        res.status(409).json({ error: 'r2_key conflict' });
+      } else {
+        res.status(500).json({ error: err.message });
+      }
+      return;
+    }
 
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(id);
     sseBus.broadcast('file', file);

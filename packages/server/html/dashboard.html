@@ -207,8 +207,8 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 }
 .file-card:hover { border-color: var(--accent); box-shadow: 0 4px 16px rgba(91,200,232,0.12); }
 .file-card.uploading { border-color: #93c5fd; }
-.file-card.available { border-color: #2dd4bf; }
-.file-card.downloaded { border-color: #fcd34d; }
+.file-card.available  { border-color: #86efac; }
+.file-card.downloaded { border-color: #1d4ed8; }
 .file-card.deleting, .file-card.deleted { opacity: .5; }
 
 .file-name {
@@ -224,8 +224,8 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
   padding: 3px 9px; border-radius: 20px;
 }
 .status-badge.uploading { background: #dbeafe; color: #1d4ed8; border: 1.5px solid #93c5fd; }
-.status-badge.available { background: #dbeafe; color: #1e40af; border: 1.5px solid #93c5fd; }
-.status-badge.downloaded { background: #dbeafe; color: #1e40af; border: 1.5px solid #93c5fd; }
+.status-badge.available  { background: #dcfce7; color: #15803d; border: 1.5px solid #86efac; }
+.status-badge.downloaded { background: #1e3a5f; color: #93c5fd; border: 1.5px solid #1d4ed8; }
 .status-badge.deleting   { background: #fee2e2; color: #b91c1c; border: 1.5px solid #fca5a5; }
 .status-badge.deleted    { background: #f1f5f9; color: var(--muted2); border: 1.5px solid var(--border); }
 
@@ -1102,15 +1102,19 @@ async function loadProxySettings() {
 
 async function toggleFolderProxy(topKey) {
   const enabled = !folderProxySettings[topKey];
-  const result = await api('/api/transcode/proxy-settings', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path: topKey, enabled }),
-  });
-  if (result) {
-    if (enabled) folderProxySettings[topKey] = true;
-    else delete folderProxySettings[topKey];
-    renderLibrary();
+  try {
+    const result = await api('/api/transcode/proxy-settings', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: topKey, enabled }),
+    });
+    if (result) {
+      if (enabled) folderProxySettings[topKey] = true;
+      else delete folderProxySettings[topKey];
+      renderLibrary();
+    }
+  } catch (err) {
+    toast('Proxy toggle failed: ' + err.message, 'error');
   }
 }
 
