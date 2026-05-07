@@ -56,10 +56,20 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     }
 
     const id = uuid();
-    db.prepare(`
-      INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at)
-      VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'))
-    `).run(id, name, r2_key, size || 0, folderKey);
+    try {
+      db.prepare(`
+        INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at)
+        VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'))
+      `).run(id, name, r2_key, size || 0, folderKey);
+    } catch (err) {
+      if (err.message.includes('UNIQUE constraint failed: files.r2_key')) {
+        // The same r2_key exists in the DB (likely a stale 'deleted' record from a prior run).
+        // Tell the agent to clear its resume state and register with a fresh key.
+        return res.status(409).json({ error: 'r2_key conflict — retry with a new key' });
+      }
+      console.error('[upload] Register INSERT failed:', err.message);
+      return res.status(500).json({ error: 'Registration failed' });
+    }
 
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(id);
     sseBus.broadcast('file', file);

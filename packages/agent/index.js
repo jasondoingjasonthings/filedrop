@@ -2,6 +2,15 @@
 
 require('dotenv').config();
 
+process.on('uncaughtException', (err) => {
+  console.error('[agent] FATAL uncaughtException:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[agent] FATAL unhandledRejection:', reason);
+  process.exit(1);
+});
+
 const path  = require('path');
 const fetch = require('node-fetch');
 const { startWatcher }    = require('./watcher');
@@ -60,8 +69,15 @@ async function syncWatchDir() {
 
 console.log(`[agent] Server: ${SERVER_URL}`);
 
-// Initial startup sync — start the watcher as soon as we know the dir
-syncWatchDir().then(() => {
-  // Poll every 30s so dashboard changes take effect without an agent restart
-  setInterval(syncWatchDir, 30000);
-});
+// Initial startup sync — start the watcher as soon as we know the dir.
+// fetchWatchDir() catches its own errors, so this should never reject,
+// but guard anyway so a bug here doesn't crash the agent silently.
+syncWatchDir()
+  .catch(err => {
+    console.error('[agent] Initial watch-dir sync failed, falling back to default:', err.message);
+    applyWatchDir(ENV_WATCH_DIR);
+  })
+  .then(() => {
+    // Poll every 30s so dashboard changes take effect without an agent restart
+    setInterval(syncWatchDir, 30000);
+  });

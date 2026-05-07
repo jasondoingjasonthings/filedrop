@@ -5,7 +5,8 @@ const path = require('path');
 const fetch = require('node-fetch');
 const { uploadFile } = require('./uploader');
 
-const POLL_INTERVAL  = 1500;  // ms
+const POLL_INTERVAL_MS   = 1500;   // normal polling cadence
+const POLL_MAX_BACKOFF_MS = 30_000; // cap backoff at 30s
 const UPLOAD_CONCURRENCY = 3; // files uploading at once
 const RETRY_DELAY_MS = 30_000; // wait between retry passes
 const MAX_PASSES     = 5;
@@ -13,23 +14,36 @@ const MAX_PASSES     = 5;
 function startPoller({ serverUrl, agentToken }) {
   console.log('[poller] Started — polling for dashboard commands');
 
+  let _backoffMs = POLL_INTERVAL_MS;
+
   async function poll() {
     try {
       const res = await fetch(`${serverUrl}/api/fs/pending`, {
         headers: { Authorization: `Agent ${agentToken}` },
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        _backoffMs = Math.min(_backoffMs * 2, POLL_MAX_BACKOFF_MS);
+        return;
+      }
+      _backoffMs = POLL_INTERVAL_MS; // reset on success
       const { commands } = await res.json();
       for (const cmd of commands) {
         handleCommand(cmd, serverUrl, agentToken);
       }
     } catch {
-      // server unreachable — keep trying
+      // Server unreachable — back off so we don't hammer a recovering process
+      _backoffMs = Math.min(_backoffMs * 2, POLL_MAX_BACKOFF_MS);
     }
   }
 
-  setInterval(poll, POLL_INTERVAL);
-  poll();
+  (function schedule() {
+    setTimeout(async () => {
+      await poll();
+      schedule();
+    }, _backoffMs);
+  })();
+
+  poll(); // fire immediately on startup
 }
 
 async function handleCommand(cmd, serverUrl, agentToken) {

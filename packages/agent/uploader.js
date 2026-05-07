@@ -102,10 +102,22 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   // Compute SHA-256 of file content and register with the server concurrently.
   // Hashing runs a second read pass but local disk is fast and the network
   // upload is always the bottleneck, so wall-clock time is essentially unchanged.
-  const [reg, checksum] = await Promise.all([
-    registerFile({ serverUrl, agentToken, filePath, name, folder, forceR2Key: resume?.r2Key }),
-    computeSha256(filePath),
-  ]);
+  let regPromise = registerFile({ serverUrl, agentToken, filePath, name, folder, forceR2Key: resume?.r2Key });
+
+  // Handle 409: the old r2Key still exists in the DB as a deleted record.
+  // Clear the stale resume and register fresh (new r2Key, new multipart session).
+  if (resume?.r2Key) {
+    regPromise = regPromise.catch(err => {
+      if (err.message.includes('→ 409:')) {
+        console.warn(`[uploader] Stale resume key conflicts with server DB for ${name} — starting fresh`);
+        clearResume(rKey);
+        return registerFile({ serverUrl, agentToken, filePath, name, folder });
+      }
+      throw err;
+    });
+  }
+
+  const [reg, checksum] = await Promise.all([regPromise, computeSha256(filePath)]);
 
   if (!reg) {
     clearResume(rKey); // file already available — no point keeping resume state
@@ -275,16 +287,17 @@ async function multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, siz
         }));
       }
 
-      // Progress is based on how many parts are done out of total (including skipped ones)
+      // Save resume BEFORE the progress API call — a network failure on the PATCH
+      // must not cause completed parts to be re-uploaded on next resume.
+      if (rKey) {
+        saveResume(rKey, { r2Key, uploadId, completedParts: allParts.filter(Boolean) });
+      }
+
       const totalDone = allParts.slice(0, batchEnd).filter(Boolean).length;
       const progress  = Math.round((totalDone / numParts) * 100);
       await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/progress`, { progress });
       console.log(`[uploader] ${path.basename(filePath)}: ${totalDone}/${numParts} parts (${progress}%)`);
 
-      // Save resume state after every batch so a crash here loses at most one batch
-      if (rKey) {
-        saveResume(rKey, { r2Key, uploadId, completedParts: allParts.filter(Boolean) });
-      }
     }
   } finally {
     stopHeartbeat();

@@ -45,6 +45,17 @@ app.set('trust proxy', 1);
 
 app.use(express.json({ limit: '10mb' }));
 
+// Request logger — one line per request with method, path, status, and duration
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms  = Date.now() - start;
+    const lvl = res.statusCode >= 500 ? 'ERROR' : res.statusCode >= 400 ? 'WARN' : 'INFO';
+    console.log(`[${lvl}] ${req.method} ${req.path} ${res.statusCode} ${ms}ms`);
+  });
+  next();
+});
+
 // Setup wizard (pre-auth)
 app.use('/setup', makeSetupRouter(db));
 
