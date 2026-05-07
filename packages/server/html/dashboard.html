@@ -1112,6 +1112,7 @@ async function toggleFolderProxy(topKey) {
       if (enabled) folderProxySettings[topKey] = true;
       else delete folderProxySettings[topKey];
       renderLibrary();
+      if (enabled && result.queued > 0) toast(`Proxies ON — ${result.queued} existing video${result.queued !== 1 ? 's' : ''} queued for tonight`);
     }
   } catch (err) {
     toast('Proxy toggle failed: ' + err.message, 'error');

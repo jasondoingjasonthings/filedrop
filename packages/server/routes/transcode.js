@@ -25,7 +25,30 @@ function makeTranscodeRouter(db, jwtSecret) {
     const val = enabled ? 1 : 0;
     db.prepare(`INSERT OR IGNORE INTO folders (path) VALUES (?)`).run(p);
     db.prepare(`UPDATE folders SET proxy_enabled=? WHERE path=?`).run(val, p);
-    res.json({ ok: true, path: p, proxy_enabled: val });
+
+    let queued = 0;
+    if (enabled) {
+      // Queue all existing available video files in this job that don't already have a proxy or active job
+      const existing = db.prepare(`
+        SELECT f.* FROM files f
+        WHERE f.status = 'available'
+          AND f.proxy_key IS NULL
+          AND (f.folder = ? OR f.folder LIKE ?)
+          AND NOT EXISTS (
+            SELECT 1 FROM transcode_jobs tj
+            WHERE tj.file_id = f.id AND tj.status IN ('pending','processing')
+          )
+      `).all(p, p + '/%');
+
+      for (const file of existing) {
+        if (isVideoFile(file.name)) {
+          const jobId = queueTranscodeJob(db, file);
+          if (jobId) queued++;
+        }
+      }
+    }
+
+    res.json({ ok: true, path: p, proxy_enabled: val, queued });
   });
 
   // List transcode jobs (owner only), optionally filtered by folder prefix
