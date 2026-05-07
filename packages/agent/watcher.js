@@ -29,8 +29,11 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
   watcher.on('add', (filePath) => scheduleUpload(filePath, 'add'));
   watcher.on('change', (filePath) => scheduleUpload(filePath, 'change'));
 
+  const controller = { close, healthy: true };
+
   watcher.on('error', (err) => {
-    console.error('[watcher] Error:', err);
+    console.error('[watcher] Error (will restart on next sync):', err.message);
+    controller.healthy = false; // applyWatchDir checks this and restarts
   });
 
   console.log('[watcher] Ready.');
@@ -67,7 +70,7 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
     }
   }
 
-  return { close };
+  return controller;
 }
 
 module.exports = { startWatcher };

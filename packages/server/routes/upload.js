@@ -293,6 +293,17 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     res.json({ token: row.token });
   });
 
+  // Regenerate agent token — invalidates the old one immediately (owner only)
+  router.delete('/agent-token', jwtAuth, requireOwner, (req, res) => {
+    const token = require('crypto').randomBytes(32).toString('hex');
+    db.transaction(() => {
+      db.prepare(`DELETE FROM agent_tokens`).run();
+      db.prepare(`INSERT INTO agent_tokens (token, label) VALUES (?, 'default')`).run(token);
+    })();
+    console.log('[upload] Agent token regenerated');
+    res.json({ token });
+  });
+
   return router;
 }
 

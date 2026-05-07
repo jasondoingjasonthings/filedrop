@@ -723,6 +723,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
         <h3>Agent Token</h3>
         <p style="color:var(--muted);font-size:13px">Paste this into your FileDrop agent config on your Windows machine.</p>
         <div class="token-box" id="agentTokenBox">Loading…</div>
+        <button class="btn-ghost" id="regenerateTokenBtn" style="margin-top:8px;font-size:12px;color:var(--danger)">Regenerate token…</button>
       </div>
       <div class="settings-section">
         <h3>Watch Folder</h3>
@@ -2355,6 +2356,16 @@ async function loadAgentToken() {
     if (data) document.getElementById('agentTokenBox').textContent = data.token;
   } catch(e) { console.error(e); }
 }
+
+async function regenerateAgentToken() {
+  if (!confirm('Regenerate the agent token?\n\nThe current token stops working immediately — you\'ll need to update your agent .env and restart it.')) return;
+  const data = await api('/api/upload/agent-token', { method: 'DELETE' });
+  if (data) {
+    document.getElementById('agentTokenBox').textContent = data.token;
+    alert('Token regenerated. Update FILEDROP_AGENT_TOKEN in your agent .env and restart the agent.');
+  }
+}
+document.getElementById('regenerateTokenBtn')?.addEventListener('click', regenerateAgentToken);
 
 async function loadWatchDir() {
   try {

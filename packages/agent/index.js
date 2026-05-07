@@ -52,11 +52,13 @@ async function fetchWatchDir() {
 }
 
 function applyWatchDir(dir) {
-  if (dir === currentWatchDir) return;
+  const crashed = watcherController?.healthy === false;
+  if (dir === currentWatchDir && !crashed) return;
   if (watcherController) {
-    watcherController.close();
+    try { watcherController.close(); } catch {}
     watcherController = null;
   }
+  if (crashed) console.log(`[agent] Restarting crashed watcher for: ${dir}`);
   currentWatchDir  = dir;
   console.log(`[agent] Watching: ${currentWatchDir}`);
   watcherController = startWatcher({ serverUrl: SERVER_URL, agentToken: AGENT_TOKEN, watchDir: currentWatchDir });

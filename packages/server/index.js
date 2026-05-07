@@ -145,9 +145,17 @@ app.use('/api/requests',  makeRequestsRouter(db, JWT_SECRET));
 const HTML_DIR = path.join(__dirname, 'html');
 app.get('/', (req, res) => {
   if (!ownerExists(db)) { res.redirect('/setup'); return; }
+  let html;
+  try {
+    html = fs.readFileSync(path.join(HTML_DIR, 'dashboard.html'), 'utf-8');
+  } catch (err) {
+    console.error('[filedrop] Could not read dashboard.html:', err.message);
+    res.status(503).send('Dashboard temporarily unavailable — check server logs');
+    return;
+  }
   res.setHeader('Content-Type', 'text/html');
   res.setHeader('Cache-Control', 'no-store');
-  res.send(fs.readFileSync(path.join(HTML_DIR, 'dashboard.html'), 'utf-8'));
+  res.send(html);
 });
 
 // Start cleanup job
