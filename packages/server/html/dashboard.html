@@ -951,6 +951,7 @@ let folderSummaries = []; // [{folder, file_count, total_size, uploading_count, 
 let loadedFolders  = new Set(); // folder keys whose files have been fetched
 let loadingFolders = new Set(); // folder keys currently being fetched
 let queueStatus    = {}; // folder key → {total, done, failed, ts} — agent queue progress
+let folderProxySettings = {}; // topKey → true (proxy enabled)
 let es     = null;
 let activeFilter = 'available';
 
@@ -1083,7 +1084,67 @@ async function showApp() {
   }
 
   await loadFolders();
+  if (role === 'owner') loadProxySettings().catch(() => {});
   connectSSE();
+}
+
+// ── Proxy helpers ─────────────────────────────────────────────────────────────
+const VIDEO_EXTS_CLIENT = new Set(['.mxf', '.mp4', '.mov', '.m4v', '.avi', '.mkv', '.mts', '.m2ts']);
+function isVideoFile(name) {
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 && VIDEO_EXTS_CLIENT.has(name.slice(dot).toLowerCase());
+}
+
+async function loadProxySettings() {
+  const data = await api('/api/transcode/proxy-settings');
+  if (data) { folderProxySettings = data; renderLibrary(); }
+}
+
+async function toggleFolderProxy(topKey) {
+  const enabled = !folderProxySettings[topKey];
+  const result = await api('/api/transcode/proxy-settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: topKey, enabled }),
+  });
+  if (result) {
+    if (enabled) folderProxySettings[topKey] = true;
+    else delete folderProxySettings[topKey];
+    renderLibrary();
+  }
+}
+
+async function downloadProxy(fileId, fileName) {
+  const data = await api(`/api/transcode/proxy-url/${fileId}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  if (!data || !data.url) return;
+  const a = document.createElement('a');
+  a.href = data.url;
+  a.download = fileName.replace(/\.[^.]+$/, '_proxy.mp4');
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+async function queueProxy(fileId) {
+  const result = await api('/api/transcode/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fileId }),
+  });
+  if (result && result.ok) {
+    if (files[fileId]) { files[fileId].proxy_job_status = 'pending'; files[fileId].proxy_job_id = result.jobId; }
+    renderLibrary();
+    toast('Proxy queued for next overnight window');
+  }
+}
+
+async function cancelProxyJob(jobId, fileId) {
+  const result = await api(`/api/transcode/jobs/${jobId}`, { method: 'DELETE' });
+  if (result && result.ok) {
+    if (files[fileId]) { files[fileId].proxy_job_status = null; files[fileId].proxy_job_id = null; }
+    renderLibrary();
+    toast('Proxy job cancelled');
+  }
 }
 
 // ── Files ─────────────────────────────────────────────────────────────────────
@@ -1295,10 +1356,13 @@ function renderLibrary() {
               <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
               <td class="lib-size">${fmtBytes(f.size)}</td>
               <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
-              <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}${f.checksum ? `<span title="SHA-256: ${esc(f.checksum)}" style="color:var(--success);font-size:11px;font-weight:700;margin-left:6px;cursor:default">✓</span>` : ''}</td>
+              <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}${f.checksum ? `<span title="SHA-256: ${esc(f.checksum)}" style="color:var(--success);font-size:11px;font-weight:700;margin-left:6px;cursor:default">✓</span>` : ''}${f.proxy_key ? `<span class="status-badge" style="background:#064e3b;color:#6ee7b7;margin-left:4px">proxy ✓</span>` : f.proxy_job_status === 'processing' ? `<span class="status-badge" style="background:#1e3a5f;color:#93c5fd;margin-left:4px">transcoding…</span>` : f.proxy_job_status === 'pending' ? `<span class="status-badge" style="background:#1c1917;color:#a8a29e;margin-left:4px">proxy queued</span>` : f.proxy_job_status === 'failed' ? `<span class="status-badge" style="background:#7f1d1d;color:#fca5a5;margin-left:4px">proxy failed</span>` : ''}</td>
               <td class="lib-actions">
                 ${isUploading ? `<button class="btn-sm btn-delete" onclick="cancelUpload('${f.id}')">Cancel</button>` : ''}
                 ${canDownload ? `<button class="btn-sm btn-get" onclick="ownerDownloadFile('${f.id}','${esc(f.name).replace(/'/g,"\\'")}',this)">↓ Download</button>` : ''}
+                ${f.proxy_key ? `<button class="btn-sm" style="background:#064e3b;color:#6ee7b7;border-color:#065f46" onclick="downloadProxy('${f.id}','${esc(f.name).replace(/'/g,"\\'")}')">↓ Proxy</button>` : ''}
+                ${f.proxy_job_status === 'pending' ? `<button class="btn-sm" onclick="cancelProxyJob('${f.proxy_job_id}','${f.id}')">Cancel proxy</button>` : ''}
+                ${!f.proxy_key && !f.proxy_job_status && canDownload && isVideoFile(f.name) ? `<button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="queueProxy('${f.id}')">Gen proxy</button>` : ''}
                 ${f.status === 'downloaded' && f.delete_at ? `<button class="btn-sm btn-keep" onclick="keepFile('${f.id}')">Keep</button>` : ''}
                 ${!isUploading ? `<button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="openMoveFiles(['${f.id}'], '${esc((f.folder||'').replace(/'/g,"\\'"))}')">Move</button>` : ''}
                 ${f.status !== 'deleted' && !isUploading ? `<button class="btn-sm btn-delete" onclick="deleteFile('${f.id}')">Delete</button>` : ''}
@@ -1341,6 +1405,7 @@ function renderLibrary() {
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
+          ${!isChild ? (() => { const topK = key.indexOf('/') >= 0 ? key.slice(0, key.indexOf('/')) : key; const safeTopK = topK.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); const pe = !!folderProxySettings[topK]; return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopK}')" title="Toggle overnight proxy transcoding">${pe?'Proxies ON':'Proxies OFF'}</button>`; })() : ''}
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
@@ -1389,6 +1454,7 @@ function renderLibrary() {
           ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeTopKey}')">Move</button>
+          ${(() => { const pe = !!folderProxySettings[topKey]; return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopKey}')" title="Toggle overnight proxy transcoding for this job">${pe?'Proxies ON':'Proxies OFF'}</button>`; })()}
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteTopFolder('${safeTopKey}')">Delete all</button>
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
@@ -3547,6 +3613,21 @@ function connectSSE() {
         }
       }, 100);
     }
+  });
+
+  es.addEventListener('transcode', e => {
+    const { jobId, fileId, status, proxyKey } = JSON.parse(e.data);
+    const f = files[fileId];
+    if (!f) return;
+    if (status === 'done') {
+      f.proxy_key        = proxyKey;
+      f.proxy_job_status = null;
+      f.proxy_job_id     = null;
+    } else {
+      f.proxy_job_status = status;
+      f.proxy_job_id     = jobId;
+    }
+    render();
   });
 
   es.addEventListener('queue', e => {

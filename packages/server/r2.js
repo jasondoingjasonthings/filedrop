@@ -56,6 +56,10 @@ async function putObject(key, buffer, contentType = 'application/octet-stream') 
   await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buffer, ContentType: contentType }));
 }
 
+async function putObjectStream(key, stream, size, contentType = 'application/octet-stream') {
+  await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: stream, ContentLength: size, ContentType: contentType }));
+}
+
 // Multipart helpers (used by agent)
 async function createMultipart(key) {
   const r = await client.send(new CreateMultipartUploadCommand({ Bucket: BUCKET, Key: key }));
@@ -84,7 +88,7 @@ async function abortMultipart(key, uploadId) {
 }
 
 module.exports = {
-  presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject,
+  presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject, putObjectStream,
   createMultipart, presignPart, completeMultipart, abortMultipart,
   BUCKET,
 };

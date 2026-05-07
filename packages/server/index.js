@@ -30,6 +30,8 @@ const { makeFsRouter }    = require('./routes/fs');
 const { makeSharesApiRouter, makeSharesPublicRouter } = require('./routes/shares');
 const { makeUploadLinksRouter } = require('./routes/uploadlinks');
 const { makeRequestsRouter }   = require('./routes/requests');
+const { makeTranscodeRouter }  = require('./routes/transcode');
+const { startTranscodeScheduler } = require('./transcode');
 const { presignDownload }      = require('./r2');
 
 const PORT       = process.env.PORT || 3000;
@@ -140,6 +142,7 @@ app.use('/api/shares', makeSharesApiRouter(db, JWT_SECRET));
 app.use('/share',      makeSharesPublicRouter(db));
 app.use('/upload',        makeUploadLinksRouter(db, sseBus, JWT_SECRET));
 app.use('/api/requests',  makeRequestsRouter(db, JWT_SECRET));
+app.use('/api/transcode', makeTranscodeRouter(db, JWT_SECRET));
 
 // Serve dashboard HTML
 const HTML_DIR = path.join(__dirname, 'html');
@@ -158,8 +161,9 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// Start cleanup job
+// Start cleanup and transcode scheduler
 startCleanup(db, sseBus);
+startTranscodeScheduler(db, sseBus);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[filedrop] http://0.0.0.0:${PORT}`);

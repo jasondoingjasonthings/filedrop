@@ -107,6 +107,30 @@ function migrateAlter(db) {
     if (!hasRevoked) {
       db.prepare(`CREATE TABLE revoked_tokens (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)`).run();
     }
+
+    // Proxy transcoding
+    if (!cols.includes('proxy_key')) db.prepare(`ALTER TABLE files ADD COLUMN proxy_key TEXT`).run();
+    const folderCols = db.prepare(`PRAGMA table_info(folders)`).all().map(c => c.name);
+    if (!folderCols.includes('proxy_enabled')) db.prepare(`ALTER TABLE folders ADD COLUMN proxy_enabled INTEGER DEFAULT 0`).run();
+    const hasJobs = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='transcode_jobs'`).get();
+    if (!hasJobs) {
+      db.prepare(`
+        CREATE TABLE transcode_jobs (
+          id           TEXT PRIMARY KEY,
+          file_id      TEXT NOT NULL,
+          status       TEXT NOT NULL DEFAULT 'pending'
+                         CHECK(status IN ('pending','processing','done','failed')),
+          scheduled_at TEXT NOT NULL,
+          started_at   TEXT,
+          finished_at  TEXT,
+          proxy_key    TEXT,
+          error        TEXT,
+          created_at   TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare(`CREATE INDEX idx_tj_status  ON transcode_jobs(status)`).run();
+      db.prepare(`CREATE INDEX idx_tj_file_id ON transcode_jobs(file_id)`).run();
+    }
   })();
 }
 

@@ -5,6 +5,7 @@ const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
 const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject } = require('../r2');
 const { generateThumbnail } = require('../thumbnail');
+const { maybeQueueTranscode } = require('../transcode');
 
 function makeUploadRouter(db, sseBus, jwtSecret) {
   const router = express.Router();
@@ -102,6 +103,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     if (file) {
       sseBus.broadcast('file', file);
       generateThumbnail(file, db, sseBus).catch(() => {});
+      maybeQueueTranscode(db, file);
     }
     res.json({ ok: true });
   });
@@ -240,6 +242,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     if (file) {
       sseBus.broadcast('file', file);
       generateThumbnail(file, db, sseBus).catch(() => {});
+      maybeQueueTranscode(db, file);
     }
     res.json({ ok: true });
   });

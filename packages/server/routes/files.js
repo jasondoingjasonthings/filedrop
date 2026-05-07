@@ -94,7 +94,14 @@ function makeFilesRouter(db, sseBus) {
   // Files in a specific folder (used when expanding a folder)
   router.get('/in', (req, res) => {
     const folder = req.query.folder ?? '';
-    const list = db.prepare(`SELECT * FROM files WHERE folder=? AND status NOT IN ('deleted','deleting') ORDER BY created_at DESC`).all(folder);
+    const list = db.prepare(`
+      SELECT f.*,
+        (SELECT status FROM transcode_jobs WHERE file_id=f.id AND status IN ('pending','processing','failed') ORDER BY created_at DESC LIMIT 1) as proxy_job_status,
+        (SELECT id     FROM transcode_jobs WHERE file_id=f.id AND status IN ('pending','processing','failed') ORDER BY created_at DESC LIMIT 1) as proxy_job_id
+      FROM files f
+      WHERE f.folder=? AND f.status NOT IN ('deleted','deleting')
+      ORDER BY f.created_at DESC
+    `).all(folder);
     res.json(list);
   });
 
