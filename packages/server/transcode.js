@@ -137,6 +137,19 @@ async function runJob(db, sseBus, job) {
     // Update DB + broadcast
     db.prepare(`UPDATE transcode_jobs SET status='done', proxy_key=?, finished_at=datetime('now') WHERE id=?`).run(proxyKey, job.id);
     db.prepare(`UPDATE files SET proxy_key=? WHERE id=?`).run(proxyKey, file.id);
+
+    // Register proxy as a browseable file in the Proxy subfolder
+    const proxyFolder = `${file.folder}/Proxy`;
+    const proxyName   = `${baseName}_proxy.mp4`;
+    const existingProxy = db.prepare(`SELECT id FROM files WHERE r2_key=?`).get(proxyKey);
+    if (!existingProxy) {
+      const { v4: newUuid } = require('uuid');
+      db.prepare(`
+        INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, uploaded_at)
+        VALUES (?, ?, ?, ?, ?, 'available', 100, datetime('now'))
+      `).run(newUuid(), proxyName, proxyKey, outSize, proxyFolder);
+    }
+
     const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id);
     sseBus.broadcast('file', updated);
     sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, status: 'done', proxyKey });
