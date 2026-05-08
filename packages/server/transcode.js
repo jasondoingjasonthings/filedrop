@@ -58,7 +58,9 @@ function queueTranscodeJob(db, file) {
   return jobId;
 }
 
-let _running = false;
+let _running      = false;
+let _runningStart = null;
+const JOB_TIMEOUT_MS = 4 * 60 * 60 * 1000; // 4 hours
 
 async function runJob(db, sseBus, job) {
   const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(job.file_id);
@@ -134,7 +136,20 @@ async function runJob(db, sseBus, job) {
 }
 
 function startTranscodeScheduler(db, sseBus) {
+  // On startup, any job left as 'processing' means the server crashed mid-job.
+  // Reset to 'pending' so it retries tonight rather than blocking the queue forever.
+  const orphaned = db.prepare(`UPDATE transcode_jobs SET status='pending', started_at=NULL WHERE status='processing'`).run();
+  if (orphaned.changes > 0) console.log(`[transcode] Reset ${orphaned.changes} orphaned processing job(s) to pending`);
+
   setInterval(async () => {
+    // If a job has been running longer than 4 hours, ffmpeg is probably hung.
+    // Force-reset it so the queue can continue.
+    if (_running && _runningStart && Date.now() - _runningStart > JOB_TIMEOUT_MS) {
+      console.error('[transcode] Job timeout after 4h — force-resetting');
+      db.prepare(`UPDATE transcode_jobs SET status='failed', error='timeout after 4h', finished_at=datetime('now') WHERE status='processing'`).run();
+      _running      = false;
+      _runningStart = null;
+    }
     if (_running) return;
     if (!inOvernightWindow()) return;
     const job = db.prepare(`
@@ -143,12 +158,13 @@ function startTranscodeScheduler(db, sseBus) {
       ORDER BY scheduled_at ASC LIMIT 1
     `).get();
     if (!job) return;
-    _running = true;
+    _running      = true;
+    _runningStart = Date.now();
     try { await runJob(db, sseBus, job); }
     catch (err) { console.error('[transcode] Scheduler error:', err.message); }
-    finally { _running = false; }
+    finally { _running = false; _runningStart = null; }
   }, 60_000);
-  console.log('[transcode] Scheduler started (overnight window: 21:00–09:00)');
+  console.log('[transcode] Scheduler started (overnight window: 21:00–09:00 local time)');
 }
 
 module.exports = { maybeQueueTranscode, queueTranscodeJob, startTranscodeScheduler, isVideoFile };
