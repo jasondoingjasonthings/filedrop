@@ -128,7 +128,7 @@ async function runJob(db, sseBus, job) {
 
     // Upload proxy to R2 — <job>/Proxy/<name>_proxy.mp4
     const baseName  = file.name.replace(/\.[^/.]+$/, '');
-    const proxyKey  = `${topFolder(file.folder ?? '')}/Proxy/${baseName}_proxy.mp4`;
+    const proxyKey  = `${file.folder}/Proxy/${baseName}_proxy.mp4`;
     const outSize   = fs.statSync(outFile).size;
     const outStream = fs.createReadStream(outFile);
     console.log(`[transcode] Uploading proxy ${proxyKey} (${Math.round(outSize / 1e6)} MB)`);
