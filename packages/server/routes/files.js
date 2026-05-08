@@ -205,6 +205,7 @@ function makeFilesRouter(db, sseBus) {
         await deleteObject(file.r2_key);
       }
       db.prepare(`UPDATE files SET status='deleted', deleted_at=datetime('now') WHERE id=?`).run(file.id);
+      db.prepare(`UPDATE transcode_jobs SET status='failed', error='source file deleted', finished_at=datetime('now') WHERE file_id=? AND status='pending'`).run(file.id);
       sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
       res.json({ ok: true });
     } catch (err) {
