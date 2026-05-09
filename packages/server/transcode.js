@@ -21,33 +21,6 @@ function topFolder(folder) {
   return slash === -1 ? folder : folder.slice(0, slash);
 }
 
-// Use Intl so this always reflects Sydney time regardless of server TZ setting.
-function getSydneyHour() {
-  return parseInt(
-    new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Sydney', hour: 'numeric', hour12: false }).format(new Date()),
-    10
-  );
-}
-
-function inOvernightWindow() {
-  if (process.env.TRANSCODE_FORCE === '1') return true;
-  const h = getSydneyHour();
-  return h >= 18 || h < 9;
-}
-
-function nextOvernightStart() {
-  if (process.env.TRANSCODE_FORCE === '1') return new Date().toISOString();
-  const h = getSydneyHour();
-  if (h >= 21 || h < 9) return new Date().toISOString();
-  // Schedule for 6pm Sydney tonight
-  const fmt = new Intl.DateTimeFormat('en-AU', {
-    timeZone: 'Australia/Sydney',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(new Date());
-  const [day, month, year] = fmt.split('/');
-  const tonightSydney = new Date(`${year}-${month}-${day}T18:00:00+10:00`);
-  return tonightSydney.toISOString();
-}
 
 // Auto-queue: checks isVideoFile + folder proxy_enabled + dedup
 function maybeQueueTranscode(db, file) {
@@ -67,8 +40,8 @@ function queueTranscodeJob(db, file) {
   if (existing) return null;
   const jobId = uuid();
   db.prepare(
-    `INSERT INTO transcode_jobs (id, file_id, status, scheduled_at, created_at) VALUES (?, ?, 'pending', ?, datetime('now'))`
-  ).run(jobId, file.id, nextOvernightStart());
+    `INSERT INTO transcode_jobs (id, file_id, status, scheduled_at, created_at) VALUES (?, ?, 'pending', datetime('now'), datetime('now'))`
+  ).run(jobId, file.id);
   console.log(`[transcode] Queued job ${jobId} for ${file.name}`);
   return jobId;
 }
@@ -171,8 +144,7 @@ function startTranscodeScheduler(db, sseBus) {
   const orphaned = db.prepare(`UPDATE transcode_jobs SET status='pending', started_at=NULL WHERE status='processing'`).run();
   if (orphaned.changes > 0) console.log(`[transcode] Reset ${orphaned.changes} orphaned processing job(s) to pending`);
 
-  const sydneyH = getSydneyHour();
-  console.log(`[transcode] Scheduler started — Sydney hour: ${sydneyH}, window open: ${inOvernightWindow()}`);
+  console.log(`[transcode] Scheduler started`);
 
   setInterval(async () => {
     // Force-reset any job that's been processing > 4 hours (hung ffmpeg)
@@ -183,7 +155,6 @@ function startTranscodeScheduler(db, sseBus) {
       _runningStart = null;
     }
     if (_running) return;
-    if (!inOvernightWindow()) return;
     const job = db.prepare(`
       SELECT * FROM transcode_jobs
       WHERE status='pending' AND scheduled_at <= datetime('now')
