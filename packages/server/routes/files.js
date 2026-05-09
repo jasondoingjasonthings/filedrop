@@ -206,6 +206,8 @@ function makeFilesRouter(db, sseBus) {
       }
       db.prepare(`UPDATE files SET status='deleted', deleted_at=datetime('now') WHERE id=?`).run(file.id);
       db.prepare(`UPDATE transcode_jobs SET status='failed', error='source file deleted', finished_at=datetime('now') WHERE file_id=? AND status='pending'`).run(file.id);
+      // If this was a proxy file, clear proxy_key on the original so it can be re-queued
+      db.prepare(`UPDATE files SET proxy_key=NULL WHERE proxy_key=?`).run(file.r2_key);
       sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
       res.json({ ok: true });
     } catch (err) {
