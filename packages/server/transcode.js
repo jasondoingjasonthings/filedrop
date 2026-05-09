@@ -32,20 +32,20 @@ function getSydneyHour() {
 function inOvernightWindow() {
   if (process.env.TRANSCODE_FORCE === '1') return true;
   const h = getSydneyHour();
-  return h >= 21 || h < 9;
+  return h >= 18 || h < 9;
 }
 
 function nextOvernightStart() {
   if (process.env.TRANSCODE_FORCE === '1') return new Date().toISOString();
   const h = getSydneyHour();
   if (h >= 21 || h < 9) return new Date().toISOString();
-  // Schedule for 9pm Sydney tonight
+  // Schedule for 6pm Sydney tonight
   const fmt = new Intl.DateTimeFormat('en-AU', {
     timeZone: 'Australia/Sydney',
     year: 'numeric', month: '2-digit', day: '2-digit',
   }).format(new Date());
   const [day, month, year] = fmt.split('/');
-  const tonightSydney = new Date(`${year}-${month}-${day}T21:00:00+10:00`);
+  const tonightSydney = new Date(`${year}-${month}-${day}T18:00:00+10:00`);
   return tonightSydney.toISOString();
 }
 
