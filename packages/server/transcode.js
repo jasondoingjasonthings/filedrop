@@ -58,7 +58,7 @@ async function runJob(db, sseBus, job) {
   }
 
   db.prepare(`UPDATE transcode_jobs SET status='processing', started_at=datetime('now') WHERE id=?`).run(job.id);
-  sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, status: 'processing' });
+  sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, folder: file.folder, status: 'processing' });
 
   const fileMB = Math.round((file.size || 0) / 1e6);
   const ext    = file.name.includes('.') ? file.name.slice(file.name.lastIndexOf('.')) : '';
@@ -125,13 +125,13 @@ async function runJob(db, sseBus, job) {
 
     const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id);
     sseBus.broadcast('file', updated);
-    sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, status: 'done', proxyKey });
+    sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, folder: file.folder, status: 'done', proxyKey });
     console.log(`[transcode] Job ${job.id} done — ${file.name}`);
 
   } catch (err) {
     console.error(`[transcode] Job ${job.id} failed (${file.name}):`, err.message);
     db.prepare(`UPDATE transcode_jobs SET status='failed', error=?, finished_at=datetime('now') WHERE id=?`).run(err.message.slice(0, 500), job.id);
-    sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, status: 'failed' });
+    sseBus.broadcast('transcode', { jobId: job.id, fileId: file.id, folder: file.folder, status: 'failed' });
   } finally {
     try { fs.unlinkSync(inFile); } catch {}
     try { fs.unlinkSync(outFile); } catch {}

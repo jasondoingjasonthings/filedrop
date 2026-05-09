@@ -951,7 +951,8 @@ let folderSummaries = []; // [{folder, file_count, total_size, uploading_count, 
 let loadedFolders  = new Set(); // folder keys whose files have been fetched
 let loadingFolders = new Set(); // folder keys currently being fetched
 let queueStatus    = {}; // folder key → {total, done, failed, ts} — agent queue progress
-let folderProxySettings = {}; // topKey → true (proxy enabled)
+let folderProxySettings  = {}; // topKey → true (proxy enabled)
+let folderProxyProgress  = {}; // topKey → { done, pending, processing }
 let es     = null;
 let activeFilter = 'available';
 
@@ -1084,7 +1085,10 @@ async function showApp() {
   }
 
   await loadFolders();
-  if (role === 'owner') loadProxySettings().catch(() => {});
+  if (role === 'owner') {
+    loadProxySettings().catch(() => {});
+    loadFolderProxyProgress().catch(() => {});
+  }
   connectSSE();
 }
 
@@ -1098,6 +1102,11 @@ function isVideoFile(name) {
 async function loadProxySettings() {
   const data = await api('/api/transcode/proxy-settings');
   if (data) { folderProxySettings = data; renderLibrary(); }
+}
+
+async function loadFolderProxyProgress() {
+  const data = await api('/api/transcode/folder-progress');
+  if (data) { folderProxyProgress = data; renderLibrary(); }
 }
 
 async function toggleFolderProxy(topKey) {
@@ -1410,7 +1419,24 @@ function renderLibrary() {
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
-          ${!isChild ? (() => { const topK = key.indexOf('/') >= 0 ? key.slice(0, key.indexOf('/')) : key; const safeTopK = topK.replace(/\\/g,'\\\\').replace(/'/g,"\\'"); const pe = !!folderProxySettings[topK]; return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopK}')" title="Toggle overnight proxy transcoding">${pe?'Proxies ON':'Proxies OFF'}</button>`; })() : ''}
+          ${!isChild ? (() => {
+            const topK    = key.indexOf('/') >= 0 ? key.slice(0, key.indexOf('/')) : key;
+            const safeTopK = topK.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+            const pe      = !!folderProxySettings[topK];
+            const prog    = folderProxyProgress[topK];
+            const total   = prog ? prog.done + prog.pending + prog.processing : 0;
+            const pill    = (total > 0) ? (() => {
+              const pct    = Math.round(prog.done / total * 100);
+              const active = prog.processing > 0 || prog.pending > 0;
+              return `<div style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+                <div style="width:44px;height:4px;background:rgba(255,255,255,0.15);border-radius:99px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:#6ee7b7;border-radius:99px;transition:width .5s ease"></div>
+                </div>
+                <span style="font-size:11px;color:${active?'#6ee7b7':'var(--muted)'};font-weight:700;white-space:nowrap">${prog.done}/${total}</span>
+              </div>`;
+            })() : '';
+            return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopK}')" title="Toggle proxy transcoding">${pe?'Proxies ON':'Proxies OFF'}</button>${pill}`;
+          })() : ''}
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteFolder('${safeKey}')">Delete all</button>
           <span class="folder-chevron">${isExpanded ? '▲' : '▼'}</span>
         </div>
@@ -1459,7 +1485,22 @@ function renderLibrary() {
           ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeTopKey}')">Move</button>
-          ${(() => { const pe = !!folderProxySettings[topKey]; return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopKey}')" title="Toggle overnight proxy transcoding for this job">${pe?'Proxies ON':'Proxies OFF'}</button>`; })()}
+          ${(() => {
+            const pe   = !!folderProxySettings[topKey];
+            const prog = folderProxyProgress[topKey];
+            const total = prog ? prog.done + prog.pending + prog.processing : 0;
+            const pill  = (total > 0) ? (() => {
+              const pct    = Math.round(prog.done / total * 100);
+              const active = prog.processing > 0 || prog.pending > 0;
+              return `<div style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0">
+                <div style="width:44px;height:4px;background:rgba(255,255,255,0.15);border-radius:99px;overflow:hidden">
+                  <div style="width:${pct}%;height:100%;background:#6ee7b7;border-radius:99px;transition:width .5s ease"></div>
+                </div>
+                <span style="font-size:11px;color:${active?'#6ee7b7':'var(--muted)'};font-weight:700;white-space:nowrap">${prog.done}/${total}</span>
+              </div>`;
+            })() : '';
+            return `<button class="btn-sm" style="flex-shrink:0;background:${pe?'#064e3b':'var(--bg)'};color:${pe?'#6ee7b7':'var(--muted)'};border:1.5px solid ${pe?'#065f46':'var(--border2)'}" onclick="event.stopPropagation();toggleFolderProxy('${safeTopKey}')" title="Toggle proxy transcoding">${pe?'Proxies ON':'Proxies OFF'}</button>${pill}`;
+          })()}
           <button class="btn-sm btn-delete" style="flex-shrink:0" onclick="event.stopPropagation();deleteTopFolder('${safeTopKey}')">Delete all</button>
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
@@ -3631,17 +3672,38 @@ function connectSSE() {
   });
 
   es.addEventListener('transcode', e => {
-    const { jobId, fileId, status, proxyKey } = JSON.parse(e.data);
+    const { jobId, fileId, folder, status, proxyKey } = JSON.parse(e.data);
+
+    // Update per-file state (only if file is loaded in memory)
     const f = files[fileId];
-    if (!f) return;
-    if (status === 'done') {
-      f.proxy_key        = proxyKey;
-      f.proxy_job_status = null;
-      f.proxy_job_id     = null;
-    } else {
-      f.proxy_job_status = status;
-      f.proxy_job_id     = jobId;
+    if (f) {
+      if (status === 'done') {
+        f.proxy_key        = proxyKey;
+        f.proxy_job_status = null;
+        f.proxy_job_id     = null;
+      } else {
+        f.proxy_job_status = status;
+        f.proxy_job_id     = jobId;
+      }
     }
+
+    // Update folder-level progress pill (works even for unloaded folders)
+    if (folder !== undefined) {
+      const slash  = (folder || '').indexOf('/');
+      const topKey = slash === -1 ? (folder || '') : folder.slice(0, slash);
+      if (!folderProxyProgress[topKey]) folderProxyProgress[topKey] = { done: 0, pending: 0, processing: 0 };
+      const prog = folderProxyProgress[topKey];
+      if (status === 'processing') {
+        prog.pending  = Math.max(0, prog.pending - 1);
+        prog.processing++;
+      } else if (status === 'done') {
+        prog.processing = Math.max(0, prog.processing - 1);
+        prog.done++;
+      } else if (status === 'failed') {
+        prog.processing = Math.max(0, prog.processing - 1);
+      }
+    }
+
     render();
   });
 

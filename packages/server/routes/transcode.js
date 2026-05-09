@@ -51,6 +51,25 @@ function makeTranscodeRouter(db, jwtSecret) {
     res.json({ ok: true, path: p, proxy_enabled: val, queued });
   });
 
+  // Per-top-folder proxy progress summary for the progress pill
+  router.get('/folder-progress', jwtAuth, requireOwner, (req, res) => {
+    const rows = db.prepare(`
+      SELECT f.folder, tj.status, COUNT(*) as n
+      FROM transcode_jobs tj JOIN files f ON f.id = tj.file_id
+      WHERE tj.status IN ('pending','processing','done')
+      GROUP BY f.folder, tj.status
+    `).all();
+    const result = {};
+    for (const row of rows) {
+      const folder = row.folder ?? '';
+      const slash  = folder.indexOf('/');
+      const topKey = slash === -1 ? folder : folder.slice(0, slash);
+      if (!result[topKey]) result[topKey] = { done: 0, pending: 0, processing: 0 };
+      result[topKey][row.status] = (result[topKey][row.status] || 0) + row.n;
+    }
+    res.json(result);
+  });
+
   // List transcode jobs (owner only), optionally filtered by folder prefix
   router.get('/jobs', jwtAuth, requireOwner, (req, res) => {
     const { folder } = req.query;
