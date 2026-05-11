@@ -139,24 +139,35 @@ function makeSharesPublicRouter(db) {
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `attachment; filename="${zipName}.zip"`);
 
-    const archive = archiver('zip', { zlib: { level: 1 } });
+    // store:true skips zlib entirely — video/photo files are already compressed
+    const archive = archiver('zip', { store: true });
     archive.pipe(res);
     archive.on('error', err => { console.error('[zip] share archive error:', err.message); res.end(); });
 
     console.log(`[zip] share start token=${req.params.token} files=${files.length}`);
 
-    // Process one R2 stream at a time — opening all simultaneously causes idle-timeout
-    // on later streams before archiver reaches them (especially for large folders).
-    for (const f of files) {
+    // Pipeline: pre-fetch the next R2 stream while archiver writes the current one,
+    // so network round-trips don't stack. Never open more than one ahead to avoid
+    // idle-timeout on connections that wait too long before archiver reaches them.
+    let nextFetch = files.length > 0 ? getObjectStream(files[0].r2_key).catch(e => e) : null;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const streamOrErr = await nextFetch;
+      nextFetch = (i + 1 < files.length) ? getObjectStream(files[i + 1].r2_key).catch(e => e) : null;
+
+      if (streamOrErr instanceof Error) {
+        console.error(`[zip] share skipping ${f.name}:`, streamOrErr.message);
+        continue;
+      }
       try {
         const relFolder = prefix
           ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
           : f.folder;
         const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
-        const stream = await getObjectStream(f.r2_key);
         await new Promise((resolve, reject) => {
-          stream.on('error', reject);
-          archive.append(stream, { name: archivePath });
+          streamOrErr.on('error', reject);
+          archive.append(streamOrErr, { name: archivePath });
           archive.once('entry', resolve);
         });
       } catch (err) {
