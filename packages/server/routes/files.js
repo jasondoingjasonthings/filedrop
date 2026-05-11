@@ -130,14 +130,22 @@ function makeFilesRouter(db, sseBus) {
     archive.pipe(res);
     archive.on('error', err => { console.error('[zip] archive error:', err.message); res.end(); });
 
+    console.log(`[zip] owner start folder="${prefix}" files=${rows.length}`);
+
+    // Process one R2 stream at a time — opening all simultaneously causes idle-timeout
+    // on later streams before archiver reaches them (especially for large folders).
     for (const f of rows) {
       try {
-        const stream = await getObjectStream(f.r2_key);
         const relFolder = prefix
           ? (f.folder === prefix ? '' : f.folder.slice(prefix.length + 1))
           : f.folder;
         const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
-        archive.append(stream, { name: archivePath });
+        const stream = await getObjectStream(f.r2_key);
+        await new Promise((resolve, reject) => {
+          stream.on('error', reject);
+          archive.append(stream, { name: archivePath });
+          archive.once('entry', resolve);
+        });
       } catch (err) {
         console.error(`[zip] skipping ${f.name}:`, err.message);
       }
