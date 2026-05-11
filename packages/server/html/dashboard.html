@@ -1121,7 +1121,7 @@ async function toggleFolderProxy(topKey) {
       if (enabled) folderProxySettings[topKey] = true;
       else delete folderProxySettings[topKey];
       renderLibrary();
-      if (enabled && result.queued > 0) toast(`Proxies ON — ${result.queued} existing video${result.queued !== 1 ? 's' : ''} queued for tonight`);
+      if (enabled && result.queued > 0) toast(`Proxies ON — ${result.queued} existing video${result.queued !== 1 ? 's' : ''} queued, starting now`);
     }
   } catch (err) {
     toast('Proxy toggle failed: ' + err.message, 'error');
@@ -1148,7 +1148,7 @@ async function queueProxy(fileId) {
   if (result && result.ok) {
     if (files[fileId]) { files[fileId].proxy_job_status = 'pending'; files[fileId].proxy_job_id = result.jobId; }
     renderLibrary();
-    toast('Proxy queued for next overnight window');
+    toast('Proxy queued — starting within 60 seconds');
   }
 }
 
