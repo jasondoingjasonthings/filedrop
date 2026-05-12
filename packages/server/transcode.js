@@ -25,10 +25,14 @@ function topFolder(folder) {
 // Auto-queue: checks isVideoFile + folder proxy_enabled + dedup
 function maybeQueueTranscode(db, file) {
   if (!isVideoFile(file.name)) return;
-  const top = topFolder(file.folder ?? '');
+  // Never transcode proxy files — they live in /Proxy subfolders or end in _proxy.mp4
+  const folder = file.folder ?? '';
+  if (file.name.endsWith('_proxy.mp4')) return;
+  if (/\/Proxy$/.test(folder) || /\/Proxy\//.test(folder)) return;
+  const top = topFolder(folder);
   if (!top) return;
-  const folder = db.prepare(`SELECT proxy_enabled FROM folders WHERE path=?`).get(top);
-  if (!folder || !folder.proxy_enabled) return;
+  const row = db.prepare(`SELECT proxy_enabled FROM folders WHERE path=?`).get(top);
+  if (!row || !row.proxy_enabled) return;
   queueTranscodeJob(db, file);
 }
 

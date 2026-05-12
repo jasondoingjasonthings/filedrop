@@ -28,12 +28,16 @@ function makeTranscodeRouter(db, jwtSecret) {
 
     let queued = 0;
     if (enabled) {
-      // Queue all existing available video files in this job that don't already have a proxy or active job
+      // Queue all existing available video files that don't already have a proxy or active job.
+      // Exclude anything inside a /Proxy subfolder or named *_proxy.mp4 — those are already proxies.
       const existing = db.prepare(`
         SELECT f.* FROM files f
         WHERE f.status = 'available'
           AND f.proxy_key IS NULL
           AND (f.folder = ? OR f.folder LIKE ?)
+          AND f.name NOT LIKE '%\_proxy.mp4' ESCAPE '\'
+          AND f.folder NOT LIKE '%/Proxy'
+          AND f.folder NOT LIKE '%/Proxy/%'
           AND NOT EXISTS (
             SELECT 1 FROM transcode_jobs tj
             WHERE tj.file_id = f.id AND tj.status IN ('pending','processing')
