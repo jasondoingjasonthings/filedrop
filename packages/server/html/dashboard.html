@@ -1782,7 +1782,7 @@ function renderEditor() {
           </div>
           ${dlBadgeHtml}
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
-          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
+          ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ Download</button>` : ''}
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2);flex-shrink:0" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
