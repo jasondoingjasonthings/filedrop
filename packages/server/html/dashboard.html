@@ -3016,6 +3016,9 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     if (!start || cancelled) return;
     fileId = start.id;
     r2Key  = start.r2Key;
+    // If server assigned a different key than the resume state, the saved uploadId is
+    // for the wrong R2 object — discard it so we don't try to resume a dead session
+    if (resume && r2Key !== resume.r2Key) _clearResume(file);
 
     if (file.size <= MULTIPART_THRESHOLD) {
       // ── Simple PUT ────────────────────────────────────────────────────────
