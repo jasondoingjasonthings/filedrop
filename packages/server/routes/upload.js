@@ -206,25 +206,31 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
   router.post('/browser/start', jwtAuth, async (req, res) => {
     const { name, size, folder, r2Key: resumeR2Key } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
-    const id     = uuid();
     const dotIdx = name.lastIndexOf('.');
     const ext    = dotIdx > 0 ? name.slice(dotIdx) : '';
     const base   = (dotIdx > 0 ? name.slice(0, dotIdx) : name).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
+    const freshKey = () => (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
     // Use provided r2Key when resuming an interrupted upload, otherwise generate fresh key
-    const r2Key  = resumeR2Key || (folder ? `${folder}/` : '') + `${Date.now()}-${base}${ext}`;
+    let r2Key = resumeR2Key || freshKey();
+    let id    = uuid();
 
-    try {
-      db.prepare(`
-        INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
-        VALUES (?, ?, ?, ?, ?, 'uploading', 0)
-      `).run(id, name, r2Key, size || 0, folder || '');
-    } catch (err) {
-      if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-        res.status(409).json({ error: 'r2_key conflict' });
-      } else {
-        res.status(500).json({ error: err.message });
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        db.prepare(`
+          INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
+          VALUES (?, ?, ?, ?, ?, 'uploading', 0)
+        `).run(id, name, r2Key, size || 0, folder || '');
+        break; // success
+      } catch (err) {
+        if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && attempt === 0 && resumeR2Key) {
+          // Stale deleted record is blocking the resume key — start fresh instead
+          r2Key = freshKey();
+          id    = uuid();
+          continue;
+        }
+        res.status(err.code === 'SQLITE_CONSTRAINT_UNIQUE' ? 409 : 500).json({ error: err.message });
+        return;
       }
-      return;
     }
 
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(id);
