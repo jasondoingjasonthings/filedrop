@@ -629,6 +629,7 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
           <div style="font-weight:600;margin-bottom:4px">Drag files here or click to select</div>
           <div style="font-size:12px;color:var(--muted)">Any file type, any size</div>
           <input type="file" id="ownerFilePickerInput" multiple style="display:none">
+          <input type="file" id="folderAddInput" multiple style="display:none">
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
           <div id="ownerUploadQueueSummary" class="queue-summary"></div>
@@ -1419,6 +1420,8 @@ function renderLibrary() {
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();addFilesToFolder('${safeKey}')">+ Add files</button>
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();addFilesViaAgent('${safeKey}')" title="Browse office PC and upload to this folder">+ Agent</button>
           ${!isChild ? (() => {
             const topK    = key.indexOf('/') >= 0 ? key.slice(0, key.indexOf('/')) : key;
             const safeTopK = topK.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
@@ -1483,6 +1486,8 @@ function renderLibrary() {
             <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)} · ${groupSummaries.length} sub-folder${groupSummaries.length!==1?'s':''}${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
           </div>
           ${!combined.uploading_count ? `<button class="btn-sm btn-get" style="flex-shrink:0" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();addFilesToFolder('${safeTopKey}')">+ Add files</button>
+          <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();addFilesViaAgent('${safeTopKey}')" title="Browse office PC and upload to this folder">+ Agent</button>
           <button class="btn-sm" style="flex-shrink:0;background:#0e7490;color:#fff;border-color:#0e7490" onclick="event.stopPropagation();shareFolder('${safeTopKey}')">Share</button>
           <button class="btn-sm" style="flex-shrink:0;background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeTopKey}')">Move</button>
           ${(() => {
@@ -1783,6 +1788,7 @@ function renderEditor() {
           ${dlBadgeHtml}
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
           ${allReady ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadFolderAll('${safeKey}',this)">↓ Download</button>` : ''}
+          <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();addFilesToFolder('${safeKey}')">+ Add files</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2);flex-shrink:0" onclick="event.stopPropagation();renameFolder('${safeKey}',this)">Rename</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();shareFolder('${safeKey}')">Share</button>
           <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="event.stopPropagation();openMoveFolder('${safeKey}')">Move</button>
@@ -2712,6 +2718,36 @@ function initOwnerUpload() {
     cancelAllId:  'ownerCancelAllUploads',
     cancelClass:  'owner-upload-cancel',
   });
+
+  // Hidden input used by "Add files" buttons on folder cards
+  let _folderAddTarget = '';
+  document.getElementById('folderAddInput').addEventListener('change', function() {
+    const fileList = [...this.files];
+    if (!fileList.length) return;
+    const folder = _folderAddTarget;
+    const isOwner = document.getElementById('ownerTabs')?.style.display !== 'none';
+    const ctx = isOwner
+      ? { queueId: 'ownerUploadQueue', cancelAllId: 'ownerCancelAllUploads', cancelClass: 'owner-upload-cancel' }
+      : { queueId: 'uploadQueue',      cancelAllId: 'cancelAllUploads',      cancelClass: 'upload-cancel' };
+    for (const file of fileList) enqueueUpload(file, folder, ctx);
+    this.value = '';
+    if (isOwner) document.querySelector('[data-tab="browse"]')?.click();
+    else         document.querySelector('[data-tab="upload"]')?.click();
+  });
+
+  window.addFilesToFolder = function(folderKey) {
+    _folderAddTarget = folderKey;
+    document.getElementById('folderAddInput').click();
+  };
+
+  window.addFilesViaAgent = function(folderKey) {
+    document.querySelector('[data-tab="browse"]')?.click();
+    setTimeout(() => {
+      const browseFolder = document.getElementById('browseFolder');
+      if (browseFolder) { browseFolder.value = folderKey; browseFolder.focus(); }
+      document.getElementById('browseContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+  };
 }
 
 function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, cancelClass }) {
