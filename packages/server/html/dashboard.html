@@ -2994,9 +2994,9 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
 
     } else {
       // ── Multipart with resume ─────────────────────────────────────────────
-      const numParts   = Math.ceil(file.size / PART_SIZE);
-      const allParts   = new Array(numParts).fill(null);
-      const partBytes  = new Array(numParts).fill(0); // in-flight progress per part
+      const numParts  = Math.ceil(file.size / PART_SIZE);
+      let allParts    = new Array(numParts).fill(null);
+      const partBytes = new Array(numParts).fill(0); // in-flight progress per part
 
       if (resume?.uploadId) {
         // Resume: reuse existing multipart session — skip completed parts
@@ -3016,50 +3016,80 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
         _saveResume(file, { r2Key, uploadId, parts: [] });
       }
 
-      const doneBytesBase = allParts.filter(Boolean).length * PART_SIZE;
+      // Retry loop: on first run attempt; retry once if R2 session was expired
+      for (let attempt = 0; attempt <= 1; attempt++) {
+        let sessionExpired = false;
+        const doneBytesBase = allParts.filter(Boolean).length * PART_SIZE;
 
-      const updateProgress = () => {
-        const inFlight = partBytes.reduce((a, b) => a + b, 0);
-        setProgress(Math.round(Math.min((doneBytesBase + inFlight) / file.size, 1) * 100));
-      };
+        const updateProgress = () => {
+          const inFlight = partBytes.reduce((a, b) => a + b, 0);
+          setProgress(Math.round(Math.min((doneBytesBase + inFlight) / file.size, 1) * 100));
+        };
 
-      // Upload remaining parts in parallel batches
-      for (let batchStart = 0; batchStart < numParts; batchStart += PART_PARALLELISM) {
-        if (cancelled) return;
+        // Upload remaining parts in parallel batches
+        for (let batchStart = 0; batchStart < numParts && !sessionExpired; batchStart += PART_PARALLELISM) {
+          if (cancelled) return;
 
-        const pending = [];
-        for (let i = batchStart; i < Math.min(batchStart + PART_PARALLELISM, numParts); i++) {
-          if (!allParts[i]) pending.push(i);
+          const pending = [];
+          for (let i = batchStart; i < Math.min(batchStart + PART_PARALLELISM, numParts); i++) {
+            if (!allParts[i]) pending.push(i);
+          }
+
+          if (pending.length > 0) {
+            try {
+              await Promise.all(pending.map(async i => {
+                if (cancelled) return;
+                const partNumber = i + 1;
+                const chunkStart = i * PART_SIZE;
+                const chunk      = file.slice(chunkStart, Math.min(chunkStart + PART_SIZE, file.size));
+
+                // Get fresh presigned URL (retries built into _xhrPut, URL is fresh each retry)
+                const { url } = await api('/api/upload/browser/multipart/part-url', {
+                  method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, partNumber }),
+                });
+
+                const xhr = await _xhrPut(
+                  url, chunk,
+                  e => { if (e.lengthComputable) { partBytes[i] = e.loaded; updateProgress(); } },
+                  isCancelled, `${file.name} part ${partNumber}`
+                );
+                if (!xhr) return; // cancelled
+
+                allParts[i] = { PartNumber: partNumber, ETag: xhr.getResponseHeader('ETag') };
+                partBytes[i] = chunk.size; // mark fully done
+              }));
+            } catch (err) {
+              // R2 multipart session expired (uploadId no longer exists) — restart with fresh session
+              if (attempt === 0 && /does not exist|NoSuchUpload/i.test(err.message)) {
+                console.warn(`[upload] Multipart session expired for ${file.name} — restarting`);
+                _clearResume(file);
+                allParts = new Array(numParts).fill(null);
+                partBytes.fill(0);
+                api('/api/upload/browser/multipart/abort', {
+                  method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId }),
+                }).catch(() => {});
+                const nr = await api('/api/upload/browser/multipart/create', {
+                  method: 'POST', body: JSON.stringify({ r2_key: r2Key }),
+                });
+                if (!nr || cancelled) return;
+                uploadId = nr.uploadId;
+                _saveResume(file, { r2Key, uploadId, parts: [] });
+                sessionExpired = true;
+                break;
+              }
+              throw err;
+            }
+          }
+
+          if (!sessionExpired) {
+            // Save resume state after each batch — worst case: redo one batch on crash
+            const doneSoFar = allParts.filter(Boolean);
+            _saveResume(file, { r2Key, uploadId, parts: doneSoFar });
+            setProgress(Math.round(doneSoFar.length / numParts * 100));
+          }
         }
 
-        if (pending.length > 0) {
-          await Promise.all(pending.map(async i => {
-            if (cancelled) return;
-            const partNumber = i + 1;
-            const chunkStart = i * PART_SIZE;
-            const chunk      = file.slice(chunkStart, Math.min(chunkStart + PART_SIZE, file.size));
-
-            // Get fresh presigned URL (retries built into _xhrPut, URL is fresh each retry)
-            const { url } = await api('/api/upload/browser/multipart/part-url', {
-              method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, partNumber }),
-            });
-
-            const xhr = await _xhrPut(
-              url, chunk,
-              e => { if (e.lengthComputable) { partBytes[i] = e.loaded; updateProgress(); } },
-              isCancelled, `${file.name} part ${partNumber}`
-            );
-            if (!xhr) return; // cancelled
-
-            allParts[i] = { PartNumber: partNumber, ETag: xhr.getResponseHeader('ETag') };
-            partBytes[i] = chunk.size; // mark fully done
-          }));
-        }
-
-        // Save resume state after each batch — worst case: redo one batch on crash
-        const doneSoFar = allParts.filter(Boolean);
-        _saveResume(file, { r2Key, uploadId, parts: doneSoFar });
-        setProgress(Math.round(doneSoFar.length / numParts * 100));
+        if (!sessionExpired) break; // completed all batches successfully
       }
 
       if (cancelled) return;
