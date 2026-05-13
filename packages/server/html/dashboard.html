@@ -3038,15 +3038,26 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
       const partBytes = new Array(numParts).fill(0); // in-flight progress per part
 
       if (resume?.uploadId) {
-        // Resume: reuse existing multipart session — skip completed parts
-        uploadId = resume.uploadId;
-        for (const p of (resume.parts || [])) {
-          if (p?.PartNumber >= 1 && p.PartNumber <= numParts) allParts[p.PartNumber - 1] = p;
+        // Validate the saved session is still alive in R2 before committing to resume
+        const check = await api('/api/upload/browser/multipart/validate', {
+          method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId: resume.uploadId }),
+        }).catch(() => null);
+        if (check?.valid) {
+          // Resume: reuse existing multipart session — skip completed parts
+          uploadId = resume.uploadId;
+          for (const p of (resume.parts || [])) {
+            if (p?.PartNumber >= 1 && p.PartNumber <= numParts) allParts[p.PartNumber - 1] = p;
+          }
+          const doneCount = allParts.filter(Boolean).length;
+          setProgress(Math.round(doneCount / numParts * 100));
+          console.log(`[upload] Resuming ${file.name}: ${doneCount}/${numParts} parts done`);
+        } else {
+          // Session expired — discard and start fresh
+          console.warn(`[upload] Saved session for ${file.name} is expired — starting fresh`);
+          _clearResume(file);
         }
-        const doneCount = allParts.filter(Boolean).length;
-        setProgress(Math.round(doneCount / numParts * 100));
-        console.log(`[upload] Resuming ${file.name}: ${doneCount}/${numParts} parts done`);
-      } else {
+      }
+      if (!uploadId) {
         const r = await api('/api/upload/browser/multipart/create', {
           method: 'POST', body: JSON.stringify({ r2_key: r2Key }),
         });

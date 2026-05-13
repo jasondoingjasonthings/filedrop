@@ -1,6 +1,6 @@
 'use strict';
 
-const { S3Client, DeleteObjectCommand, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, DeleteObjectCommand, HeadObjectCommand, ListPartsCommand } = require('@aws-sdk/client-s3');
 const { GetObjectCommand, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -87,8 +87,18 @@ async function abortMultipart(key, uploadId) {
   await client.send(new AbortMultipartUploadCommand({ Bucket: BUCKET, Key: key, UploadId: uploadId }));
 }
 
+// Returns true if the multipart session exists in R2, false if expired/unknown
+async function validateMultipart(key, uploadId) {
+  try {
+    await client.send(new ListPartsCommand({ Bucket: BUCKET, Key: key, UploadId: uploadId, MaxParts: 1 }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 module.exports = {
   presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject, putObjectStream,
-  createMultipart, presignPart, completeMultipart, abortMultipart,
+  createMultipart, presignPart, completeMultipart, abortMultipart, validateMultipart,
   BUCKET,
 };

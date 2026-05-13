@@ -3,7 +3,7 @@
 const express = require('express');
 const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
-const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject } = require('../r2');
+const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject, validateMultipart } = require('../r2');
 const { generateThumbnail } = require('../thumbnail');
 const { maybeQueueTranscode } = require('../transcode');
 
@@ -260,6 +260,18 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       maybeQueueTranscode(db, file);
     }
     res.json({ ok: true });
+  });
+
+  // Browser multipart: validate — check whether a saved uploadId still exists in R2
+  router.post('/browser/multipart/validate', jwtAuth, async (req, res) => {
+    const { r2_key, uploadId } = req.body || {};
+    if (!r2_key || !uploadId) { res.status(400).json({ error: 'r2_key and uploadId required' }); return; }
+    try {
+      const valid = await validateMultipart(r2_key, uploadId);
+      res.json({ valid });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Browser multipart: create session
