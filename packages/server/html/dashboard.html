@@ -2718,36 +2718,39 @@ function initOwnerUpload() {
     cancelAllId:  'ownerCancelAllUploads',
     cancelClass:  'owner-upload-cancel',
   });
+}
 
-  // Hidden input used by "Add files" buttons on folder cards
-  let _folderAddTarget = '';
-  document.getElementById('folderAddInput').addEventListener('change', function() {
-    const fileList = [...this.files];
-    if (!fileList.length) return;
-    const folder = _folderAddTarget;
-    const isOwner = document.getElementById('ownerTabs')?.style.display !== 'none';
-    const ctx = isOwner
-      ? { queueId: 'ownerUploadQueue', cancelAllId: 'ownerCancelAllUploads', cancelClass: 'owner-upload-cancel' }
-      : { queueId: 'uploadQueue',      cancelAllId: 'cancelAllUploads',      cancelClass: 'upload-cancel' };
-    for (const file of fileList) enqueueUpload(file, folder, ctx);
-    this.value = '';
-    if (isOwner) document.querySelector('[data-tab="browse"]')?.click();
-    else         document.querySelector('[data-tab="upload"]')?.click();
-  });
+// ── "Add files to folder" — works for both owner and editor ──────────────────
+// Folder key is stored on the input element via data attribute to avoid any
+// closure/timing issues between the button click and the change event.
 
-  window.addFilesToFolder = function(folderKey) {
-    _folderAddTarget = folderKey;
-    document.getElementById('folderAddInput').click();
-  };
+document.getElementById('folderAddInput').addEventListener('change', function() {
+  const fileList = [...this.files];
+  if (!fileList.length) return;
+  const folder   = this.dataset.targetFolder || '';
+  const isOwner  = document.getElementById('ownerTabs')?.style.display !== 'none';
+  const ctx = isOwner
+    ? { queueId: 'ownerUploadQueue', cancelAllId: 'ownerCancelAllUploads', cancelClass: 'owner-upload-cancel' }
+    : { queueId: 'uploadQueue',      cancelAllId: 'cancelAllUploads',      cancelClass: 'upload-cancel' };
+  for (const file of fileList) enqueueUpload(file, folder, ctx);
+  this.value = '';
+  if (isOwner) document.querySelector('[data-tab="browse"]')?.click();
+  else         document.querySelector('[data-tab="upload"]')?.click();
+});
 
-  window.addFilesViaAgent = function(folderKey) {
-    document.querySelector('[data-tab="browse"]')?.click();
-    setTimeout(() => {
-      const browseFolder = document.getElementById('browseFolder');
-      if (browseFolder) { browseFolder.value = folderKey; browseFolder.focus(); }
-      document.getElementById('browseContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 150);
-  };
+function addFilesToFolder(folderKey) {
+  const input = document.getElementById('folderAddInput');
+  input.dataset.targetFolder = folderKey;
+  input.click();
+}
+
+function addFilesViaAgent(folderKey) {
+  document.querySelector('[data-tab="browse"]')?.click();
+  setTimeout(() => {
+    const browseFolder = document.getElementById('browseFolder');
+    if (browseFolder) { browseFolder.value = folderKey; browseFolder.focus(); }
+    document.getElementById('browseContent')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 150);
 }
 
 function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, cancelClass }) {
