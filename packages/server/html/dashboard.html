@@ -2732,16 +2732,35 @@ document.getElementById('folderAddInput').addEventListener('change', function() 
   const ctx = isOwner
     ? { queueId: 'ownerUploadQueue', cancelAllId: 'ownerCancelAllUploads', cancelClass: 'owner-upload-cancel' }
     : { queueId: 'uploadQueue',      cancelAllId: 'cancelAllUploads',      cancelClass: 'upload-cancel' };
-  for (const file of fileList) enqueueUpload(file, folder, ctx);
   this.value = '';
   if (isOwner) document.querySelector('[data-tab="browse"]')?.click();
   else         document.querySelector('[data-tab="upload"]')?.click();
+  enqueueWithDedupe(fileList, folder, ctx);
 });
 
 function addFilesToFolder(folderKey) {
   const input = document.getElementById('folderAddInput');
   input.dataset.targetFolder = folderKey;
   input.click();
+}
+
+// Enqueue files after checking the server for already-uploaded duplicates
+async function enqueueWithDedupe(fileList, folder, ctx) {
+  if (!fileList.length) return;
+  let toUpload = fileList;
+  try {
+    const payload = fileList.map(f => ({ name: f.name, folder: folder || '' }));
+    const data = await api('/api/files/check-existing', {
+      method: 'POST', body: JSON.stringify({ files: payload }),
+    });
+    if (data?.existing?.length) {
+      const skip = new Set(data.existing); // "name|folder" keys
+      const skipped = fileList.filter(f => skip.has(`${f.name}|${folder || ''}`));
+      toUpload = fileList.filter(f => !skip.has(`${f.name}|${folder || ''}`));
+      if (skipped.length) toast(`Skipped ${skipped.length} already uploaded: ${skipped.slice(0,3).map(f=>f.name).join(', ')}${skipped.length>3?' …':''}`, 'info');
+    }
+  } catch { /* network hiccup — upload everything */ }
+  for (const file of toUpload) enqueueUpload(file, folder, ctx);
 }
 
 function addFilesViaAgent(folderKey) {
@@ -2763,44 +2782,71 @@ function setupDropZone({ zoneId, inputId, folderInputId, queueId, cancelAllId, c
   zone.addEventListener('click', () => input.click());
   input.addEventListener('change', () => {
     const folder = document.getElementById(folderInputId)?.value.trim() || '';
-    for (const file of [...input.files]) enqueueUpload(file, folder, ctx);
+    enqueueWithDedupe([...input.files], folder, ctx);
     input.value = '';
   });
 
   zone.addEventListener('dragover', e => { e.preventDefault(); zone.style.borderColor = 'var(--accent)'; });
   zone.addEventListener('dragleave', () => { zone.style.borderColor = 'var(--border2)'; });
-  zone.addEventListener('drop', e => {
+  zone.addEventListener('drop', async e => {
     e.preventDefault();
     zone.style.borderColor = 'var(--border2)';
     const folder = document.getElementById(folderInputId)?.value.trim() || '';
     const items = [...e.dataTransfer.items];
-    for (const item of items) {
+    const pairs = [];
+    await Promise.all(items.map(item => {
       const entry = item.webkitGetAsEntry?.();
-      if (entry) readEntry(entry, folder, ctx);
-      else if (item.getAsFile) enqueueUpload(item.getAsFile(), folder, ctx);
-    }
+      if (entry) return collectEntry(entry, folder, pairs);
+      const f = item.getAsFile?.();
+      if (f) pairs.push({ file: f, folder });
+      return Promise.resolve();
+    }));
+    enqueueBatchWithDedupe(pairs, ctx);
   });
 }
 
-function readEntry(entry, folderPrefix, ctx) {
+// Recursively collect all {file, folder} pairs from a FileSystemEntry tree
+function collectEntry(entry, folderPrefix, pairs) {
   if (entry.isFile) {
-    entry.file(file => enqueueUpload(file, folderPrefix, ctx));
+    return new Promise(resolve => entry.file(file => { pairs.push({ file, folder: folderPrefix }); resolve(); }));
   } else if (entry.isDirectory) {
     const dirName = folderPrefix ? folderPrefix + '/' + entry.name : entry.name;
     const reader  = entry.createReader();
-    const readAll = () => reader.readEntries(entries => {
-      if (!entries.length) return;
-      for (const e of entries) readEntry(e, dirName, ctx);
+    return new Promise(resolve => {
+      const readAll = () => reader.readEntries(async entries => {
+        if (!entries.length) { resolve(); return; }
+        await Promise.all(entries.map(e => collectEntry(e, dirName, pairs)));
+        readAll();
+      });
       readAll();
     });
-    readAll();
   }
+  return Promise.resolve();
+}
+
+// Dedup a batch of {file, folder} pairs in one server round-trip, then enqueue survivors
+async function enqueueBatchWithDedupe(pairs, ctx) {
+  if (!pairs.length) return;
+  let toUpload = pairs;
+  try {
+    const payload = pairs.map(p => ({ name: p.file.name, folder: p.folder || '' }));
+    const data = await api('/api/files/check-existing', {
+      method: 'POST', body: JSON.stringify({ files: payload }),
+    });
+    if (data?.existing?.length) {
+      const skip = new Set(data.existing);
+      const skipped = pairs.filter(p => skip.has(`${p.file.name}|${p.folder || ''}`));
+      toUpload = pairs.filter(p => !skip.has(`${p.file.name}|${p.folder || ''}`));
+      if (skipped.length) toast(`Skipped ${skipped.length} already uploaded: ${skipped.slice(0,3).map(p=>p.file.name).join(', ')}${skipped.length>3?' …':''}`, 'info');
+    }
+  } catch { /* network hiccup — upload everything */ }
+  for (const { file, folder } of toUpload) enqueueUpload(file, folder, ctx);
 }
 
 function handleBrowserFiles(fileList) {
   const folder = document.getElementById('uploadFolderLabel')?.value.trim() || '';
   const ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' };
-  for (const file of fileList) enqueueUpload(file, folder, ctx);
+  enqueueWithDedupe([...fileList], folder, ctx);
   document.getElementById('filePickerInput').value = '';
 }
 
