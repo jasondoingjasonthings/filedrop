@@ -48,6 +48,19 @@ function makeFilesRouter(db, sseBus) {
     res.json({ ok: true, path: p });
   });
 
+  // Check which files already exist as 'available' — used by browser upload to skip duplicates
+  // Body: { files: [{name, folder}] }  Response: { existing: Set<"name|folder"> as array }
+  router.post('/check-existing', (req, res) => {
+    const { files: list } = req.body || {};
+    if (!Array.isArray(list) || !list.length) { res.json({ existing: [] }); return; }
+    const stmt = db.prepare(`SELECT 1 FROM files WHERE name=? AND folder=? AND status='available' LIMIT 1`);
+    const existing = list
+      .filter(f => f && f.name)
+      .filter(f => stmt.get(f.name, f.folder ?? '') !== undefined)
+      .map(f => `${f.name}|${f.folder ?? ''}`);
+    res.json({ existing });
+  });
+
   // Move files to a new folder
   router.post('/move', (req, res) => {
     const { ids, folder } = req.body || {};
@@ -100,7 +113,7 @@ function makeFilesRouter(db, sseBus) {
         (SELECT id     FROM transcode_jobs WHERE file_id=f.id AND status IN ('pending','processing','failed') ORDER BY created_at DESC LIMIT 1) as proxy_job_id
       FROM files f
       WHERE f.folder=? AND f.status NOT IN ('deleted','deleting')
-      ORDER BY f.created_at DESC
+      ORDER BY f.name COLLATE NOCASE ASC
     `).all(folder);
     res.json(list);
   });

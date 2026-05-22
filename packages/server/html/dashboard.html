@@ -1355,7 +1355,7 @@ function renderLibrary() {
       } else if (loadedFolders.has(key)) {
         const gFiles = Object.values(files)
           .filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting')
-          .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+          .sort((a,b) => (a.name||'').localeCompare(b.name||'', undefined, { sensitivity: 'base' }));
         const rows = gFiles.map(f => {
           const canDownload = f.status === 'available';
           const countdown   = f.delete_at && f.status === 'downloaded'
@@ -1753,7 +1753,7 @@ function renderEditor() {
       } else if (loadedFolders.has(key)) {
         const ffiles = Object.values(files)
           .filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting')
-          .sort((a,b) => (b.created_at||'').localeCompare(a.created_at||''));
+          .sort((a,b) => (a.name||'').localeCompare(b.name||'', undefined, { sensitivity: 'base' }));
         expandedContent = `
           <div class="folder-group-files">
             ${ffiles.map(f => `
