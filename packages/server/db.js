@@ -108,6 +108,25 @@ function migrateAlter(db) {
       db.prepare(`CREATE TABLE revoked_tokens (jti TEXT PRIMARY KEY, expires_at TEXT NOT NULL)`).run();
     }
 
+    // Audit log
+    const hasAudit = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'`).get();
+    if (!hasAudit) {
+      db.prepare(`
+        CREATE TABLE audit_log (
+          id         INTEGER PRIMARY KEY AUTOINCREMENT,
+          action     TEXT NOT NULL,
+          actor      TEXT,
+          file_id    TEXT,
+          file_name  TEXT,
+          folder     TEXT,
+          detail     TEXT,
+          ip         TEXT,
+          created_at TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+      db.prepare(`CREATE INDEX idx_audit_created ON audit_log(created_at DESC)`).run();
+    }
+
     // Proxy transcoding
     if (!cols.includes('proxy_key')) db.prepare(`ALTER TABLE files ADD COLUMN proxy_key TEXT`).run();
     const folderCols = db.prepare(`PRAGMA table_info(folders)`).all().map(c => c.name);

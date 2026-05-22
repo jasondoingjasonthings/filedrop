@@ -2878,6 +2878,14 @@ function _getUploadSpeed() {
   return windowMs > 500 ? totalBytes / (windowMs / 1000) : 0;
 }
 
+// ── Browser upload heartbeat — keeps uploading entries alive in the server DB ──
+const _activeUploadIds = new Set();
+setInterval(() => {
+  for (const id of _activeUploadIds) {
+    api(`/api/upload/browser/heartbeat/${id}`, { method: 'PATCH' }).catch(() => {});
+  }
+}, 30_000);
+
 // ── Upload queue — limits to UPLOAD_CONCURRENCY files at once ─────────────────
 let _activeUploads = 0;
 const _uploadQueue  = []; // { file, folder, ctx, _row }
@@ -3044,7 +3052,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
 
   cancelBtn.addEventListener('click', async () => {
     cancelled = true;
-    if (fileId) await api(`/api/upload/browser/fail/${fileId}`, { method: 'POST' }).catch(() => {});
+    if (fileId) { _activeUploadIds.delete(fileId); await api(`/api/upload/browser/fail/${fileId}`, { method: 'POST' }).catch(() => {}); }
     if (uploadId && r2Key) await api('/api/upload/browser/multipart/abort', {
       method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId }),
     }).catch(() => {});
@@ -3065,6 +3073,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     if (!start || cancelled) return;
     fileId = start.id;
     r2Key  = start.r2Key;
+    _activeUploadIds.add(fileId);
     // If server assigned a different key than the resume state, the saved uploadId is
     // for the wrong R2 object — discard it so we don't try to resume a dead session
     if (resume && r2Key !== resume.r2Key) _clearResume(file);
@@ -3213,6 +3222,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     }
 
     _clearResume(file);
+    if (fileId) _activeUploadIds.delete(fileId);
     setProgress(100);
     pctEl.textContent = '✓';
     pctEl.style.color = 'var(--success)';
@@ -3224,6 +3234,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     }, 3000);
 
   } catch (err) {
+    if (fileId) _activeUploadIds.delete(fileId);
     if (cancelled) return;
     pctEl.textContent = '✗';
     pctEl.style.color = 'var(--danger)';

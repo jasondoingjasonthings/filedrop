@@ -16,11 +16,13 @@ process.on('unhandledRejection', (reason) => {
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { rateLimit } = require('express-rate-limit');
 
 const { getDb, ownerExists } = require('./db');
 const { makeAuthMiddleware, verifyToken } = require('./auth');
 const { SseBus } = require('./sse');
 const { startCleanup } = require('./cleanup');
+const { startBackup } = require('./backup');
 const { makeAuthRouter } = require('./routes/auth');
 const { makeFilesRouter } = require('./routes/files');
 const { makeUploadRouter } = require('./routes/upload');
@@ -72,7 +74,36 @@ app.use((req, res, next) => {
 
 // Health check — used by monitoring and PM2 readiness checks
 app.get('/health', (req, res) => {
-  res.json({ ok: true, uptime: process.uptime(), clients: sseBus.size });
+  try {
+    db.prepare('SELECT 1').get();
+    res.json({ ok: true, uptime: Math.floor(process.uptime()), clients: sseBus.size });
+  } catch (err) {
+    res.status(503).json({ ok: false, error: err.message });
+  }
+});
+
+// ── Rate limiting ────────────────────────────────────────────────────────────
+// Auth and upload-start are the most abuse-prone endpoints; everything else
+// is covered by the auth middleware (only valid JWT holders can reach it).
+const uploadStartLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests — slow down' },
+});
+
+// Audit log (owner only) — paginated, newest first
+app.get('/api/audit', auth, (req, res) => {
+  const user = req.user;
+  if (user.role !== 'owner') { res.status(403).json({ error: 'Owner only' }); return; }
+  const limit  = Math.min(parseInt(req.query.limit  || '100', 10), 500);
+  const offset = parseInt(req.query.offset || '0', 10);
+  const rows = db.prepare(`
+    SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ? OFFSET ?
+  `).all(limit, offset);
+  const total = db.prepare(`SELECT COUNT(*) as n FROM audit_log`).get().n;
+  res.json({ rows, total, limit, offset });
 });
 
 // Simple in-memory rate limiter for the SSE endpoint.
@@ -135,6 +166,8 @@ app.get('/api/files/:id/dl', async (req, res) => {
 
 app.use('/api/auth',   makeAuthRouter(db, JWT_SECRET));
 app.use('/api/files',  auth, makeFilesRouter(db, sseBus));
+app.use('/api/upload/browser/start',            uploadStartLimiter);
+app.use('/api/upload/browser/multipart/create', uploadStartLimiter);
 app.use('/api/upload', makeUploadRouter(db, sseBus, JWT_SECRET));   // mixed: agent + JWT per route
 app.use('/api/users',  auth, makeUsersRouter(db));
 app.use('/api/fs',    makeFsRouter(db, JWT_SECRET));
@@ -161,9 +194,10 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// Start cleanup and transcode scheduler
+// Start cleanup, transcode scheduler, and daily backup
 startCleanup(db, sseBus);
 startTranscodeScheduler(db, sseBus);
+startBackup(db);
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`[filedrop] http://0.0.0.0:${PORT}`);

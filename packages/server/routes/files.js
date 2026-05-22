@@ -4,6 +4,7 @@ const express  = require('express');
 const archiver = require('archiver');
 const { requireOwner } = require('../auth');
 const { presignDownload, deleteObject, getObjectStream } = require('../r2');
+const { logAudit } = require('../audit');
 
 function makeFilesRouter(db, sseBus) {
   const router = express.Router();
@@ -206,6 +207,7 @@ function makeFilesRouter(db, sseBus) {
         sseBus.broadcast('file', updated);
       }
 
+      logAudit(db, { action: 'file_downloaded', actor: req.user.username, fileId: file.id, fileName: file.name, folder: file.folder, ip: req.ip });
       res.json({ url, size: file.size || 0 });
     } catch (err) {
       console.error('[files] presign error:', err.message);
@@ -239,6 +241,7 @@ function makeFilesRouter(db, sseBus) {
       // If this was a proxy file, clear proxy_key on the original so it can be re-queued
       db.prepare(`UPDATE files SET proxy_key=NULL WHERE proxy_key=?`).run(file.r2_key);
       sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
+      logAudit(db, { action: 'file_deleted', actor: req.user?.username, fileId: file.id, fileName: file.name, folder: file.folder, ip: req.ip });
       res.json({ ok: true });
     } catch (err) {
       console.error('[files] delete error:', err.message);
@@ -258,6 +261,7 @@ function makeFilesRouter(db, sseBus) {
     db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
     const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
     for (const f of updated) sseBus.broadcast('file', f);
+    logAudit(db, { action: 'folder_renamed', actor: req.user?.username, folder: newKey, detail: `was: ${oldKey}`, ip: req.ip });
     res.json({ ok: true, count: affected.length });
   });
 
@@ -270,6 +274,7 @@ function makeFilesRouter(db, sseBus) {
     db.prepare(`UPDATE files SET name=? WHERE id=?`).run(name.trim(), file.id);
     const updated = db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id);
     sseBus.broadcast('file', updated);
+    logAudit(db, { action: 'file_renamed', actor: req.user?.username, fileId: file.id, fileName: name.trim(), folder: file.folder, detail: `was: ${file.name}`, ip: req.ip });
     res.json({ ok: true });
   });
 

@@ -3,6 +3,7 @@
 const express = require('express');
 const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
+const { logAudit } = require('../audit');
 const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject, validateMultipart } = require('../r2');
 const { generateThumbnail } = require('../thumbnail');
 const { maybeQueueTranscode } = require('../transcode');
@@ -104,6 +105,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       sseBus.broadcast('file', file);
       generateThumbnail(file, db, sseBus).catch(() => {});
       maybeQueueTranscode(db, file);
+      if (file.status === 'available') logAudit(db, { action: 'file_uploaded', actor: 'agent', fileId: file.id, fileName: file.name, folder: file.folder });
     }
     res.json({ ok: true });
   });
@@ -217,8 +219,8 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         db.prepare(`
-          INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress)
-          VALUES (?, ?, ?, ?, ?, 'uploading', 0)
+          INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at)
+          VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'))
         `).run(id, name, r2Key, size || 0, folder || '');
         break; // success
       } catch (err) {
@@ -258,7 +260,14 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       sseBus.broadcast('file', file);
       generateThumbnail(file, db, sseBus).catch(() => {});
       maybeQueueTranscode(db, file);
+      logAudit(db, { action: 'file_uploaded', actor: req.user?.username, fileId: file.id, fileName: file.name, folder: file.folder, ip: req.ip });
     }
+    res.json({ ok: true });
+  });
+
+  // Browser heartbeat — called every 30s while a browser upload is active
+  router.patch('/browser/heartbeat/:id', jwtAuth, (req, res) => {
+    db.prepare(`UPDATE files SET last_seen_at=datetime('now') WHERE id=? AND status='uploading'`).run(req.params.id);
     res.json({ ok: true });
   });
 
