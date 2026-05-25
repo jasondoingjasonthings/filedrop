@@ -93,19 +93,6 @@ const uploadStartLimiter = rateLimit({
   message: { error: 'Too many requests — slow down' },
 });
 
-// Audit log (owner only) — paginated, newest first
-app.get('/api/audit', auth, (req, res) => {
-  const user = req.user;
-  if (user.role !== 'owner') { res.status(403).json({ error: 'Owner only' }); return; }
-  const limit  = Math.min(parseInt(req.query.limit  || '100', 10), 500);
-  const offset = parseInt(req.query.offset || '0', 10);
-  const rows = db.prepare(`
-    SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ? OFFSET ?
-  `).all(limit, offset);
-  const total = db.prepare(`SELECT COUNT(*) as n FROM audit_log`).get().n;
-  res.json({ rows, total, limit, offset });
-});
-
 // Simple in-memory rate limiter for the SSE endpoint.
 // Prevents token-brute-force via rapid reconnects (each attempt hits the DB).
 const _sseIpLog = new Map();
@@ -162,6 +149,19 @@ app.get('/api/files/:id/dl', async (req, res) => {
   } catch (err) {
     res.status(500).send('Failed to generate download URL');
   }
+});
+
+// Audit log (owner only) — paginated, newest first
+app.get('/api/audit', auth, (req, res) => {
+  const user = req.user;
+  if (user.role !== 'owner') { res.status(403).json({ error: 'Owner only' }); return; }
+  const limit  = Math.min(parseInt(req.query.limit  || '100', 10), 500);
+  const offset = parseInt(req.query.offset || '0', 10);
+  const rows = db.prepare(`
+    SELECT * FROM audit_log ORDER BY created_at DESC LIMIT ? OFFSET ?
+  `).all(limit, offset);
+  const total = db.prepare(`SELECT COUNT(*) as n FROM audit_log`).get().n;
+  res.json({ rows, total, limit, offset });
 });
 
 app.use('/api/auth',   makeAuthRouter(db, JWT_SECRET));
