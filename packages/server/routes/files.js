@@ -54,7 +54,7 @@ function makeFilesRouter(db, sseBus) {
   router.post('/check-existing', (req, res) => {
     const { files: list } = req.body || {};
     if (!Array.isArray(list) || !list.length) { res.json({ existing: [] }); return; }
-    const stmt = db.prepare(`SELECT 1 FROM files WHERE name=? AND folder=? AND status='available' LIMIT 1`);
+    const stmt = db.prepare(`SELECT 1 FROM files WHERE name=? AND folder=? AND status IN ('available','uploading') LIMIT 1`);
     const existing = list
       .filter(f => f && f.name)
       .filter(f => stmt.get(f.name, f.folder ?? '') !== undefined)
@@ -108,6 +108,8 @@ function makeFilesRouter(db, sseBus) {
   // Files in a specific folder (used when expanding a folder)
   router.get('/in', (req, res) => {
     const folder = req.query.folder ?? '';
+    const limit  = Math.min(parseInt(req.query.limit  || '200', 10), 1000);
+    const offset = parseInt(req.query.offset || '0', 10);
     const list = db.prepare(`
       SELECT f.*,
         (SELECT status FROM transcode_jobs WHERE file_id=f.id AND status IN ('pending','processing','failed') ORDER BY created_at DESC LIMIT 1) as proxy_job_status,
@@ -115,8 +117,10 @@ function makeFilesRouter(db, sseBus) {
       FROM files f
       WHERE f.folder=? AND f.status NOT IN ('deleted','deleting')
       ORDER BY f.name COLLATE NOCASE ASC
-    `).all(folder);
-    res.json(list);
+      LIMIT ? OFFSET ?
+    `).all(folder, limit, offset);
+    const total = db.prepare(`SELECT COUNT(*) as n FROM files WHERE folder=? AND status NOT IN ('deleted','deleting')`).get(folder).n;
+    res.json({ files: list, total, limit, offset });
   });
 
   // List all files — kept for SSE token validation only; returns empty array to avoid heavy load
@@ -147,13 +151,21 @@ function makeFilesRouter(db, sseBus) {
 
     console.log(`[zip] owner start folder="${prefix}" files=${rows.length}`);
 
-    // Pipeline: pre-fetch the next R2 stream while archiver writes the current one.
-    let nextFetch = rows.length > 0 ? getObjectStream(rows[0].r2_key).catch(e => e) : null;
+    // Sliding-window prefetch: keep PREFETCH R2 fetches in flight while the
+    // archiver writes the current entry. Streams must be appended in order.
+    const PREFETCH = 4;
+    const pending = []; // circular buffer of Promise<stream|Error>
+    for (let i = 0; i < Math.min(PREFETCH, rows.length); i++) {
+      pending.push(getObjectStream(rows[i].r2_key).catch(e => e));
+    }
 
     for (let i = 0; i < rows.length; i++) {
-      const f = rows[i];
-      const streamOrErr = await nextFetch;
-      nextFetch = (i + 1 < rows.length) ? getObjectStream(rows[i + 1].r2_key).catch(e => e) : null;
+      const f          = rows[i];
+      const streamOrErr = await pending.shift();
+
+      // Pre-fetch the next one in the window while we write this entry
+      const nextIdx = i + PREFETCH;
+      if (nextIdx < rows.length) pending.push(getObjectStream(rows[nextIdx].r2_key).catch(e => e));
 
       if (streamOrErr instanceof Error) {
         console.error(`[zip] skipping ${f.name}:`, streamOrErr.message);

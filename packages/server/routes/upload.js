@@ -4,9 +4,30 @@ const express = require('express');
 const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
 const { logAudit } = require('../audit');
+const { isBlockedFilename } = require('../filetype');
 const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject, validateMultipart } = require('../r2');
 const { generateThumbnail } = require('../thumbnail');
 const { maybeQueueTranscode } = require('../transcode');
+
+// Background R2 integrity check — runs after marking a file 'available'.
+// Reverts to 'deleted' and logs if the object is missing; corrects size if mismatched.
+async function verifyR2Integrity(db, sseBus, file) {
+  try {
+    const head = await headObject(file.r2_key);
+    if (!head) {
+      console.error(`[verify] ${file.name}: object missing in R2 — reverting to deleted`);
+      db.prepare(`UPDATE files SET status='deleted', deleted_at=datetime('now') WHERE id=?`).run(file.id);
+      sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
+      return;
+    }
+    if (file.size && head.ContentLength !== file.size) {
+      console.warn(`[verify] ${file.name}: size mismatch — DB=${file.size} R2=${head.ContentLength} — correcting`);
+      db.prepare(`UPDATE files SET size=? WHERE id=?`).run(head.ContentLength, file.id);
+    }
+  } catch (err) {
+    console.warn(`[verify] ${file.name}: headObject failed (${err.message}) — skipping`);
+  }
+}
 
 function makeUploadRouter(db, sseBus, jwtSecret) {
   const router = express.Router();
@@ -20,6 +41,10 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     const { name, r2_key, size, folder } = req.body || {};
     if (!name || !r2_key) {
       res.status(400).json({ error: 'name and r2_key required' });
+      return;
+    }
+    if (isBlockedFilename(name)) {
+      res.status(422).json({ error: `File type not allowed: ${name}` });
       return;
     }
     const folderKey = folder || '';
@@ -105,7 +130,10 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       sseBus.broadcast('file', file);
       generateThumbnail(file, db, sseBus).catch(() => {});
       maybeQueueTranscode(db, file);
-      if (file.status === 'available') logAudit(db, { action: 'file_uploaded', actor: 'agent', fileId: file.id, fileName: file.name, folder: file.folder });
+      if (file.status === 'available') {
+        logAudit(db, { action: 'file_uploaded', actor: 'agent', fileId: file.id, fileName: file.name, folder: file.folder });
+        verifyR2Integrity(db, sseBus, file).catch(() => {});
+      }
     }
     res.json({ ok: true });
   });
@@ -208,6 +236,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
   router.post('/browser/start', jwtAuth, async (req, res) => {
     const { name, size, folder, r2Key: resumeR2Key } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
+    if (isBlockedFilename(name)) { res.status(422).json({ error: `File type not allowed: ${name}` }); return; }
     const dotIdx = name.lastIndexOf('.');
     const ext    = dotIdx > 0 ? name.slice(dotIdx) : '';
     const base   = (dotIdx > 0 ? name.slice(0, dotIdx) : name).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
@@ -261,6 +290,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
       generateThumbnail(file, db, sseBus).catch(() => {});
       maybeQueueTranscode(db, file);
       logAudit(db, { action: 'file_uploaded', actor: req.user?.username, fileId: file.id, fileName: file.name, folder: file.folder, ip: req.ip });
+      verifyR2Integrity(db, sseBus, file).catch(() => {});
     }
     res.json({ ok: true });
   });

@@ -199,9 +199,26 @@ startCleanup(db, sseBus);
 startTranscodeScheduler(db, sseBus);
 startBackup(db);
 
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[filedrop] http://0.0.0.0:${PORT}`);
   if (!ownerExists(db)) {
     console.log(`[filedrop] First run — visit http://localhost:${PORT}/setup`);
   }
 });
+
+// Graceful shutdown — PM2 sends SIGINT on restart/stop.
+// Stop accepting new connections, drain in-flight requests, then exit.
+function gracefulShutdown(signal) {
+  console.log(`[filedrop] ${signal} received — draining connections`);
+  server.close(() => {
+    console.log('[filedrop] All connections closed, exiting');
+    process.exit(0);
+  });
+  // Force-exit after 30 s so a stuck request never blocks a deploy
+  setTimeout(() => {
+    console.error('[filedrop] Shutdown timeout — forcing exit');
+    process.exit(1);
+  }, 30_000).unref();
+}
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));

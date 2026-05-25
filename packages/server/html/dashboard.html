@@ -1175,15 +1175,23 @@ async function loadFolders() {
   } catch(e) { console.error('loadFolders', e); }
 }
 
-async function loadFolderFiles(folder) {
+const folderPageState = {}; // key -> { loaded, total }
+
+async function loadFolderFiles(folder, offset = 0) {
   const key = folder ?? '';
-  if (loadedFolders.has(key) || loadingFolders.has(key)) return;
+  if (loadingFolders.has(key)) return;
+  if (offset === 0 && loadedFolders.has(key)) return;
   loadingFolders.add(key);
-  render();
+  if (offset === 0) render();
   try {
-    const list = await api('/api/files/in?folder=' + encodeURIComponent(key));
-    if (!list) { loadingFolders.delete(key); render(); return; }
+    const url  = `/api/files/in?folder=${encodeURIComponent(key)}&offset=${offset}`;
+    const data = await api(url);
+    if (!data) { loadingFolders.delete(key); render(); return; }
+    // Support both old array format and new paginated format
+    const list  = Array.isArray(data) ? data : (data.files || []);
+    const total = Array.isArray(data) ? list.length : (data.total ?? list.length);
     for (const f of list) files[f.id] = f;
+    folderPageState[key] = { loaded: (folderPageState[key]?.loaded || 0) + list.length, total };
     loadedFolders.add(key);
     loadingFolders.delete(key);
     render();
@@ -1384,12 +1392,20 @@ function renderLibrary() {
               </td>
             </tr>`;
         }).join('');
+        const ps = folderPageState[key];
+        const loadMoreBtn = ps && ps.loaded < ps.total
+          ? `<div style="padding:10px 16px;border-top:1px solid var(--border)">
+               <button class="btn-sm" onclick="loadFolderFiles('${safeKey}', ${ps.loaded})" style="width:100%">
+                 Load more (${ps.total - ps.loaded} remaining)
+               </button>
+             </div>` : '';
         expandedContent = `
           <div style="background:var(--bg);border-top:1.5px solid var(--border);margin-left:24px;border-left:3px solid var(--accent);border-radius:0 0 var(--r) 0">
             <table class="lib-table">
               <thead><tr><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
+            ${loadMoreBtn}
           </div>`;
       }
     }
@@ -1754,6 +1770,13 @@ function renderEditor() {
         const ffiles = Object.values(files)
           .filter(f => (f.folder||'') === key && f.status !== 'deleted' && f.status !== 'deleting')
           .sort((a,b) => (a.name||'').localeCompare(b.name||'', undefined, { sensitivity: 'base' }));
+        const eps = folderPageState[key];
+        const editorLoadMore = eps && eps.loaded < eps.total
+          ? `<div style="padding:10px 16px">
+               <button class="btn-sm" onclick="loadFolderFiles('${safeKey}', ${eps.loaded})" style="width:100%">
+                 Load more (${eps.total - eps.loaded} remaining)
+               </button>
+             </div>` : '';
         expandedContent = `
           <div class="folder-group-files">
             ${ffiles.map(f => `
@@ -1769,6 +1792,7 @@ function renderEditor() {
                   <button class="btn-sm" style="background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)" onclick="renameFile('${f.id}')">Rename</button>
                 </div>
               </div>`).join('')}
+            ${editorLoadMore}
           </div>`;
       }
     }
