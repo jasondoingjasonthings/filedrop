@@ -127,6 +127,7 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
   const { id, r2Key } = reg;
   console.log(`[uploader] Uploading ${name} (${fmtBytes(size)}) sha256=${checksum.slice(0, 12)}… → id=${id}`);
 
+  const stopKeepalive = startDriveKeepalive(filePath);
   try {
     if (size > MULTIPART_ABOVE) {
       await multipartUpload({ serverUrl, agentToken, id, filePath, r2Key, size, rKey, resume });
@@ -147,6 +148,8 @@ async function uploadFile({ serverUrl, agentToken, filePath, name, folder }) {
     // Mark failed on server; keep resume state on disk for next attempt
     await api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/fail`, {}).catch(() => {});
     throw err;
+  } finally {
+    stopKeepalive();
   }
 }
 
@@ -174,6 +177,23 @@ function startHeartbeat(serverUrl, agentToken, id) {
     api(serverUrl, agentToken, 'PATCH', `/api/upload/${id}/heartbeat`, {}).catch(() => {});
   }, 30_000);
   return () => clearInterval(interval);
+}
+
+// ── Drive keep-alive ──────────────────────────────────────────────────────────
+// Reads 1 byte from the source file every 30s to prevent the drive from
+// spinning down while a large part is being uploaded over a slow connection.
+
+function startDriveKeepalive(filePath) {
+  let fd;
+  try { fd = fs.openSync(filePath, 'r'); } catch { return () => {}; }
+  const buf = Buffer.alloc(1);
+  const interval = setInterval(() => {
+    try { fs.readSync(fd, buf, 0, 1, 0); } catch {}
+  }, 30_000);
+  return () => {
+    clearInterval(interval);
+    try { fs.closeSync(fd); } catch {}
+  };
 }
 
 // ── Retry helper ──────────────────────────────────────────────────────────────
