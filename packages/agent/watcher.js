@@ -4,6 +4,7 @@ const chokidar = require('chokidar');
 const path     = require('path');
 const fs       = require('fs');
 const { uploadFile } = require('./uploader');
+const { setStatus }  = require('./tray');
 
 const DEBOUNCE_MS   = 2000; // wait 2s after last change before uploading
 const FILE_CONCURRENCY = 4; // max files uploading simultaneously
@@ -33,11 +34,19 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
     while (active < FILE_CONCURRENCY && queue.length > 0) {
       const filePath = queue.shift();
       active++;
+      updateTrayStatus();
       runUpload(filePath).finally(() => {
         active--;
         drain();
+        updateTrayStatus();
       });
     }
+    if (active === 0 && queue.length === 0) updateTrayStatus();
+  }
+
+  function updateTrayStatus() {
+    const total = active + queue.length;
+    setStatus(total > 0 ? 'uploading' : 'idle', total);
   }
 
   async function runUpload(filePath) {
@@ -49,6 +58,9 @@ function startWatcher({ serverUrl, agentToken, watchDir }) {
       await uploadFile({ serverUrl, agentToken, filePath, name, folder });
     } catch (err) {
       console.error(`[watcher] Upload failed for ${rel}:`, err.message);
+      setStatus('error');
+      // Clear error state after 10s so it doesn't stick permanently
+      setTimeout(() => updateTrayStatus(), 10_000);
     }
   }
 
