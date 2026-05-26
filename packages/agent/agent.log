@@ -1,0 +1,1090 @@
+[poller] Started — polling for dashboard commands
+[agent] Server: https://filedrop.wttf.com.au
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=d5c8b9d6-db1e-418f-9348-04c53cf6f803
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=a49a2a57-ab98-4685-ba73-89b14a816d9f
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=8d9d6201-f4c5-401a-9a7c-304f326a225c
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=92677979-c890-4cf8-9110-6dbbaf02d131
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=8b2b3a72-9a21-4e82-937b-7cd26b117c9f
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=f3ef1db8-a1c3-48ff-bbfd-c37d20c1e3af
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[uploader] C5011.MP4: 2/2 parts (100%)
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[poller] Found 164 file(s) to upload
+[uploader] Uploading C9407M01.XML (1.9 KB) sha256=20c13976f72f… → id=1234b328-f360-4af7-9731-0a8a72282847
+[uploader] ✓ Verified C9407M01.XML (1.9 KB)
+[uploader] ✓ C9407M01.XML
+[uploader] Uploading C9407.MP4 (604.3 MB) sha256=93002cdfd310… → id=cd06ebb1-428e-48f2-958e-a510ba836cd8
+[uploader] Uploading C9408.MP4 (738.5 MB) sha256=2bfd2a02cfba… → id=7aaf03af-12fa-4fd8-89f0-299eff9503c9
+[uploader] C9407.MP4: 3/3 parts (100%)
+[uploader] C9408.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9407.MP4 (604.3 MB)
+[uploader] ✓ C9407.MP4
+[uploader] ✓ Verified C9408.MP4 (738.5 MB)
+[uploader] ✓ C9408.MP4
+[uploader] Uploading C9408M01.XML (1.9 KB) sha256=08c0a4503556… → id=e36a3063-bbff-44bc-9cbb-08a5f234384b
+[uploader] Uploading C9409M01.XML (1.9 KB) sha256=75a6d99eaafc… → id=0974c47a-2d8d-4f2f-9f65-3e9ac6f2052e
+[uploader] Uploading C9409.MP4 (268.7 MB) sha256=5b5877a5f943… → id=92552a48-fb63-4a94-87df-ee05f8dc5267
+[uploader] ✓ Verified C9408M01.XML (1.9 KB)
+[uploader] ✓ C9408M01.XML
+[uploader] ✓ Verified C9409M01.XML (1.9 KB)
+[uploader] ✓ C9409M01.XML
+[uploader] C9409.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9409.MP4 (268.7 MB)
+[uploader] ✓ C9409.MP4
+[uploader] Uploading C9410M01.XML (1.9 KB) sha256=a639edb10be8… → id=356d8aa9-ee77-46f2-b9b5-67b01e6a9fe9
+[uploader] ✓ Verified C9410M01.XML (1.9 KB)
+[uploader] ✓ C9410M01.XML
+[uploader] Uploading C9410.MP4 (201.6 MB) sha256=6a62bcbcfd33… → id=f89754a4-7bc9-44c0-af99-5b966e592b2a
+[uploader] Uploading C9411.MP4 (235.2 MB) sha256=91de2a8d6cb1… → id=882e64e6-8902-479e-ab62-29183962ea6c
+[uploader] C9410.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9410.MP4 (201.6 MB)
+[uploader] ✓ C9410.MP4
+[uploader] C9411.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9411.MP4 (235.2 MB)
+[uploader] ✓ C9411.MP4
+[uploader] Uploading C9412M01.XML (1.9 KB) sha256=45bf87c976c6… → id=3a990096-b853-4137-a7d9-f2a06ed90bd0
+[uploader] Uploading C9411M01.XML (1.9 KB) sha256=bbd3f64513c9… → id=14b1bad2-e85a-4186-8ddf-73c829e07de2
+[uploader] Uploading C9412.MP4 (268.7 MB) sha256=070276bf8679… → id=1aaeedf7-6167-425e-b079-65779d48fd09
+[uploader] ✓ Verified C9411M01.XML (1.9 KB)
+[uploader] ✓ C9411M01.XML
+[uploader] ✓ Verified C9412M01.XML (1.9 KB)
+[uploader] ✓ C9412M01.XML
+[uploader] C9412.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9412.MP4 (268.7 MB)
+[uploader] ✓ C9412.MP4
+[uploader] Uploading C9413M01.XML (1.9 KB) sha256=c100c55bca23… → id=6b724b8a-c124-4c4b-8129-3fe44db9a5f6
+[uploader] ✓ Verified C9413M01.XML (1.9 KB)
+[uploader] ✓ C9413M01.XML
+[uploader] Uploading C9413.MP4 (235.2 MB) sha256=3bd1b0d8da7c… → id=df3c4853-34e7-4b47-8d2f-6b69ce61a464
+[uploader] Uploading C9414.MP4 (570.7 MB) sha256=151f78e126de… → id=2ef478a8-0403-449d-8466-6d751daa25f1
+[uploader] C9413.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9413.MP4 (235.2 MB)
+[uploader] ✓ C9413.MP4
+[uploader] C9414.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9414.MP4 (570.7 MB)
+[uploader] ✓ C9414.MP4
+[uploader] Uploading C9414M01.XML (1.9 KB) sha256=beb3d3baf342… → id=a94f4090-19f8-4688-8434-cc1d4081a5e4
+[uploader] Uploading C9415M01.XML (1.9 KB) sha256=2ecd74374474… → id=88f03e6d-c1a3-4e80-bd5f-f662904940e2
+[uploader] ✓ Verified C9414M01.XML (1.9 KB)
+[uploader] ✓ C9414M01.XML
+[uploader] ✓ Verified C9415M01.XML (1.9 KB)
+[uploader] ✓ C9415M01.XML
+[uploader] Uploading C9415.MP4 (1.4 GB) sha256=9a708e02513e… → id=4ead2c76-ea46-4b2d-afbf-a8836a3c656b
+[uploader] Uploading C9416M01.XML (1.9 KB) sha256=e2a2b1fe88e5… → id=e478a7b4-8619-4bca-934b-346b6feeda46
+[uploader] ✓ Verified C9416M01.XML (1.9 KB)
+[uploader] ✓ C9416M01.XML
+[uploader] Uploading C9417.MP4 (436.5 MB) sha256=00e4b48be550… → id=84531d0e-550f-4305-b1ee-53d2afe35514
+[uploader] C9417.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9417.MP4 (436.5 MB)
+[uploader] ✓ C9417.MP4
+[uploader] Uploading C9417M01.XML (1.9 KB) sha256=1e975d14cea6… → id=8ca6a11c-b581-412e-900d-2f1d921e91b6
+[uploader] Uploading C9418M01.XML (1.9 KB) sha256=0da5e913be96… → id=aa6e5cc6-d51c-4268-a440-7af65b010789
+[uploader] ✓ Verified C9417M01.XML (1.9 KB)
+[uploader] ✓ C9417M01.XML
+[uploader] ✓ Verified C9418M01.XML (1.9 KB)
+[uploader] ✓ C9418M01.XML
+[uploader] Uploading C9418.MP4 (1.3 GB) sha256=df5d00f8f313… → id=8f22f299-32f1-4b6d-88c3-779ca2d43b12
+[uploader] C9418.MP4: 3/5 parts (60%)
+[uploader] C9418.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9418.MP4 (1.3 GB)
+[uploader] ✓ C9418.MP4
+[uploader] Uploading C9419M01.XML (1.9 KB) sha256=fc509db7f91a… → id=324dd372-2757-4473-b6d4-1bf216cf845a
+[uploader] ✓ Verified C9419M01.XML (1.9 KB)
+[uploader] ✓ C9419M01.XML
+[uploader] Uploading C9420.MP4 (100.9 MB) sha256=580667fed130… → id=b2ce2d79-9e41-40e2-bb58-f4326cced89a
+[uploader] Uploading C9419.MP4 (201.6 MB) sha256=3997fdec8584… → id=412e0a86-4a31-4677-885e-5770874e0b91
+[uploader] C9420.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9420.MP4 (100.9 MB)
+[uploader] ✓ C9420.MP4
+[uploader] C9419.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9419.MP4 (201.6 MB)
+[uploader] ✓ C9419.MP4
+[uploader] Uploading C9420M01.XML (1.9 KB) sha256=5fd743d5afde… → id=d2cc6566-f4ac-42e9-a29e-8c8c4560bed1
+[uploader] Uploading C9421M01.XML (1.9 KB) sha256=08a6c093cdcb… → id=2577ebe8-9657-4ecb-aa13-ad0dc6ac3c28
+[uploader] Uploading C9421.MP4 (168.0 MB) sha256=0199105e927a… → id=bae8ca1c-0ca8-4ac8-9d49-6a9a668d7d97
+[uploader] ✓ Verified C9420M01.XML (1.9 KB)
+[uploader] ✓ C9420M01.XML
+[uploader] ✓ Verified C9421M01.XML (1.9 KB)
+[uploader] ✓ C9421M01.XML
+[uploader] C9421.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9421.MP4 (168.0 MB)
+[uploader] ✓ C9421.MP4
+[uploader] Uploading C9422M01.XML (1.9 KB) sha256=4f236708991a… → id=57011b3d-bc96-4ec9-8710-b6b086924d2b
+[uploader] ✓ Verified C9422M01.XML (1.9 KB)
+[uploader] ✓ C9422M01.XML
+[uploader] Uploading C9422.MP4 (168.0 MB) sha256=2c1ede602675… → id=cc17a484-1131-4b11-8fd3-70ea5a81854c
+[uploader] Uploading C9423.MP4 (470.0 MB) sha256=7f7c3187567d… → id=934ac17c-3ea2-4d7d-87fa-a81724b539af
+[uploader] C9422.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9422.MP4 (168.0 MB)
+[uploader] ✓ C9422.MP4
+[uploader] C9423.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9423.MP4 (470.0 MB)
+[uploader] ✓ C9423.MP4
+[uploader] Uploading C9423M01.XML (1.9 KB) sha256=45476c071b71… → id=1853837d-4bfd-472f-bca9-b9c26d7038e2
+[uploader] Uploading C9424M01.XML (1.9 KB) sha256=ace5cb04acb1… → id=eed1b0b8-4d9a-49f3-b6e6-3f590af76d6d
+[uploader] ✓ Verified C9423M01.XML (1.9 KB)
+[uploader] ✓ C9423M01.XML
+[uploader] ✓ Verified C9424M01.XML (1.9 KB)
+[uploader] ✓ C9424M01.XML
+[uploader] Uploading C9424.MP4 (503.6 MB) sha256=64e155eca4cd… → id=d24ea464-7423-44af-a242-e48aeb8ccb8d
+[uploader] C9424.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9424.MP4 (503.6 MB)
+[uploader] ✓ C9424.MP4
+[uploader] Uploading C9425M01.XML (1.9 KB) sha256=0578698766ab… → id=93830fd2-4882-4c87-b0d1-014d1ace9e8f
+[uploader] Uploading C9425.MP4 (67.4 MB) sha256=31924e7808d5… → id=25d9dc59-812f-457e-9969-e463d997dc0e
+[uploader] ✓ Verified C9425M01.XML (1.9 KB)
+[uploader] ✓ C9425M01.XML
+[uploader] Uploading C9426.MP4 (637.8 MB) sha256=32e56c5e764f… → id=6035e6b4-83c3-4507-a10e-8f587aa37f6c
+[uploader] C9425.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9425.MP4 (67.4 MB)
+[uploader] ✓ C9425.MP4
+[uploader] C9426.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9426.MP4 (637.8 MB)
+[uploader] ✓ C9426.MP4
+[uploader] Uploading C9426M01.XML (1.9 KB) sha256=45f7cb51cfbe… → id=c610a26e-9d0a-4c35-8ba2-b09b0a946fc5
+[uploader] Uploading C9427M01.XML (1.9 KB) sha256=fd7422d1bd74… → id=d3034b3c-4e51-4720-b408-387791be7dc0
+[uploader] ✓ Verified C9426M01.XML (1.9 KB)
+[uploader] ✓ C9426M01.XML
+[uploader] ✓ Verified C9427M01.XML (1.9 KB)
+[uploader] ✓ C9427M01.XML
+[uploader] Uploading C9427.MP4 (973.4 MB) sha256=51d3d09d5c14… → id=a5b11539-8568-40a3-9019-4971110a5acd
+[uploader] C9427.MP4: 3/4 parts (75%)
+[uploader] C9427.MP4: 4/4 parts (100%)
+[uploader] ✓ Verified C9427.MP4 (973.4 MB)
+[uploader] ✓ C9427.MP4
+[uploader] Uploading C9428M01.XML (1.9 KB) sha256=392b182869e5… → id=dc15ca66-dab8-4e51-852c-c66dc3a6159d
+[uploader] ✓ Verified C9428M01.XML (1.9 KB)
+[uploader] ✓ C9428M01.XML
+[uploader] Uploading C9428.MP4 (134.5 MB) sha256=5c8d70aa2975… → id=f201ef34-468a-47bf-87d2-981694b27d1c
+[uploader] Uploading C9429.MP4 (537.1 MB) sha256=e6563624c182… → id=3f97a794-529a-49ee-8ab5-31500d39e0a0
+[uploader] C9428.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9428.MP4 (134.5 MB)
+[uploader] ✓ C9428.MP4
+[uploader] C9429.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9429.MP4 (537.1 MB)
+[uploader] ✓ C9429.MP4
+[uploader] Uploading C9429M01.XML (1.9 KB) sha256=62a72623dd73… → id=66684159-50f7-4536-a4a2-a03768999a31
+[uploader] Uploading C9430M01.XML (1.9 KB) sha256=52745db81173… → id=09e87224-6b64-4612-8e87-f6b2c4c9ebcd
+[uploader] ✓ Verified C9429M01.XML (1.9 KB)
+[uploader] ✓ C9429M01.XML
+[uploader] ✓ Verified C9430M01.XML (1.9 KB)
+[uploader] ✓ C9430M01.XML
+[uploader] Uploading C9430.MP4 (939.8 MB) sha256=65bc3060d6ac… → id=826a308d-ed2f-47ba-8cd0-395adecb13ac
+[uploader] C9430.MP4: 3/4 parts (75%)
+[uploader] C9430.MP4: 4/4 parts (100%)
+[uploader] ✓ Verified C9430.MP4 (939.8 MB)
+[uploader] ✓ C9430.MP4
+[uploader] Uploading C9431M01.XML (1.9 KB) sha256=a24a8e312a38… → id=cf2f2d8e-455b-4fff-b5a8-a42b5971f216
+[uploader] ✓ Verified C9431M01.XML (1.9 KB)
+[uploader] ✓ C9431M01.XML
+[uploader] Uploading C9432.MP4 (235.2 MB) sha256=c623e7bcfb63… → id=53d56162-a955-4fa7-9445-3f312c064233
+[uploader] Uploading C9431.MP4 (302.3 MB) sha256=7c0db3341d6a… → id=c7156bac-b706-46ac-bfd4-02c3dcde52c9
+[uploader] C9432.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9432.MP4 (235.2 MB)
+[uploader] ✓ C9432.MP4
+[uploader] C9431.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9431.MP4 (302.3 MB)
+[uploader] ✓ C9431.MP4
+[uploader] Uploading C9432M01.XML (1.9 KB) sha256=ccf48bf304eb… → id=b78531a6-6113-4d91-826d-d48f2089b773
+[uploader] Uploading C9433M01.XML (1.9 KB) sha256=942ce69cff31… → id=b608ff2f-97ca-47a8-b741-1ef1364b258b
+[uploader] Uploading C9433.MP4 (168.0 MB) sha256=a7762568a48e… → id=7544892f-1ba7-432b-83f9-1c185d1a7e87
+[uploader] ✓ Verified C9432M01.XML (1.9 KB)
+[uploader] ✓ C9432M01.XML
+[uploader] ✓ Verified C9433M01.XML (1.9 KB)
+[uploader] ✓ C9433M01.XML
+[uploader] C9433.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9433.MP4 (168.0 MB)
+[uploader] ✓ C9433.MP4
+[uploader] Uploading C9434M01.XML (1.9 KB) sha256=429bfa7a9dda… → id=6a30b50c-cc88-4fe0-96f0-7b91dcf60e3b
+[uploader] ✓ Verified C9434M01.XML (1.9 KB)
+[uploader] ✓ C9434M01.XML
+[uploader] Uploading C9435.MP4 (335.8 MB) sha256=0efe7ffc10bd… → id=178b5489-9e43-4ec7-b093-39e703e04fcc
+[uploader] Uploading C9434.MP4 (503.6 MB) sha256=dc9f254782e1… → id=8305d5e7-4ed6-4cc2-967a-e05cc0ddf012
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=3789a8c8-9adc-4a9a-b00c-c7a9bf98fec3
+[uploader] Resuming multipart C5014.MP4: 0/1 parts already done
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=ff870464-c94b-46b9-af02-0e10989ef227
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=1a2cae56-f94d-4819-b1bd-0008cf33e312
+[uploader] C9434.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9434.MP4 (503.6 MB)
+[uploader] ✓ C9434.MP4
+[uploader] C9435.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9435.MP4 (335.8 MB)
+[uploader] ✓ C9435.MP4
+[uploader] Uploading C9435M01.XML (1.9 KB) sha256=6d08b0455435… → id=39277e87-7dee-4cc0-aac2-15460787b17b
+[uploader] Uploading C9436M01.XML (1.9 KB) sha256=5efb2f9dc026… → id=aba17f94-48e7-44be-a5fa-ade9d587f244
+[uploader] Uploading C9436.MP4 (235.2 MB) sha256=9f3caf25832d… → id=d32c746d-4ef1-4963-b0d0-2b3796976a3f
+[uploader] ✓ Verified C9435M01.XML (1.9 KB)
+[uploader] ✓ C9435M01.XML
+[uploader] ✓ Verified C9436M01.XML (1.9 KB)
+[uploader] ✓ C9436M01.XML
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[uploader] C9436.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9436.MP4 (235.2 MB)
+[uploader] ✓ C9436.MP4
+[uploader] Uploading C9437M01.XML (1.9 KB) sha256=2c72f8a64ca7… → id=92c8aeec-172d-4977-b9de-a1ab2b8a7d5e
+[uploader] ✓ Verified C9437M01.XML (1.9 KB)
+[uploader] ✓ C9437M01.XML
+[uploader] Uploading C9438.MP4 (201.6 MB) sha256=da13a40754fc… → id=00e269df-c454-4cd9-8a11-9a41479e88ea
+[uploader] Uploading C9437.MP4 (302.3 MB) sha256=bd00ee466768… → id=48a1808f-8a80-49f7-a598-ac612fcc7f9e
+[uploader] C9438.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9438.MP4 (201.6 MB)
+[uploader] ✓ C9438.MP4
+[uploader] C9437.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9437.MP4 (302.3 MB)
+[uploader] ✓ C9437.MP4
+[uploader] Uploading C9438M01.XML (1.9 KB) sha256=9a4eec32d9fb… → id=e5a1b563-eadc-40ad-8c68-7c9089137319
+[uploader] Uploading C9439M01.XML (1.9 KB) sha256=5dc09dfa01c8… → id=d86b77ed-f2b0-4d6b-a8a9-fd510d767ebe
+[uploader] Uploading C9439.MP4 (168.0 MB) sha256=f0dced47ca19… → id=fd0ea0a3-c776-4974-b9c8-6964e8095452
+[uploader] ✓ Verified C9438M01.XML (1.9 KB)
+[uploader] ✓ C9438M01.XML
+[uploader] ✓ Verified C9439M01.XML (1.9 KB)
+[uploader] ✓ C9439M01.XML
+[uploader] C9439.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9439.MP4 (168.0 MB)
+[uploader] ✓ C9439.MP4
+[uploader] Uploading C9440M01.XML (1.9 KB) sha256=26cefc4b16da… → id=ff754b39-e9fc-42ae-9cbb-fdfa5b1e8682
+[uploader] ✓ Verified C9440M01.XML (1.9 KB)
+[uploader] ✓ C9440M01.XML
+[uploader] Uploading C9441.MP4 (335.8 MB) sha256=60716257de5d… → id=e91e881a-ece0-44fd-99ca-949e9377947c
+[uploader] Uploading C9440.MP4 (570.7 MB) sha256=de7152fd1706… → id=2ba73230-d36f-4008-b2ef-3a87b104af56
+[uploader] C9441.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9441.MP4 (335.8 MB)
+[uploader] ✓ C9441.MP4
+[uploader] C9440.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9440.MP4 (570.7 MB)
+[uploader] ✓ C9440.MP4
+[uploader] Uploading C9441M01.XML (1.9 KB) sha256=61563ca1f13d… → id=e33d6a80-1cb2-4c35-a008-3695788a95cb
+[uploader] Uploading C9442M01.XML (1.9 KB) sha256=8ea8ed21ada6… → id=89d64b12-8e2f-460a-bacc-266b51cf7040
+[uploader] Uploading C9442.MP4 (268.7 MB) sha256=45240938ed63… → id=fa6f63a2-7628-4ace-8338-557554114107
+[uploader] ✓ Verified C9441M01.XML (1.9 KB)
+[uploader] ✓ C9441M01.XML
+[uploader] ✓ Verified C9442M01.XML (1.9 KB)
+[uploader] ✓ C9442M01.XML
+[uploader] C9442.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9442.MP4 (268.7 MB)
+[uploader] ✓ C9442.MP4
+[uploader] Uploading C9443M01.XML (1.9 KB) sha256=8af2bb4c0e77… → id=ee90ac75-6f27-4843-971b-9571198d82f3
+[uploader] ✓ Verified C9443M01.XML (1.9 KB)
+[uploader] ✓ C9443M01.XML
+[uploader] Uploading C9443.MP4 (369.4 MB) sha256=3d67cd35827d… → id=3e7c7801-84bb-4cd1-8fc6-790c43a021ec
+[uploader] Uploading C9444.MP4 (704.9 MB) sha256=ee9cfb014747… → id=0a80e480-c6ce-491a-a028-064d2c1ea3b9
+[uploader] C9443.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9443.MP4 (369.4 MB)
+[uploader] ✓ C9443.MP4
+[uploader] C9444.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9444.MP4 (704.9 MB)
+[uploader] ✓ C9444.MP4
+[uploader] Uploading C9444M01.XML (1.9 KB) sha256=75a097646ea8… → id=9ece3380-fb2e-46d3-b964-a660253c4696
+[uploader] Uploading C9445M01.XML (1.9 KB) sha256=a599d16f8b85… → id=fdd04de9-d23c-49e9-878a-258f4ce6a77e
+[uploader] ✓ Verified C9444M01.XML (1.9 KB)
+[uploader] ✓ C9444M01.XML
+[uploader] Uploading C9445.MP4 (302.3 MB) sha256=71586464b9e9… → id=9f8dfbe0-6d31-4613-8c94-36c4d8c6ae37
+[uploader] ✓ Verified C9445M01.XML (1.9 KB)
+[uploader] ✓ C9445M01.XML
+[uploader] C9445.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9445.MP4 (302.3 MB)
+[uploader] ✓ C9445.MP4
+[uploader] Uploading C9446M01.XML (1.9 KB) sha256=13b2e81ff34d… → id=21158ff1-1dc2-4ca2-94c3-b23a57496f2b
+[uploader] ✓ Verified C9446M01.XML (1.9 KB)
+[uploader] ✓ C9446M01.XML
+[uploader] Uploading C9446.MP4 (436.5 MB) sha256=0117e3d718c8… → id=700caee1-94cc-465a-89a4-cdf2caced619
+[uploader] Uploading C9447.MP4 (939.8 MB) sha256=941c36ef28ce… → id=cfa1172e-93b2-424a-9257-83fff45aa0c8
+[uploader] C9446.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9446.MP4 (436.5 MB)
+[uploader] ✓ C9446.MP4
+[uploader] C9447.MP4: 3/4 parts (75%)
+[uploader] C9447.MP4: 4/4 parts (100%)
+[uploader] ✓ Verified C9447.MP4 (939.8 MB)
+[uploader] ✓ C9447.MP4
+[uploader] Uploading C9447M01.XML (1.9 KB) sha256=392118aed708… → id=9f7dd6ac-63f4-468a-a8c5-dd9c31a9ff8c
+[uploader] Uploading C9448M01.XML (1.9 KB) sha256=173139f07975… → id=0479da2b-56eb-48b0-aa89-8f6d43fcd9d6
+[uploader] ✓ Verified C9447M01.XML (1.9 KB)
+[uploader] ✓ C9447M01.XML
+[uploader] ✓ Verified C9448M01.XML (1.9 KB)
+[uploader] ✓ C9448M01.XML
+[uploader] Uploading C9448.MP4 (470.0 MB) sha256=e8bcb852dc0c… → id=62471c5f-8b26-464e-98c2-aa886bb84ddf
+[uploader] C9448.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9448.MP4 (470.0 MB)
+[uploader] ✓ C9448.MP4
+[uploader] Uploading C9449M01.XML (1.9 KB) sha256=2eff5f90a530… → id=8dd89b04-4071-4016-9a8a-83639dbfceae
+[uploader] ✓ Verified C9449M01.XML (1.9 KB)
+[uploader] ✓ C9449M01.XML
+[uploader] Uploading C9450.MP4 (235.2 MB) sha256=f026303b0463… → id=ddbdcdf1-6ca4-43b9-b448-c07ab9202871
+[uploader] Uploading C9449.MP4 (637.8 MB) sha256=a094e1eff7f6… → id=4e941ea6-2ec7-4e83-a763-1c4e267da566
+[uploader] C9450.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9450.MP4 (235.2 MB)
+[uploader] ✓ C9450.MP4
+[uploader] C9449.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9449.MP4 (637.8 MB)
+[uploader] ✓ C9449.MP4
+[uploader] Uploading C9450M01.XML (1.9 KB) sha256=a2ecee7d2ce0… → id=0a766177-6353-4699-804d-9dbef1bd9c04
+[uploader] Uploading C9451M01.XML (1.9 KB) sha256=4c563ae12596… → id=7edb7843-5395-4dfc-9713-1e0082d60188
+[uploader] ✓ Verified C9450M01.XML (1.9 KB)
+[uploader] ✓ C9450M01.XML
+[uploader] ✓ Verified C9451M01.XML (1.9 KB)
+[uploader] ✓ C9451M01.XML
+[uploader] Uploading C9451.MP4 (402.9 MB) sha256=3cb2a0cf5fa3… → id=b4291c90-dafb-4da2-b865-9ebe146ca6b8
+[uploader] C9451.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9451.MP4 (402.9 MB)
+[uploader] ✓ C9451.MP4
+[uploader] Uploading C9452M01.XML (1.9 KB) sha256=2d4d6ed4bc2f… → id=4da7937b-7ded-407b-b208-9958cef79cd1
+[uploader] ✓ Verified C9452M01.XML (1.9 KB)
+[uploader] ✓ C9452M01.XML
+[uploader] Uploading C9452.MP4 (235.2 MB) sha256=2c41b4fab86a… → id=ba9bd175-ab60-4103-9093-0b3464f5d1e6
+[uploader] Uploading C9453.MP4 (503.6 MB) sha256=6a38ddfc70e3… → id=86df1652-2fc9-4c69-98bf-a018277e9714
+[uploader] C9453.MP4: 2/2 parts (100%)
+[uploader] C9452.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9453.MP4 (503.6 MB)
+[uploader] ✓ C9453.MP4
+[uploader] ✓ Verified C9452.MP4 (235.2 MB)
+[uploader] ✓ C9452.MP4
+[uploader] Uploading C9454M01.XML (1.9 KB) sha256=26d25b82cd1a… → id=7da58fd3-77aa-401d-ae0d-6c4980218483
+[uploader] Uploading C9453M01.XML (1.9 KB) sha256=7e9bf2c4e763… → id=6fbafc40-1002-4ae0-b0d4-b38facd77572
+[uploader] Uploading C9454.MP4 (302.3 MB) sha256=5187b3f57262… → id=33270da0-38c8-4b50-8c81-0838e881d43d
+[uploader] ✓ Verified C9454M01.XML (1.9 KB)
+[uploader] ✓ C9454M01.XML
+[uploader] ✓ Verified C9453M01.XML (1.9 KB)
+[uploader] ✓ C9453M01.XML
+[uploader] C9454.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9454.MP4 (302.3 MB)
+[uploader] ✓ C9454.MP4
+[uploader] Uploading C9455M01.XML (1.9 KB) sha256=5c134a09f9a1… → id=ee6218a1-9808-4a6c-b382-a517eb3700b4
+[uploader] ✓ Verified C9455M01.XML (1.9 KB)
+[uploader] ✓ C9455M01.XML
+[uploader] Uploading C9456.MP4 (302.3 MB) sha256=5fb25a075319… → id=762c9a54-ba77-4fc1-80b8-714925f1dc36
+[uploader] Uploading C9455.MP4 (570.7 MB) sha256=0d1b50b2132a… → id=b4b34e1a-a265-41c8-a758-0d966ba78149
+[uploader] C9456.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9456.MP4 (302.3 MB)
+[uploader] ✓ C9456.MP4
+[uploader] C9455.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9455.MP4 (570.7 MB)
+[uploader] ✓ C9455.MP4
+[uploader] Uploading C9456M01.XML (1.9 KB) sha256=fa8790bb7c5b… → id=b5113409-319a-4bc5-8be9-8f40a0c15d91
+[uploader] Uploading C9457M01.XML (1.9 KB) sha256=4fd50dafea9a… → id=11c9001e-e7b2-4904-9e6f-eed208cf5b69
+[uploader] Uploading C9457.MP4 (168.0 MB) sha256=ce12d7655cc4… → id=73965daf-58ad-4ac3-83cf-98a995a45b0e
+[uploader] ✓ Verified C9456M01.XML (1.9 KB)
+[uploader] ✓ C9456M01.XML
+[uploader] ✓ Verified C9457M01.XML (1.9 KB)
+[uploader] ✓ C9457M01.XML
+[uploader] C9457.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9457.MP4 (168.0 MB)
+[uploader] ✓ C9457.MP4
+[uploader] Uploading C9458M01.XML (1.9 KB) sha256=9d50df1df731… → id=bf4a6e6b-f97e-44c7-b4c5-229ef9e9edeb
+[uploader] ✓ Verified C9458M01.XML (1.9 KB)
+[uploader] ✓ C9458M01.XML
+[uploader] Uploading C9459.MP4 (1.2 GB) sha256=3304497bffab… → id=416e6086-9fd8-4054-9ca8-4d96ec38b3fd
+[uploader] Uploading C9458.MP4 (1.3 GB) sha256=6be3c2bc46eb… → id=5ac81ec4-3e82-49bf-89d6-50bdd95392a7
+[uploader] C9459.MP4: 3/5 parts (60%)
+[uploader] C9458.MP4: 3/5 parts (60%)
+[uploader] C9459.MP4: 5/5 parts (100%)
+[uploader] C9458.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9459.MP4 (1.2 GB)
+[uploader] ✓ C9459.MP4
+[uploader] ✓ Verified C9458.MP4 (1.3 GB)
+[uploader] ✓ C9458.MP4
+[uploader] Uploading C9460M01.XML (1.9 KB) sha256=f9ed7e50b3ed… → id=54942570-8b7d-494c-b18b-3b369c7c40c6
+[uploader] Uploading C9459M01.XML (1.9 KB) sha256=fc8c6f92db5d… → id=cfb022e7-9074-45bb-bb0b-b84c390f9acc
+[uploader] ✓ Verified C9460M01.XML (1.9 KB)
+[uploader] ✓ C9460M01.XML
+[uploader] ✓ Verified C9459M01.XML (1.9 KB)
+[uploader] ✓ C9459M01.XML
+[uploader] Uploading C9460.MP4 (637.8 MB) sha256=b50e2c92ca4c… → id=df72b0d5-f095-49a2-aab3-2e8d59fce625
+[uploader] C9460.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9460.MP4 (637.8 MB)
+[uploader] ✓ C9460.MP4
+[uploader] Uploading C9461M01.XML (1.9 KB) sha256=e56bb3a14e3a… → id=c2e49143-52e5-4c89-9e5e-03759263fb27
+[uploader] ✓ Verified C9461M01.XML (1.9 KB)
+[uploader] ✓ C9461M01.XML
+[uploader] Uploading C9462.MP4 (201.6 MB) sha256=1f67397b7165… → id=7770e7f8-1e82-46fe-80a3-ea71dcd66e8b
+[uploader] Uploading C9461.MP4 (1.1 GB) sha256=300a11932ed6… → id=9bc6194f-5286-4a05-9916-2bac5cf67ff4
+[uploader] C9462.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9462.MP4 (201.6 MB)
+[uploader] ✓ C9462.MP4
+[uploader] C9461.MP4: 3/5 parts (60%)
+[uploader] C9461.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9461.MP4 (1.1 GB)
+[uploader] ✓ C9461.MP4
+[uploader] Uploading C9462M01.XML (1.9 KB) sha256=4b36d4579e63… → id=e0852bd4-e4a1-4991-b076-1c8ed0bc5000
+[uploader] Uploading C9463M01.XML (1.9 KB) sha256=892dddfff3f1… → id=71ac7242-c9e2-4764-a4e6-0ac91ca56e7f
+[uploader] Uploading C9463.MP4 (100.9 MB) sha256=bb35e27d9da2… → id=2069f480-4dbf-46ea-a6a1-b4f53514f95e
+[uploader] ✓ Verified C9462M01.XML (1.9 KB)
+[uploader] ✓ C9462M01.XML
+[uploader] ✓ Verified C9463M01.XML (1.9 KB)
+[uploader] ✓ C9463M01.XML
+[uploader] C9463.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9463.MP4 (100.9 MB)
+[uploader] ✓ C9463.MP4
+[uploader] Uploading C9464M01.XML (1.9 KB) sha256=04caa51e2a68… → id=d994ddef-38c3-44dd-94ec-151e385f193f
+[uploader] ✓ Verified C9464M01.XML (1.9 KB)
+[uploader] ✓ C9464M01.XML
+[uploader] Uploading C9465.MP4 (335.8 MB) sha256=4750b294d93f… → id=b742c998-7ff4-4f1b-a570-c0c780fe5059
+[uploader] Uploading C9464.MP4 (436.5 MB) sha256=926b2d783705… → id=66a91f26-e72c-4d55-b844-430137259531
+[uploader] C9464.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9464.MP4 (436.5 MB)
+[uploader] ✓ C9464.MP4
+[uploader] C9465.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9465.MP4 (335.8 MB)
+[uploader] ✓ C9465.MP4
+[uploader] Uploading C9465M01.XML (1.9 KB) sha256=f0c408cc4754… → id=7af533b9-bb76-4186-b14c-94ee4fa2306c
+[uploader] Uploading C9466.MP4 (67.4 MB) sha256=b68e6f69612c… → id=fcb56f21-7540-4eb3-8515-efbbdfc2d87f
+[uploader] Uploading C9466M01.XML (1.9 KB) sha256=6707f739d69d… → id=0c3c6583-1866-4608-8af6-1b772f21a71e
+[uploader] ✓ Verified C9465M01.XML (1.9 KB)
+[uploader] ✓ C9465M01.XML
+[uploader] ✓ Verified C9466M01.XML (1.9 KB)
+[uploader] ✓ C9466M01.XML
+[uploader] C9466.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9466.MP4 (67.4 MB)
+[uploader] ✓ C9466.MP4
+[uploader] Uploading C9467M01.XML (1.9 KB) sha256=074a7c970e38… → id=a158c073-84f1-4afc-b558-746865bc9360
+[uploader] ✓ Verified C9467M01.XML (1.9 KB)
+[uploader] ✓ C9467M01.XML
+[uploader] Uploading C9467.MP4 (134.5 MB) sha256=f28776b6d545… → id=89be4f7d-ab7d-460a-8fbf-21100e1e00ac
+[uploader] Uploading C9468.MP4 (168.0 MB) sha256=f164a00e189d… → id=7bd9c085-20f7-4363-8fba-8362945c2555
+[uploader] C9467.MP4: 1/1 parts (100%)
+[uploader] C9468.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9467.MP4 (134.5 MB)
+[uploader] ✓ C9467.MP4
+[uploader] ✓ Verified C9468.MP4 (168.0 MB)
+[uploader] ✓ C9468.MP4
+[uploader] Uploading C9468M01.XML (1.9 KB) sha256=4d0b428d064d… → id=1d4171a8-7341-4d96-b512-cb3a26b70c0a
+[uploader] Uploading C9469M01.XML (1.9 KB) sha256=a10144af91f0… → id=5646aab3-5f22-45f7-a9da-6bfdb5a36c27
+[uploader] Uploading C9469.MP4 (100.9 MB) sha256=5bf24d3050fc… → id=1dd46855-e3c4-4b96-a278-66d260327dc4
+[uploader] ✓ Verified C9468M01.XML (1.9 KB)
+[uploader] ✓ C9468M01.XML
+[uploader] ✓ Verified C9469M01.XML (1.9 KB)
+[uploader] ✓ C9469M01.XML
+[uploader] C9469.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9469.MP4 (100.9 MB)
+[uploader] ✓ C9469.MP4
+[uploader] Uploading C9470M01.XML (1.9 KB) sha256=474e13279b6e… → id=99654b6a-afc4-4ca2-ac50-546a2c117e8e
+[uploader] Uploading C9470.MP4 (67.4 MB) sha256=5d81d25a6e0a… → id=188402f4-c714-4305-853a-2fad4a1946b5
+[uploader] ✓ Verified C9470M01.XML (1.9 KB)
+[uploader] ✓ C9470M01.XML
+[uploader] Uploading C9471.MP4 (134.5 MB) sha256=ebbf8baf987e… → id=68f11d4a-d52b-481a-b061-f524cc607659
+[uploader] C9470.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9470.MP4 (67.4 MB)
+[uploader] ✓ C9470.MP4
+[uploader] C9471.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9471.MP4 (134.5 MB)
+[uploader] ✓ C9471.MP4
+[uploader] Uploading C9471M01.XML (1.9 KB) sha256=c23e508ee931… → id=04ea4dea-7a05-4a8b-a606-22a228590f2b
+[uploader] Uploading C9472M01.XML (1.9 KB) sha256=da3259852e32… → id=1b83b00e-b43c-4a49-97a2-6118edc235d3
+[uploader] ✓ Verified C9471M01.XML (1.9 KB)
+[uploader] ✓ C9471M01.XML
+[uploader] ✓ Verified C9472M01.XML (1.9 KB)
+[uploader] ✓ C9472M01.XML
+[uploader] Uploading C9472.MP4 (3.8 GB) sha256=f8e61cd436fd… → id=6a54916c-a4f8-4ab6-b3c6-fe90128b9ee7
+[uploader] C9472.MP4: 3/15 parts (20%)
+[uploader] C9472.MP4: 6/15 parts (40%)
+[uploader] C9472.MP4: 9/15 parts (60%)
+[uploader] C9472.MP4: 12/15 parts (80%)
+[uploader] C9472.MP4: 15/15 parts (100%)
+[uploader] ✓ Verified C9472.MP4 (3.8 GB)
+[uploader] ✓ C9472.MP4
+[uploader] Uploading C9473M01.XML (1.9 KB) sha256=5a904d03c64c… → id=365c7d3b-616c-4875-841e-de419e499034
+[uploader] ✓ Verified C9473M01.XML (1.9 KB)
+[uploader] ✓ C9473M01.XML
+[uploader] Uploading C9473.MP4 (369.4 MB) sha256=12708b5851bb… → id=f887b527-1d03-4adc-af00-673353328136
+[uploader] Uploading C9474.MP4 (772.0 MB) sha256=40e91fb743f6… → id=49eefff1-7996-44e1-8d99-ef4265bdedc7
+[uploader] C9474.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9474.MP4 (772.0 MB)
+[uploader] ✓ C9474.MP4
+[uploader] C9473.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9473.MP4 (369.4 MB)
+[uploader] ✓ C9473.MP4
+[uploader] Uploading C9474M01.XML (1.9 KB) sha256=4ca61af94ffc… → id=c9f8dbfa-3e01-4c73-b458-c7abc13f6c00
+[uploader] Uploading C9475M01.XML (1.9 KB) sha256=574daf8894a1… → id=b0f0d19b-d74f-4592-92b7-4df3101cf688
+[uploader] ✓ Verified C9474M01.XML (1.9 KB)
+[uploader] ✓ C9474M01.XML
+[uploader] Uploading C9475.MP4 (335.8 MB) sha256=ad833b2bf314… → id=9bac7368-0e03-49c7-8d63-0cbb28a647ed
+[uploader] ✓ Verified C9475M01.XML (1.9 KB)
+[uploader] ✓ C9475M01.XML
+[uploader] C9475.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9475.MP4 (335.8 MB)
+[uploader] ✓ C9475.MP4
+[uploader] Uploading C9476M01.XML (1.9 KB) sha256=6e76adb2bdfd… → id=c9c686fc-7aa8-4b6c-a77a-50f84236d4ee
+[uploader] ✓ Verified C9476M01.XML (1.9 KB)
+[uploader] ✓ C9476M01.XML
+[uploader] Uploading C9477.MP4 (201.6 MB) sha256=7fbd51e9ffb8… → id=6e73d57a-03fa-470d-8163-90beabc86bec
+[uploader] Uploading C9476.MP4 (369.4 MB) sha256=892377dfa4d3… → id=4d307b0a-f31f-478b-8b11-82755e0fd3ab
+[uploader] C9477.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9477.MP4 (201.6 MB)
+[uploader] ✓ C9477.MP4
+[uploader] C9476.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9476.MP4 (369.4 MB)
+[uploader] ✓ C9476.MP4
+[uploader] Uploading C9477M01.XML (1.9 KB) sha256=ebc1a8256634… → id=2e48fefd-3c50-4bfc-bb45-2700094a5697
+[uploader] Uploading C9478M01.XML (1.9 KB) sha256=5ef53ebbd99e… → id=322d3475-8732-4433-99a4-c27e2aad125d
+[uploader] ✓ Verified C9477M01.XML (1.9 KB)
+[uploader] ✓ C9477M01.XML
+[uploader] ✓ Verified C9478M01.XML (1.9 KB)
+[uploader] ✓ C9478M01.XML
+[uploader] Uploading C9478.MP4 (402.9 MB) sha256=a972f557a5ba… → id=8f11d1fe-ccc8-4547-809e-2bf6bd314bd9
+[uploader] C9478.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9478.MP4 (402.9 MB)
+[uploader] ✓ C9478.MP4
+[uploader] Uploading C9479M01.XML (1.9 KB) sha256=caac08bd7a0a… → id=0ac2c652-4c52-4029-9d05-654eef1cc552
+[uploader] ✓ Verified C9479M01.XML (1.9 KB)
+[uploader] ✓ C9479M01.XML
+[uploader] Uploading C9479.MP4 (100.9 MB) sha256=397b7ef16253… → id=f86c11ee-42d1-4ce0-84e0-c5ea61d8e5cc
+[uploader] C9479.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9479.MP4 (100.9 MB)
+[uploader] ✓ C9479.MP4
+[uploader] Uploading C9480.MP4 (1.2 GB) sha256=1e6a8f80ff74… → id=089878b4-51a9-41f9-9827-61e85a500136
+[uploader] C9480.MP4: 3/5 parts (60%)
+[uploader] C9480.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9480.MP4 (1.2 GB)
+[uploader] ✓ C9480.MP4
+[uploader] Uploading C9480M01.XML (1.9 KB) sha256=af7d23dc1d14… → id=637f507b-d38d-4dcd-85ea-7a6c9ada01e7
+[uploader] Uploading C9481M01.XML (1.9 KB) sha256=01e5a6178dc7… → id=7f326509-f419-45e2-b8f6-6e5b5336a386
+[uploader] ✓ Verified C9480M01.XML (1.9 KB)
+[uploader] ✓ C9480M01.XML
+[uploader] ✓ Verified C9481M01.XML (1.9 KB)
+[uploader] ✓ C9481M01.XML
+[uploader] Uploading C9481.MP4 (302.3 MB) sha256=3799a19ff1a4… → id=2a4245b5-b539-4115-b369-a2f24c3bea35
+[uploader] C9481.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9481.MP4 (302.3 MB)
+[uploader] ✓ C9481.MP4
+[uploader] Uploading C9482M01.XML (1.9 KB) sha256=b37ff964d605… → id=3b76796d-d794-41d9-bddd-9b70b7cdd71c
+[uploader] ✓ Verified C9482M01.XML (1.9 KB)
+[uploader] ✓ C9482M01.XML
+[uploader] Uploading C9483.MP4 (201.6 MB) sha256=e9694c61cf50… → id=915ebc92-de3e-4de1-a371-b9bf7342f447
+[uploader] Uploading C9482.MP4 (268.7 MB) sha256=be017a988678… → id=40050b83-0103-4985-a2e8-c3ae8407c948
+[uploader] C9483.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9483.MP4 (201.6 MB)
+[uploader] ✓ C9483.MP4
+[uploader] C9482.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9482.MP4 (268.7 MB)
+[uploader] ✓ C9482.MP4
+[uploader] Uploading C9483M01.XML (1.9 KB) sha256=7b17c854ceec… → id=586155d5-01c1-481d-89ab-33da51643df2
+[uploader] Uploading C9484M01.XML (1.9 KB) sha256=e7b4a3e84433… → id=beaf27aa-ebd9-495e-a6ca-609698ba741e
+[uploader] ✓ Verified C9483M01.XML (1.9 KB)
+[uploader] ✓ C9483M01.XML
+[uploader] ✓ Verified C9484M01.XML (1.9 KB)
+[uploader] ✓ C9484M01.XML
+[uploader] Uploading C9484.MP4 (1.1 GB) sha256=41f3bb809388… → id=eb2f7d22-c5f8-4279-8d41-95090c58060b
+[uploader] C9484.MP4: 3/5 parts (60%)
+[uploader] C9484.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9484.MP4 (1.1 GB)
+[uploader] ✓ C9484.MP4
+[uploader] Uploading C9485M01.XML (1.9 KB) sha256=299957e9fe27… → id=d43dffd1-1c86-43a4-aff6-8623bb686e12
+[uploader] ✓ Verified C9485M01.XML (1.9 KB)
+[uploader] ✓ C9485M01.XML
+[uploader] Uploading C9485.MP4 (872.7 MB) sha256=539bea626f1c… → id=c073a187-c52d-4367-8e8c-7b0ead46f906
+[uploader] Uploading C9486.MP4 (1.3 GB) sha256=3b8d82b0c3d2… → id=018369b7-4ece-4521-97ca-e569c9c11064
+[uploader] C9485.MP4: 3/4 parts (75%)
+[uploader] C9486.MP4: 3/5 parts (60%)
+[uploader] C9485.MP4: 4/4 parts (100%)
+[uploader] ✓ Verified C9485.MP4 (872.7 MB)
+[uploader] ✓ C9485.MP4
+[uploader] C9486.MP4: 5/5 parts (100%)
+[uploader] ✓ Verified C9486.MP4 (1.3 GB)
+[uploader] ✓ C9486.MP4
+[uploader] Uploading C9486M01.XML (1.9 KB) sha256=93929674881a… → id=0848e1eb-f2e2-4441-93ec-20d938141562
+[uploader] Uploading C9487M01.XML (1.9 KB) sha256=fe766ff876c0… → id=38cd7b85-59cc-4ee1-9c47-de8efb579aa2
+[uploader] ✓ Verified C9486M01.XML (1.9 KB)
+[uploader] ✓ C9486M01.XML
+[uploader] ✓ Verified C9487M01.XML (1.9 KB)
+[uploader] ✓ C9487M01.XML
+[uploader] Uploading C9487.MP4 (604.3 MB) sha256=b2a351575535… → id=67779fd3-9afa-4140-9620-b5559125a821
+[uploader] C9487.MP4: 3/3 parts (100%)
+[uploader] ✓ Verified C9487.MP4 (604.3 MB)
+[uploader] ✓ C9487.MP4
+[uploader] Uploading C9488M01.XML (1.9 KB) sha256=9b140b07b204… → id=e71211e5-882e-4f71-8e32-5cd118bef5db
+[uploader] ✓ Verified C9488M01.XML (1.9 KB)
+[uploader] ✓ C9488M01.XML
+[uploader] Uploading C9488.MP4 (335.8 MB) sha256=1ed05b582565… → id=d6e7ff3e-d9e5-4b3f-bb5d-20e3d228fa8d
+[uploader] C9488.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C9488.MP4 (335.8 MB)
+[uploader] ✓ C9488.MP4
+[poller] Pass 2: retrying 2 file(s) after 30s
+[uploader] Uploading C9416.MP4 (168.0 MB) sha256=f12c3c0253aa… → id=2fede800-acec-4e7c-8c91-047118423012
+[uploader] Uploading C9415.MP4 (1.4 GB) sha256=9a708e02513e… → id=0770b2db-ef36-4f1f-a76e-c4881204eeb2
+[uploader] Resuming multipart C9415.MP4: 0/6 parts already done
+[uploader] C9416.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C9416.MP4 (168.0 MB)
+[uploader] ✓ C9416.MP4
+[uploader] C9415.MP4: 3/6 parts (50%)
+[uploader] C9415.MP4: 6/6 parts (100%)
+[uploader] ✓ Verified C9415.MP4 (1.4 GB)
+[uploader] ✓ C9415.MP4
+[poller] ✓ All 164 files complete (164 uploaded, 0 already on server)
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=e339a95f-2eed-40f9-ae40-0dd804c8b692
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=21334068-aaa1-4b80-afcf-b8266d4757c3
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=c861356e-1bb2-4a21-884e-7a6659536a99
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=904ee94f-4caa-48d0-b00d-9b84305ed489
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=98544b97-3f15-4fc7-ab95-ba9b81891c4b
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=b9457138-a79b-46d0-b7c6-9657f4c1f3fe
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=918821f9-871e-47fd-92e4-ead6e1b70d60
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=03f56071-71e7-4608-998e-3f4759e5f257
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=c60e4ce8-d59b-4d31-a971-8d535e661764
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] Already available, skipping: C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5014.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5014.MP4
+[uploader] Already available, skipping: C5011.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=9aefbef3-5da9-41a7-a400-d94b53725783
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=32806b8b-8aa4-4c97-a68d-80c66c112ef9
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=7fe28e68-9a6f-4fb8-a2f8-b214135345f5
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Already available, skipping: C5014.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=ee13087f-1a5c-4f2a-8170-c7f68a719046
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=d51fa7a8-6d46-489a-83b0-b197478aee44
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=227bcca2-1213-4b84-ab6d-50c42c29d07b
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=49eff845-5eb1-430f-aefe-372bd348bfb6
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=e9628c55-083d-4594-a34b-f8c376a0141e
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[uploader] Uploading C5014.MP4 (201.5 MB) sha256=e56f65dcced2… → id=f4d05a5f-21fc-48f0-bf83-06477632a874
+[uploader] Uploading C5011.MP4 (369.2 MB) sha256=6da6abc8820c… → id=cf314840-66dd-4beb-b181-c080a0013dd2
+[uploader] Uploading C5008.MP4 (503.5 MB) sha256=90445d052c00… → id=c75cfb07-7042-469a-8f3d-8f576d6cfd4f
+[uploader] C5014.MP4: 1/1 parts (100%)
+[uploader] ✓ Verified C5014.MP4 (201.5 MB)
+[uploader] ✓ C5014.MP4
+[uploader] C5011.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5011.MP4 (369.2 MB)
+[uploader] ✓ C5011.MP4
+[uploader] C5008.MP4: 2/2 parts (100%)
+[uploader] ✓ Verified C5008.MP4 (503.5 MB)
+[uploader] ✓ C5008.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready.
+[watcher] Stopped watching: C:\Users\jason\FileDrop
+[agent] Watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[watcher] Ready.
+[watcher] add: TEST\Folder 1\C5008.MP4
+[watcher] add: TEST\Folder 3\C5014.MP4
+[watcher] add: TEST\Folder 2\C5011.MP4
+[uploader] Already available, skipping: C5008.MP4
+[uploader] Already available, skipping: C5011.MP4
+[uploader] Already available, skipping: C5014.MP4
+[watcher] Stopped watching: G:\WTTF 0010\Card Dumps\Safer\Safer TEST upload with folders
+[agent] Watching: G:\WTTF 0010\Card Dumps\Blue Hill
+[watcher] Ready.
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60033.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60034.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60035.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60036.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60037.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60038.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60039.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60040.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60041.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60042.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60043.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60044.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60045.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60046.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60047.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60048.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60049.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60050.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60051.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60052.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60053.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60054.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60055.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60056.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60057.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60058.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60059.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60060.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60061.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60062.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60063.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60064.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60065.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60066.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60067.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60068.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60069.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60070.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60071.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60072.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60073.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60074.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60075.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60076.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60077.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60078.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60079.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60080.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60081.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60082.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60083.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60084.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60085.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60086.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60087.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60088.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60089.MXF
+[watcher] add: 2026-05-12- QLD Farmers Federation and Feed Central\Fx6\WTTF FX60090.MXF
+[uploader] Uploading WTTF FX60085.MXF (45.7 MB) sha256=7751d05321b4… → id=30125693-6bde-45e0-8cea-a122d7c22821
+[uploader] WTTF FX60085.MXF: 1/1 parts (100%)
+[uploader] ✓ Verified WTTF FX60085.MXF (45.7 MB)
+[uploader] ✓ WTTF FX60085.MXF
+[uploader] Uploading WTTF FX60067.MXF (128.0 MB) sha256=c607fcfc422d… → id=1e55fa02-abf4-45d2-8dc6-99057fbdf289
+[uploader] Uploading WTTF FX60041.MXF (198.4 MB) sha256=9adbb762713a… → id=ce7997da-6b1d-41c5-b94c-95271d540cc7
+[uploader] Uploading WTTF FX60088.MXF (200.1 MB) sha256=2b564360ee6c… → id=116a883f-6251-4d7a-9632-8d1c65e22a75
+[uploader] Uploading WTTF FX60068.MXF (202.2 MB) sha256=930b789dab21… → id=9eda0647-fd2d-4d0a-b1bf-0f424c252c29
+[uploader] Uploading WTTF FX60076.MXF (199.3 MB) sha256=ed29d3e84800… → id=b5c73723-94eb-4643-91d7-94807db24d57
+[uploader] Uploading WTTF FX60054.MXF (205.4 MB) sha256=ccfaa87b6db7… → id=62df442e-30e8-415d-9be5-3fa09477c05e
+[uploader] Uploading WTTF FX60040.MXF (210.0 MB) sha256=6cc12adc8399… → id=576a88ef-8285-4af5-853b-2a41c962b121
+[uploader] Uploading WTTF FX60074.MXF (214.9 MB) sha256=70d3d44eebe7… → id=8c26d876-0f80-4472-8df2-34372dd6e963
+[uploader] Uploading WTTF FX60058.MXF (218.2 MB) sha256=1bd657333d8b… → id=1c7bd645-705a-422f-a7b7-6924ed36fa31
+[uploader] Uploading WTTF FX60062.MXF (226.6 MB) sha256=ef1eae9c9e8f… → id=b52096aa-3b9e-4f47-bea7-0dbef87f8240
+[uploader] Uploading WTTF FX60057.MXF (229.0 MB) sha256=8bed68e2bd11… → id=b374fdba-e459-4006-a74b-bd620ca7e516
+[uploader] Uploading WTTF FX60055.MXF (233.0 MB) sha256=b79b9f0f4ff1… → id=69888862-e638-4d31-88b0-d1b6202b5764
+[uploader] Uploading WTTF FX60078.MXF (230.4 MB) sha256=bfb81a59041a… → id=b268fa26-9ddd-40ce-aca5-c46d556d991a
+[uploader] Uploading WTTF FX60048.MXF (239.8 MB) sha256=7ca56cb214b2… → id=7f1b12d1-afaf-4ef9-85d9-b4cf7ae5e9c5
+[uploader] Uploading WTTF FX60037.MXF (240.1 MB) sha256=1eadb15d95dc… → id=9d910d0d-f169-4a77-88ea-5c1930c75567
+[uploader] Uploading WTTF FX60051.MXF (245.8 MB) sha256=adab089c7f8f… → id=d671725a-9fc8-42cf-a3a7-97db2b2cda0c
+[uploader] Uploading WTTF FX60053.MXF (252.3 MB) sha256=7a7c0356ae82… → id=79066ea0-a670-455f-a7bf-8a3b04cef9f5
+[uploader] Uploading WTTF FX60038.MXF (267.3 MB) sha256=f3787195dcf7… → id=7936c924-b65f-4c4b-a624-86704ac3c53e
+[uploader] Uploading WTTF FX60065.MXF (268.2 MB) sha256=2c5007faea72… → id=b8070ec0-b245-4393-932d-ff5c704ad9a4
+[uploader] Uploading WTTF FX60045.MXF (277.6 MB) sha256=6bd5c2189587… → id=050785f4-07d4-4a78-8662-caf9541b5f54
+[uploader] Uploading WTTF FX60061.MXF (286.1 MB) sha256=e9fb1f306592… → id=322838df-e933-4f7d-b501-c3272cfed86b
+[uploader] Uploading WTTF FX60046.MXF (292.3 MB) sha256=61696792e8bf… → id=e8b30a43-0b5f-4871-964a-aa7713468e6d
+[uploader] Uploading WTTF FX60035.MXF (294.9 MB) sha256=9b676f83101b… → id=c6d4b2d0-ccc5-4f3c-b405-7a7a9266272a
+[uploader] Uploading WTTF FX60036.MXF (321.9 MB) sha256=454ce1943d1e… → id=b03de2c1-b8a0-4193-b753-dc2a5bbc0803
+[uploader] Uploading WTTF FX60066.MXF (321.1 MB) sha256=bfa4e593d273… → id=030045b8-f7ab-45b6-b141-5791961cdc10
+[uploader] Uploading WTTF FX60064.MXF (320.7 MB) sha256=0fd03e92e591… → id=19f9be4e-b185-4781-aba0-d21545d273fd
+[uploader] Uploading WTTF FX60056.MXF (328.0 MB) sha256=3726ce5bc17c… → id=2ae25877-4831-452e-90c0-9a3de9b433ef
+[uploader] Uploading WTTF FX60073.MXF (326.8 MB) sha256=26dc9c97e5b6… → id=2cc08baa-1725-4d1a-b2f1-45d4509d864d
+[uploader] Uploading WTTF FX60033.MXF (335.3 MB) sha256=b654658a34e8… → id=df11ae6f-539a-4a9f-8b04-11efe287fa4f
+[uploader] Uploading WTTF FX60049.MXF (340.5 MB) sha256=9201d24625b8… → id=0a418a20-05e5-48fd-8a83-9c2096f4c4a1
+[uploader] Uploading WTTF FX60086.MXF (358.1 MB) sha256=854a4444a430… → id=c48bb5d1-82d9-46c4-8cfd-ac66e343dbb1
+[uploader] Uploading WTTF FX60080.MXF (353.2 MB) sha256=726e525d3c79… → id=f8c545c1-ca11-4ee4-8700-947a3f185af1
+[uploader] Uploading WTTF FX60060.MXF (368.0 MB) sha256=a85c818562e2… → id=58d15a82-5db8-46e7-bd8b-e18ea16e74b1
+[uploader] Uploading WTTF FX60083.MXF (388.9 MB) sha256=1e882e6c99b3… → id=80008c84-dedb-487c-b31c-3fb7ce9733d7
+[uploader] Uploading WTTF FX60089.MXF (396.9 MB) sha256=d155b1599692… → id=932415df-5d06-4c6b-8ed0-0aab924aedf5
+[uploader] Uploading WTTF FX60039.MXF (402.6 MB) sha256=1e4f4f8da5d4… → id=0ba2f9a8-4313-4d2f-9eba-884f131cd70a
+[uploader] Uploading WTTF FX60063.MXF (413.6 MB) sha256=1d6651a3eb4f… → id=27c10bff-0606-4610-88ef-5cc8ca962a0e
+[uploader] Uploading WTTF FX60044.MXF (493.3 MB) sha256=c799f45bce5d… → id=a830430b-25ee-4805-a415-f7f200cee8e9
+[uploader] Uploading WTTF FX60059.MXF (510.4 MB) sha256=a8d27fd62c47… → id=3e0902b6-11b5-4471-b4a4-c2591f98ab63
+[uploader] Uploading WTTF FX60087.MXF (515.4 MB) sha256=cc947edb4b2b… → id=307f06ce-b96b-4732-8557-59834a237e12
+[uploader] Uploading WTTF FX60052.MXF (559.8 MB) sha256=0bbc0ea44183… → id=e81e3e0b-9ac1-4e2d-baa8-288695c318d5
+[uploader] Uploading WTTF FX60090.MXF (573.6 MB) sha256=7bfeff6d5221… → id=96cf0d92-f8d5-48eb-95c4-00f968bad296
+[uploader] Uploading WTTF FX60042.MXF (604.4 MB) sha256=a4e5a4c5a9fb… → id=c13da036-a91d-41cc-9073-639720c0bb20
+[uploader] Uploading WTTF FX60034.MXF (670.1 MB) sha256=1ee2f1fe9201… → id=b8e9caea-24e9-4127-accd-3114152c6331
+[uploader] Uploading WTTF FX60084.MXF (679.2 MB) sha256=4169ea49db80… → id=c708e231-d213-45f1-8310-5749dc748de2
+[uploader] Uploading WTTF FX60050.MXF (715.5 MB) sha256=6cb98a4f45b1… → id=8fefd95b-8e6c-4cfa-b001-e7c062e8d389
+[uploader] Uploading WTTF FX60070.MXF (723.4 MB) sha256=5f7c2801e638… → id=fe7a17a0-be77-4b6f-9bf5-922e59504320
+[uploader] Uploading WTTF FX60082.MXF (707.3 MB) sha256=03b33068a323… → id=4f81a58e-1ee7-45a2-b479-79cd6917e961
+[uploader] Uploading WTTF FX60077.MXF (828.3 MB) sha256=8fa55718fe67… → id=6eed35d9-3ea0-4e13-8928-deb113e16eac
+[uploader] Uploading WTTF FX60047.MXF (858.4 MB) sha256=f0c81c04e3f1… → id=b20a1fa7-f3d3-471c-8980-17ba5f91b2ab
+[uploader] Uploading WTTF FX60043.MXF (892.7 MB) sha256=2775407e5cd3… → id=4e95c8a0-013b-404c-b91f-f673fbe2f169
+[uploader] Uploading WTTF FX60081.MXF (917.9 MB) sha256=3cdf2122ca0e… → id=43445924-8ebc-445a-bfb7-a6282797b27d
+[uploader] Uploading WTTF FX60079.MXF (1.7 GB) sha256=5db2f2834e1d… → id=623fd5fc-9641-4448-9770-8df2d2bcca28
+[uploader] Uploading WTTF FX60075.MXF (4.0 GB) sha256=835b1355bcfd… → id=4e0091e6-ddd2-414f-841c-6789748b049f
+[uploader] Uploading WTTF FX60071.MXF (5.3 GB) sha256=c25f9299f80f… → id=e8bac110-62f6-4973-bbc4-1495cf2221a4
+[uploader] Uploading WTTF FX60072.MXF (6.8 GB) sha256=b1d04b754405… → id=4fe7d0e9-814e-4f37-be51-d3210723ccec
+[uploader] Uploading WTTF FX60069.MXF (12.3 GB) sha256=b53a94dbcfe9… → id=64f9a832-3ecd-4b99-80f7-2d53b373f666
+[poller] Started — polling for dashboard commands
+[agent] Server: https://filedrop.wttf.com.au
+[agent] Watching: C:\Users\jason\FileDrop
+[watcher] Ready. Queuing 0 file(s) smallest→largest (4 at a time)

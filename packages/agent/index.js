@@ -4,10 +4,12 @@ require('dotenv').config();
 
 process.on('uncaughtException', (err) => {
   console.error('[agent] FATAL uncaughtException:', err);
+  killTray();
   process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
   console.error('[agent] FATAL unhandledRejection:', reason);
+  killTray();
   process.exit(1);
 });
 
@@ -16,6 +18,7 @@ const fetch = require('node-fetch');
 const { startWatcher }    = require('./watcher');
 const { startPoller }     = require('./poller');
 const { pruneOldResumes } = require('./uploader');
+const { startTray, killTray } = require('./tray');
 
 const SERVER_URL  = process.env.FILEDROP_SERVER || 'http://178.104.151.74:3000';
 const AGENT_TOKEN = process.env.FILEDROP_AGENT_TOKEN;
@@ -28,6 +31,7 @@ if (!AGENT_TOKEN) {
 }
 
 pruneOldResumes();
+startTray();
 startPoller({ serverUrl: SERVER_URL, agentToken: AGENT_TOKEN });
 
 // ── Watch dir management ──────────────────────────────────────────────────────
