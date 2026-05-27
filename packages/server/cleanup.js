@@ -24,13 +24,15 @@ async function runCleanup(db, sseBus) {
 
 async function _doCleanup(db, sseBus) {
   // ── Sweep stale 'uploading' entries ──────────────────────────────────────────
-  // Seen (has heartbeat): 30 min of silence = abandoned
+  // Seen (has heartbeat): 4 hours of silence = abandoned.
+  // 30 min was too aggressive — a 20+ GB file takes hours and a tab close / brief
+  // network drop would kill it before the user had a chance to resume.
   // Never seen (last_seen_at IS NULL): give 7 days grace — agent batches queue for days
   const stale = db.prepare(`
     SELECT id, r2_key FROM files
     WHERE status = 'uploading'
       AND (
-        (last_seen_at IS NOT NULL AND last_seen_at < datetime('now', '-30 minutes'))
+        (last_seen_at IS NOT NULL AND last_seen_at < datetime('now', '-4 hours'))
         OR
         (last_seen_at IS NULL AND created_at < datetime('now', '-7 days'))
       )
