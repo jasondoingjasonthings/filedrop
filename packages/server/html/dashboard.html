@@ -372,6 +372,14 @@ main { flex: 1; padding: 24px; max-width: 1200px; width: 100%; margin: 0 auto; }
 
 /* ── Library folder groups ──────────────────────────────────────────────── */
 .folder-group { border: 1.5px solid var(--border); border-radius: var(--r); overflow: visible; margin-bottom: 10px; box-shadow: 0 1px 4px rgba(91,200,232,0.06); }
+
+/* ── Drag-and-drop ──────────────────────────────────────────────────────── */
+.drag-handle { cursor: grab; color: var(--muted2); user-select: none; flex-shrink: 0; padding: 0 5px 0 0; font-size: 15px; line-height: 1; opacity: 0; transition: opacity .15s; }
+.folder-group-header:hover .drag-handle, tr.lib-row:hover .drag-handle { opacity: 1; }
+.drag-handle:active { cursor: grabbing; }
+.folder-group.drag-over > .folder-group-header { background: rgba(91,200,232,0.15) !important; outline: 2px dashed var(--accent); outline-offset: -2px; border-radius: var(--r) var(--r) 0 0; }
+.folder-group.dragging { opacity: 0.4; pointer-events: none; }
+tr.lib-row.dragging td { opacity: 0.35; background: var(--border) !important; }
 .folder-group-files { border-radius: 0 0 var(--r) var(--r); overflow: hidden; }
 .folder-group-header {
   display: flex; align-items: center; gap: 12px;
@@ -1375,8 +1383,8 @@ function renderLibrary() {
                  <span id="upct-${f.id}" style="font-size:11px;color:var(--accent-d);font-weight:700;white-space:nowrap">${f.upload_progress||0}%</span>
                </div>` : '';
           return `
-            <tr id="fc-${f.id}" class="lib-row ${f.status}">
-              <td class="lib-name"><span>${esc(f.name)}</span>${progress}</td>
+            <tr id="fc-${f.id}" class="lib-row ${f.status}" data-file-id="${f.id}" data-file-folder="${esc(f.folder||'')}">
+              <td class="lib-name">${!isUploading ? `<span class="drag-handle" draggable="true" title="Drag to move">⠿</span>` : ''}<span>${esc(f.name)}</span>${progress}</td>
               <td class="lib-size">${fmtBytes(f.size)}</td>
               <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
               <td class="lib-status"><span class="status-badge ${f.status}">${f.status}</span>${countdown}${f.checksum ? `<span title="SHA-256: ${esc(f.checksum)}" style="color:var(--success);font-size:11px;font-weight:700;margin-left:6px;cursor:default">✓</span>` : ''}${f.proxy_key ? `<span class="status-badge" style="background:#064e3b;color:#6ee7b7;margin-left:4px">proxy ✓</span>` : f.proxy_job_status === 'processing' ? `<span class="status-badge" style="background:#1e3a5f;color:#93c5fd;margin-left:4px">transcoding…</span>` : f.proxy_job_status === 'pending' ? `<span class="status-badge" style="background:#1c1917;color:#a8a29e;margin-left:4px">proxy queued</span>` : f.proxy_job_status === 'failed' ? `<span class="status-badge" style="background:#7f1d1d;color:#fca5a5;margin-left:4px">proxy failed</span>` : ''}</td>
@@ -1415,9 +1423,9 @@ function renderLibrary() {
       : 'margin-bottom:12px';
 
     return `
-      <div class="folder-group" style="${outerStyle}">
+      <div class="folder-group" data-folder-key="${esc(key)}" style="${outerStyle}">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
-          <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
+          <span class="drag-handle" draggable="true" title="Drag to move folder">⠿</span><span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${displayLabel ? esc(displayLabel) : '<span style="color:var(--muted)">No folder</span>'}</div>
             <div class="folder-group-meta">${summary.file_count} file${summary.file_count !== 1 ? 's' : ''} · ${fmtBytes(totalSize)}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
@@ -1494,9 +1502,9 @@ function renderLibrary() {
     }).join('');
 
     return `
-      <div class="folder-group" style="margin-bottom:12px">
+      <div class="folder-group" data-folder-key="${esc(topKey)}" style="margin-bottom:12px">
         <div class="folder-group-header" onclick="toggleOwnerGroup('${safeTopKey}')" style="border-radius:${isCollapsed?'var(--r)':'var(--r) var(--r) 0 0'}">
-          <span class="folder-group-icon">${isCollapsed ? ICON_FOLDER_CLOSED : ICON_FOLDER_OPEN}</span>
+          <span class="drag-handle" draggable="true" title="Drag to move folder">⠿</span><span class="folder-group-icon">${isCollapsed ? ICON_FOLDER_CLOSED : ICON_FOLDER_OPEN}</span>
           <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${esc(topKey || '(root)')}</div>
             <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)} · ${groupSummaries.length} sub-folder${groupSummaries.length!==1?'s':''}${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
@@ -1802,9 +1810,9 @@ function renderEditor() {
       : '';
 
     return `
-      <div class="folder-group" style="${outerStyle}">
+      <div class="folder-group" data-folder-key="${esc(key)}" style="${outerStyle}">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
-          <span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
+          <span class="drag-handle" draggable="true" title="Drag to move folder">⠿</span><span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
           <div class="folder-group-info">
             <div class="folder-group-name">${esc(displayLabel)}</div>
             <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
@@ -4185,6 +4193,84 @@ document.getElementById('watchDirSelectBtn').addEventListener('click', async () 
     if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
   }
 });
+
+// ── Drag-and-drop move ────────────────────────────────────────────────────────
+{
+  let _drag = null;
+
+  document.addEventListener('dragstart', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+
+    const tr = handle.closest('tr[data-file-id]');
+    if (tr) {
+      _drag = { type: 'file', id: tr.dataset.fileId, folder: tr.dataset.fileFolder };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      setTimeout(() => tr.classList.add('dragging'), 0);
+      return;
+    }
+
+    const fg = handle.closest('.folder-group[data-folder-key]');
+    if (fg) {
+      _drag = { type: 'folder', path: fg.dataset.folderKey };
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      setTimeout(() => fg.classList.add('dragging'), 0);
+    }
+  });
+
+  document.addEventListener('dragend', () => {
+    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    _drag = null;
+  });
+
+  document.addEventListener('dragover', e => {
+    if (!_drag) return;
+    const fg = e.target.closest('.folder-group[data-folder-key]');
+    if (!fg) return;
+    const targetKey = fg.dataset.folderKey;
+    if (_drag.type === 'folder' && (targetKey === _drag.path || targetKey.startsWith(_drag.path + '/'))) return;
+    if (_drag.type === 'file' && targetKey === _drag.folder) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.drag-over').forEach(el => { if (el !== fg) el.classList.remove('drag-over'); });
+    fg.classList.add('drag-over');
+  });
+
+  document.addEventListener('dragleave', e => {
+    const fg = e.target.closest('.folder-group[data-folder-key]');
+    if (fg && !fg.contains(e.relatedTarget)) fg.classList.remove('drag-over');
+  });
+
+  document.addEventListener('drop', async e => {
+    e.preventDefault();
+    const fg = e.target.closest('.folder-group[data-folder-key]');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    if (!fg || !_drag) { _drag = null; return; }
+    const targetKey = fg.dataset.folderKey;
+    const drag = _drag;
+    _drag = null;
+    try {
+      if (drag.type === 'file') {
+        if (drag.folder === targetKey) return;
+        await api('/api/files/move', { method: 'POST', body: JSON.stringify({ ids: [drag.id], folder: targetKey }) });
+        toast('Moved');
+      } else if (drag.type === 'folder') {
+        if (targetKey === drag.path || targetKey.startsWith(drag.path + '/')) return;
+        const leaf    = drag.path.split('/').pop();
+        const newPath = targetKey ? `${targetKey}/${leaf}` : leaf;
+        if (newPath === drag.path) return;
+        await api('/api/files/folder-move', { method: 'POST', body: JSON.stringify({ from: drag.path, to: newPath }) });
+        toast('Folder moved');
+      }
+    } catch (err) {
+      toast('Move failed: ' + err.message, 'error');
+    }
+  });
+}
+
 </script>
 </body>
 </html>
