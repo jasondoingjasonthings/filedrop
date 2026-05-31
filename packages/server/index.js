@@ -87,7 +87,7 @@ app.get('/health', (req, res) => {
 // is covered by the auth middleware (only valid JWT holders can reach it).
 const uploadStartLimiter = rateLimit({
   windowMs: 60_000,
-  max: 120,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests — slow down' },

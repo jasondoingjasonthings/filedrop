@@ -3097,11 +3097,22 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
   try {
     const resume = _loadResume(file);
 
-    // Register — pass saved r2Key if resuming so the same R2 object is reused
-    const start = await api('/api/upload/browser/start', {
-      method: 'POST',
-      body: JSON.stringify({ name: file.name, size: file.size, folder, r2Key: resume?.r2Key }),
-    });
+    // Register — pass saved r2Key if resuming so the same R2 object is reused.
+    // Retry with backoff if rate-limited (429) so bulk drops don't permanently fail.
+    let start;
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        start = await api('/api/upload/browser/start', {
+          method: 'POST',
+          body: JSON.stringify({ name: file.name, size: file.size, folder, r2Key: resume?.r2Key }),
+        });
+        break;
+      } catch (err) {
+        const is429 = err.message.includes('slow down') || err.message.includes('429') || err.message.toLowerCase().includes('too many');
+        if (!is429 || attempt === 5) throw err;
+        await new Promise(r => setTimeout(r, 2000 * attempt)); // 2s, 4s, 6s, 8s
+      }
+    }
     if (!start || cancelled) return;
     fileId = start.id;
     r2Key  = start.r2Key;
