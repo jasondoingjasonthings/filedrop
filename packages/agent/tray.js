@@ -6,25 +6,30 @@ const os   = require('os');
 const { execSync } = require('child_process');
 const SysTray = require('systray2').default;
 
-const ICON_PATH = path.join(os.tmpdir(), 'filedrop-tray.ico');
+const ICON_PATH  = path.join(os.tmpdir(), 'filedrop-tray.ico');
 const SERVER_URL = process.env.FILEDROP_SERVER || 'http://178.104.151.74:3000';
 
 // ── Icon ──────────────────────────────────────────────────────────────────────
 // Generate a simple 16x16 ICO using PowerShell + .NET on first run.
+// Single-line command (no newlines) so cmd.exe doesn't break the quoted arg.
+// PS single-quoted strings don't escape backslashes, so ICON_PATH is used as-is.
 
 function ensureIcon() {
   if (fs.existsSync(ICON_PATH)) return ICON_PATH;
   try {
-    execSync(`powershell -NoProfile -Command "
-      Add-Type -AssemblyName System.Drawing;
-      $b = New-Object System.Drawing.Bitmap 16,16;
-      $g = [System.Drawing.Graphics]::FromImage($b);
-      $g.Clear([System.Drawing.Color]::FromArgb(255,14,165,233));
-      $g.FillEllipse([System.Drawing.Brushes]::White, 4, 4, 8, 8);
-      $ic = [System.Drawing.Icon]::FromHandle($b.GetHicon());
-      $s = New-Object System.IO.FileStream '${ICON_PATH.replace(/\\/g, '\\\\')}', Create;
-      $ic.Save($s); $s.Close();
-      $g.Dispose(); $b.Dispose();"`, { stdio: 'ignore' });
+    execSync(
+      `powershell -NoProfile -Command "` +
+      `Add-Type -AssemblyName System.Drawing;` +
+      `$b = New-Object System.Drawing.Bitmap 16,16;` +
+      `$g = [System.Drawing.Graphics]::FromImage($b);` +
+      `$g.Clear([System.Drawing.Color]::FromArgb(255,14,165,233));` +
+      `$g.FillEllipse([System.Drawing.Brushes]::White, 4, 4, 8, 8);` +
+      `$ic = [System.Drawing.Icon]::FromHandle($b.GetHicon());` +
+      `$s = New-Object System.IO.FileStream '${ICON_PATH}', Create;` +
+      `$ic.Save($s); $s.Close();` +
+      `$g.Dispose(); $b.Dispose()"`,
+      { stdio: 'ignore' }
+    );
   } catch (e) {
     console.warn('[tray] Icon generation failed:', e.message);
   }
@@ -34,7 +39,7 @@ function ensureIcon() {
 // ── State ─────────────────────────────────────────────────────────────────────
 
 let _tray       = null;
-let _status     = 'idle';   // 'idle' | 'uploading' | 'error'
+let _status     = 'idle';
 let _queueCount = 0;
 
 function statusLine() {
@@ -62,7 +67,8 @@ function buildMenu() {
 
 function startTray() {
   try {
-    _tray = new SysTray(buildMenu());
+    // Constructor requires { menu, debug, copyDir } — pass menu wrapped in conf object
+    _tray = new SysTray({ menu: buildMenu(), debug: false, copyDir: false });
 
     _tray.onClick(action => {
       const item = action.item?.title || '';
@@ -71,7 +77,9 @@ function startTray() {
         exec(`start "" "${SERVER_URL}"`);
       }
       if (item === 'Quit') {
-        _tray.kill();
+        // kill(true) would call process.exit(0) from the onExit callback,
+        // but process.exit(0) here fires immediately anyway.
+        _tray.kill(false).catch(() => {});
         process.exit(0);
       }
     });
@@ -85,11 +93,16 @@ function startTray() {
 function setStatus(status, queueCount = 0) {
   _status     = status;
   _queueCount = queueCount;
-  try { _tray?.setMenu(buildMenu()); } catch {}
+  // sendAction is the correct update mechanism — setMenu() does not exist
+  if (_tray) {
+    _tray.sendAction({ type: 'update-menu', menu: buildMenu() }).catch(() => {});
+  }
 }
 
 function killTray() {
-  try { _tray?.kill(); } catch {}
+  // kill(false) so it does NOT call process.exit(0) — let the crash handler own the exit code.
+  // .catch() prevents an unhandled rejection from re-triggering the unhandledRejection handler.
+  try { _tray?.kill(false)?.catch(() => {}); } catch {}
 }
 
 module.exports = { startTray, setStatus, killTray };
