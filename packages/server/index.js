@@ -34,6 +34,7 @@ const { makeUploadLinksRouter } = require('./routes/uploadlinks');
 const { makeRequestsRouter }   = require('./routes/requests');
 const { makeTranscodeRouter }  = require('./routes/transcode');
 const { startTranscodeScheduler } = require('./transcode');
+const { resumePendingBuilds }    = require('./zipbuilder');
 const { presignDownload }      = require('./r2');
 
 const PORT       = process.env.PORT || 3000;
@@ -194,10 +195,11 @@ app.get('/', (req, res) => {
   res.send(html);
 });
 
-// Start cleanup, transcode scheduler, and daily backup
+// Start cleanup, transcode scheduler, daily backup, and resume any interrupted ZIP builds
 startCleanup(db, sseBus);
 startTranscodeScheduler(db, sseBus);
 startBackup(db);
+resumePendingBuilds(db);
 
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`[filedrop] http://0.0.0.0:${PORT}`);

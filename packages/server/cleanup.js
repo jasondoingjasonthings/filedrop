@@ -1,6 +1,7 @@
 'use strict';
 
 const { deleteObject } = require('./r2');
+const { deleteShareZip } = require('./zipbuilder');
 
 const CHECK_INTERVAL_MS = 60_000; // check every minute
 
@@ -42,6 +43,16 @@ async function _doCleanup(db, sseBus) {
     db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(f.id);
     sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(f.id));
     console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);
+  }
+
+  // ── Delete R2 ZIPs for expired share links, then remove the link row ────────
+  const expiredWithZip = db.prepare(`
+    SELECT token, zip_key FROM share_links
+    WHERE expires_at <= datetime('now') AND zip_key IS NOT NULL
+  `).all();
+  for (const share of expiredWithZip) {
+    await deleteShareZip(share.zip_key);
+    db.prepare(`DELETE FROM share_links WHERE token=?`).run(share.token);
   }
 
   // ── Prune expired revoked tokens ────────────────────────────────────────────

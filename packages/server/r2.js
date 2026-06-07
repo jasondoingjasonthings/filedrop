@@ -3,6 +3,7 @@
 const { S3Client, DeleteObjectCommand, HeadObjectCommand, ListPartsCommand } = require('@aws-sdk/client-s3');
 const { GetObjectCommand, PutObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { Upload } = require('@aws-sdk/lib-storage');
 
 const ACCOUNT_ID  = process.env.R2_ACCOUNT_ID;
 const ACCESS_KEY  = process.env.R2_ACCESS_KEY_ID;
@@ -60,6 +61,18 @@ async function putObjectStream(key, stream, size, contentType = 'application/oct
   await client.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: stream, ContentLength: size, ContentType: contentType }));
 }
 
+// Upload a stream of unknown size using multipart (no ContentLength required).
+// Used for pre-built share ZIPs where the final size isn't known upfront.
+async function uploadLarge(key, stream, contentType = 'application/octet-stream') {
+  const upload = new Upload({
+    client,
+    params: { Bucket: BUCKET, Key: key, Body: stream, ContentType: contentType },
+    queueSize: 2,
+    partSize: 10 * 1024 * 1024,
+  });
+  await upload.done();
+}
+
 // Multipart helpers (used by agent)
 async function createMultipart(key) {
   const r = await client.send(new CreateMultipartUploadCommand({ Bucket: BUCKET, Key: key }));
@@ -98,7 +111,7 @@ async function validateMultipart(key, uploadId) {
 }
 
 module.exports = {
-  presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject, putObjectStream,
+  presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject, putObjectStream, uploadLarge,
   createMultipart, presignPart, completeMultipart, abortMultipart, validateMultipart,
   BUCKET,
 };

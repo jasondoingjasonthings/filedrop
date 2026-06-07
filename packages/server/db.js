@@ -127,6 +127,11 @@ function migrateAlter(db) {
       db.prepare(`CREATE INDEX idx_audit_created ON audit_log(created_at DESC)`).run();
     }
 
+    // Pre-built share ZIPs
+    const shareCols = db.prepare(`PRAGMA table_info(share_links)`).all().map(c => c.name);
+    if (!shareCols.includes('zip_key'))    db.prepare(`ALTER TABLE share_links ADD COLUMN zip_key TEXT`).run();
+    if (!shareCols.includes('zip_status')) db.prepare(`ALTER TABLE share_links ADD COLUMN zip_status TEXT`).run();
+
     // Proxy transcoding
     if (!cols.includes('proxy_key')) db.prepare(`ALTER TABLE files ADD COLUMN proxy_key TEXT`).run();
     const folderCols = db.prepare(`PRAGMA table_info(folders)`).all().map(c => c.name);

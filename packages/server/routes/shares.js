@@ -8,6 +8,7 @@ const { makeAuthMiddleware, requireOwner } = require('../auth');
 const archiver = require('archiver');
 const { presignDownload, getObjectStream } = require('../r2');
 const { getCached, setCached } = require('../urlcache');
+const { queueZipBuild, deleteShareZip } = require('../zipbuilder');
 
 function makeSharesApiRouter(db, jwtSecret) {
   const router  = express.Router();
@@ -18,10 +19,13 @@ function makeSharesApiRouter(db, jwtSecret) {
     const { folder, label, days = 7 } = req.body || {};
     const token     = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+    const shareLabel = label || folder || 'Shared files';
     db.prepare(`
       INSERT INTO share_links (token, folder, label, expires_at)
       VALUES (?, ?, ?, ?)
-    `).run(token, folder ?? '', label || folder || 'Shared files', expiresAt);
+    `).run(token, folder ?? '', shareLabel, expiresAt);
+    // Kick off background ZIP build so it's ready before the client arrives.
+    queueZipBuild(db, token, folder ?? '', shareLabel);
     res.json({ token, expiresAt });
   });
 
@@ -35,7 +39,9 @@ function makeSharesApiRouter(db, jwtSecret) {
 
   // ── Revoke share link ────────────────────────────────────────────────────
   router.delete('/:id', jwtAuth, (req, res) => {
+    const link = db.prepare(`SELECT zip_key FROM share_links WHERE id=?`).get(req.params.id);
     db.prepare(`DELETE FROM share_links WHERE id=?`).run(req.params.id);
+    if (link?.zip_key) deleteShareZip(link.zip_key);
     res.json({ ok: true });
   });
 
@@ -120,12 +126,33 @@ function makeSharesPublicRouter(db) {
     res.json({ url, name: file.name });
   });
 
+  // ── Public: ZIP status polling (used by share page while ZIP is building) ──
+  router.get('/:token/zip-status', (req, res) => {
+    const link = db.prepare(`
+      SELECT zip_status FROM share_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).json({ status: 'none' }); return; }
+    res.json({ status: link.zip_status || 'none' });
+  });
+
   // ── Public: download all files as a ZIP (preserves subfolder structure) ──
   router.get('/:token/zip', async (req, res) => {
     const link = db.prepare(`
       SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
     `).get(req.params.token);
     if (!link) { res.status(404).send('Link expired'); return; }
+
+    // Fast path: ZIP already built — redirect to presigned R2 URL (instant download).
+    if (link.zip_status === 'ready' && link.zip_key) {
+      try {
+        const zipName = (link.label || link.folder || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_');
+        const url = await presignDownload(link.zip_key, 3600, `${zipName}.zip`);
+        res.redirect(302, url);
+        return;
+      } catch (err) {
+        console.error('[zip] presign failed, falling back to stream:', err.message);
+      }
+    }
 
     const prefix = link.folder;
     const files = db.prepare(`

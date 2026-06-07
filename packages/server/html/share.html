@@ -97,7 +97,10 @@ header { background: var(--text); padding: 0 24px; height: 58px; display: flex; 
 
   <div class="top-bar">
     <span class="section-label" id="fileCount"></span>
-    <a class="btn" id="dlAllBtn" style="display:none" href="#" download>↓ Download All as ZIP</a>
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span id="zipBadge" style="display:none;font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.04em;text-transform:uppercase;"></span>
+      <a class="btn" id="dlAllBtn" style="display:none" href="#">↓ Download All as ZIP</a>
+    </div>
   </div>
 
   <div id="gallerySection" style="display:none">
@@ -180,6 +183,9 @@ async function init() {
   const dlBtn = document.getElementById('dlAllBtn');
   dlBtn.href = `/share/${token}/zip`;
   dlBtn.style.display = 'inline-flex';
+
+  // Poll zip-status so the badge updates as the pre-built ZIP becomes ready.
+  pollZipStatus();
 
   if (imageFiles.length) {
     document.getElementById('gallerySection').style.display = 'block';
@@ -296,6 +302,24 @@ function downloadOne(fileId, name, btn) {
   setTimeout(() => { btn.textContent = '✓ Done'; btn.classList.add('done'); }, 800);
 }
 
+
+// ── ZIP status badge ──────────────────────────────────────────────────────────
+
+async function pollZipStatus() {
+  const badge = document.getElementById('zipBadge');
+  try {
+    const r = await fetch(`/share/${token}/zip-status`);
+    if (!r.ok) return;
+    const { status } = await r.json();
+    if (status === 'pending' || status === 'building') {
+      badge.textContent = '⏳ Preparing ZIP…';
+      badge.style.display = 'inline';
+      setTimeout(pollZipStatus, 5000);
+    } else {
+      badge.style.display = 'none';
+    }
+  } catch {}
+}
 
 init();
 </script>
