@@ -2,7 +2,7 @@
 
 const archiver   = require('archiver');
 const { PassThrough } = require('stream');
-const { getObjectStream, uploadLarge, deleteObject } = require('./r2');
+const { getObject, uploadLarge, deleteObject } = require('./r2');
 
 // In-memory queue — rebuilt from DB on server start via resumePendingBuilds().
 const _queue  = [];
@@ -72,17 +72,29 @@ async function _build(db, { token, folder, label }) {
   // R2 upload runs in parallel with archiver — lib-storage handles multipart.
   const uploadPromise = uploadLarge(zipKey, pass, 'application/zip');
 
-  // Pre-fetch pipeline: start fetching the next file from R2 while archiver
-  // writes the current one, so round-trips don't stack serially.
-  let nextFetch = files.length > 0 ? getObjectStream(files[0].r2_key).catch(e => e) : null;
+  // Parallel fetch pool: download CONCURRENCY files from R2 simultaneously.
+  // Each slot buffers the full file so true parallel downloads happen rather
+  // than just opening N idle streams. Archiver still appends in order.
+  const CONCURRENCY = 4;
+  const inFlight = new Map(); // index -> Promise<Buffer|Error>
+
+  function kickFetch(idx) {
+    if (idx < files.length && !inFlight.has(idx)) {
+      inFlight.set(idx, getObject(files[idx].r2_key).catch(e => e));
+    }
+  }
+
+  for (let i = 0; i < Math.min(CONCURRENCY, files.length); i++) kickFetch(i);
 
   for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const streamOrErr = await nextFetch;
-    nextFetch = i + 1 < files.length ? getObjectStream(files[i + 1].r2_key).catch(e => e) : null;
+    kickFetch(i + CONCURRENCY);
 
-    if (streamOrErr instanceof Error) {
-      console.error(`[zip] skipping ${f.name}:`, streamOrErr.message);
+    const f = files[i];
+    const bufOrErr = await inFlight.get(i);
+    inFlight.delete(i);
+
+    if (bufOrErr instanceof Error) {
+      console.error(`[zip] skipping ${f.name}:`, bufOrErr.message);
       continue;
     }
 
@@ -91,9 +103,8 @@ async function _build(db, { token, folder, label }) {
       : f.folder;
     const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
 
-    await new Promise((resolve, reject) => {
-      streamOrErr.on('error', reject);
-      archive.append(streamOrErr, { name: archivePath });
+    await new Promise((resolve) => {
+      archive.append(bufOrErr, { name: archivePath });
       archive.once('entry', resolve);
     });
   }
