@@ -24,8 +24,17 @@ function makeSharesApiRouter(db, jwtSecret) {
       INSERT INTO share_links (token, folder, label, expires_at)
       VALUES (?, ?, ?, ?)
     `).run(token, folder ?? '', shareLabel, expiresAt);
-    // Kick off background ZIP build so it's ready before the client arrives.
-    queueZipBuild(db, token, folder ?? '', shareLabel);
+    // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
+    const existing = db.prepare(`
+      SELECT zip_key FROM share_links
+      WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
+    `).get(folder ?? '', token);
+    if (existing) {
+      db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
+        .run(existing.zip_key, token);
+    } else {
+      queueZipBuild(db, token, folder ?? '', shareLabel);
+    }
     res.json({ token, expiresAt });
   });
 
