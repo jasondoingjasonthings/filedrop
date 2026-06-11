@@ -102,6 +102,7 @@ function makeFilesRouter(db, sseBus) {
       db.prepare(`UPDATE folders SET path=? WHERE path=?`).run(toKey, fromKey);
     })();
 
+    sseBus.broadcast('folders-changed', {});
     res.json({ ok: true, count });
   });
 
@@ -273,6 +274,7 @@ function makeFilesRouter(db, sseBus) {
     db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
     const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
     for (const f of updated) sseBus.broadcast('file', f);
+    sseBus.broadcast('folders-changed', {});
     logAudit(db, { action: 'folder_renamed', actor: req.user?.username, folder: newKey, detail: `was: ${oldKey}`, ip: req.ip });
     res.json({ ok: true, count: affected.length });
   });

@@ -3778,10 +3778,41 @@ function connectSSE() {
     b.textContent = 'live'; b.className = 'conn-badge live';
   });
 
+  es.addEventListener('folders-changed', async () => {
+    const summaries = await api('/api/files/folders');
+    if (summaries) { folderSummaries = summaries; render(); }
+  });
+
   es.addEventListener('file', e => {
     const f = JSON.parse(e.data);
     const folderKey = f.folder ?? '';
     const prev = files[f.id];
+    const prevFolderKey = prev ? (prev.folder ?? '') : null;
+    const folderChanged = prevFolderKey !== null && prevFolderKey !== folderKey;
+
+    // When a file moves folders, update the OLD folder summary before touching files[].
+    // (files[] still has the old folder path at this point, so recalculation is accurate.)
+    if (folderChanged) {
+      const oldSummary = folderSummaries.find(s => (s.folder ?? '') === prevFolderKey);
+      if (oldSummary) {
+        if (loadedFolders.has(prevFolderKey)) {
+          const loaded = Object.values(files).filter(ff => ff.id !== f.id && (ff.folder ?? '') === prevFolderKey && ff.status !== 'deleted' && ff.status !== 'deleting');
+          oldSummary.file_count       = loaded.length;
+          oldSummary.total_size       = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
+          oldSummary.uploading_count  = loaded.filter(ff => ff.status === 'uploading').length;
+          oldSummary.available_count  = loaded.filter(ff => ff.status === 'available').length;
+          oldSummary.downloaded_count = loaded.filter(ff => ff.downloaded_at).length;
+        } else {
+          if (prev.status !== 'deleted' && prev.status !== 'deleting') {
+            if (prev.status === 'uploading') oldSummary.uploading_count  = Math.max(0, oldSummary.uploading_count  - 1);
+            if (prev.status === 'available') oldSummary.available_count  = Math.max(0, oldSummary.available_count  - 1);
+            if (prev.downloaded_at)          oldSummary.downloaded_count = Math.max(0, oldSummary.downloaded_count - 1);
+            oldSummary.file_count = Math.max(0, oldSummary.file_count - 1);
+            oldSummary.total_size = Math.max(0, (oldSummary.total_size || 0) - (prev.size || 0));
+          }
+        }
+      }
+    }
 
     // Track files in memory — uploading always, others only if folder loaded or already tracked
     if (f.status === 'uploading') {
@@ -3792,14 +3823,14 @@ function connectSSE() {
       files[f.id] = f;
     }
 
-    // Update folder summary counts
+    // Update new folder summary counts
     let summary = folderSummaries.find(s => (s.folder ?? '') === folderKey);
     if (!summary) {
       summary = { folder: f.folder ?? '', file_count: 0, total_size: 0, uploading_count: 0, available_count: 0, downloaded_count: 0 };
       folderSummaries.unshift(summary);
     }
     if (loadedFolders.has(folderKey)) {
-      // Recalculate precisely from the full loaded set
+      // Recalculate precisely from the full loaded set (files[] already updated above)
       const loaded = Object.values(files).filter(ff => (ff.folder ?? '') === folderKey && ff.status !== 'deleted' && ff.status !== 'deleting');
       summary.file_count       = loaded.length;
       summary.total_size       = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
@@ -3807,8 +3838,9 @@ function connectSSE() {
       summary.available_count  = loaded.filter(ff => ff.status === 'available').length;
       summary.downloaded_count = loaded.filter(ff => ff.downloaded_at).length;
     } else {
-      // Folder not loaded — update counts incrementally from prev→current transition
-      const prevActive = prev && prev.status !== 'deleted' && prev.status !== 'deleting';
+      // Folder not loaded — update counts incrementally.
+      // If file moved from a different folder, don't subtract prev (already handled above for old folder).
+      const prevActive = !folderChanged && prev && prev.status !== 'deleted' && prev.status !== 'deleting';
       const currActive = f.status !== 'deleted' && f.status !== 'deleting';
       if (prevActive) {
         if (prev.status === 'uploading') summary.uploading_count  = Math.max(0, summary.uploading_count  - 1);
