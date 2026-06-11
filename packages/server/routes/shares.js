@@ -24,16 +24,27 @@ function makeSharesApiRouter(db, jwtSecret) {
       INSERT INTO share_links (token, folder, label, expires_at)
       VALUES (?, ?, ?, ?)
     `).run(token, folder ?? '', shareLabel, expiresAt);
-    // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
-    const existing = db.prepare(`
-      SELECT zip_key FROM share_links
-      WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
-    `).get(folder ?? '', token);
-    if (existing) {
-      db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
-        .run(existing.zip_key, token);
+    // Skip ZIP build for large shares (>= 15 GB) — they use individual file downloads instead.
+    const LARGE_THRESHOLD = 15 * 1024 * 1024 * 1024;
+    const { total: folderSize } = db.prepare(`
+      SELECT COALESCE(SUM(size), 0) AS total FROM files
+      WHERE (folder=? OR folder LIKE ?) AND status='available'
+    `).get(folder ?? '', (folder ?? '') + '/%');
+
+    if (folderSize >= LARGE_THRESHOLD) {
+      db.prepare(`UPDATE share_links SET zip_status='large' WHERE token=?`).run(token);
     } else {
-      queueZipBuild(db, token, folder ?? '', shareLabel);
+      // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
+      const existing = db.prepare(`
+        SELECT zip_key FROM share_links
+        WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
+      `).get(folder ?? '', token);
+      if (existing) {
+        db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
+          .run(existing.zip_key, token);
+      } else {
+        queueZipBuild(db, token, folder ?? '', shareLabel);
+      }
     }
     res.json({ token, expiresAt });
   });
@@ -127,8 +138,8 @@ function makeSharesPublicRouter(db) {
     if (!link) { res.status(404).json({ error: 'Link expired' }); return; }
 
     const file = db.prepare(`
-      SELECT * FROM files WHERE id=? AND folder=? AND status='available'
-    `).get(req.params.fileId, link.folder);
+      SELECT * FROM files WHERE id=? AND (folder=? OR folder LIKE ?) AND status='available'
+    `).get(req.params.fileId, link.folder, link.folder + '/%');
     if (!file) { res.status(404).json({ error: 'File not found' }); return; }
 
     const url = await presignDownload(file.r2_key, 3600, file.name);
@@ -224,8 +235,8 @@ function makeSharesPublicRouter(db) {
     if (!link) { res.status(404).send('Link expired'); return; }
 
     const file = db.prepare(`
-      SELECT * FROM files WHERE id=? AND folder=? AND status='available'
-    `).get(req.params.fileId, link.folder);
+      SELECT * FROM files WHERE id=? AND (folder=? OR folder LIKE ?) AND status='available'
+    `).get(req.params.fileId, link.folder, link.folder + '/%');
     if (!file) { res.status(404).send('File not found'); return; }
 
     try {

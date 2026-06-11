@@ -180,12 +180,21 @@ async function init() {
   document.getElementById('fileCount').textContent = `${allFiles.length} file${allFiles.length !== 1 ? 's' : ''}`;
 
   if (!allFiles.length) { document.getElementById('emptyState').style.display = 'block'; return; }
+
+  const LARGE_THRESHOLD = 15 * 1024 * 1024 * 1024;
   const dlBtn = document.getElementById('dlAllBtn');
-  dlBtn.href = `/share/${token}/zip`;
   dlBtn.style.display = 'inline-flex';
 
-  // Poll zip-status so the badge updates as the pre-built ZIP becomes ready.
-  pollZipStatus();
+  if (totalSize >= LARGE_THRESHOLD) {
+    dlBtn.textContent = '↓ Download All Files';
+    dlBtn.href = '#';
+    dlBtn.addEventListener('click', e => { e.preventDefault(); downloadAll(); });
+    // ZIP not built for large shares — no badge needed
+  } else {
+    dlBtn.href = `/share/${token}/zip`;
+    // Poll zip-status so the badge updates as the pre-built ZIP becomes ready.
+    pollZipStatus();
+  }
 
   if (imageFiles.length) {
     document.getElementById('gallerySection').style.display = 'block';
@@ -302,6 +311,26 @@ function downloadOne(fileId, name, btn) {
   setTimeout(() => { btn.textContent = '✓ Done'; btn.classList.add('done'); }, 800);
 }
 
+
+// ── Download all files individually (large shares) ───────────────────────────
+
+async function downloadAll() {
+  const btn = document.getElementById('dlAllBtn');
+  btn.disabled = true;
+  for (let i = 0; i < allFiles.length; i++) {
+    const f = allFiles[i];
+    btn.textContent = `↓ Downloading ${i + 1} / ${allFiles.length}…`;
+    const a = document.createElement('a');
+    a.href = `/share/${token}/dl/${f.id}`;
+    a.download = f.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (i < allFiles.length - 1) await new Promise(r => setTimeout(r, 300));
+  }
+  btn.textContent = '✓ All downloads started';
+  btn.classList.add('done');
+}
 
 // ── ZIP status badge ──────────────────────────────────────────────────────────
 
