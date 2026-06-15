@@ -16,14 +16,14 @@ function makeSharesApiRouter(db, jwtSecret) {
 
   // ── Owner or Editor: create share link ───────────────────────────────────
   router.post('/', jwtAuth, (req, res) => {
-    const { folder, label, days = 7 } = req.body || {};
+    const { folder, label, days = 7, cover_image_id } = req.body || {};
     const token     = crypto.randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
     const shareLabel = label || folder || 'Shared files';
     db.prepare(`
-      INSERT INTO share_links (token, folder, label, expires_at)
-      VALUES (?, ?, ?, ?)
-    `).run(token, folder ?? '', shareLabel, expiresAt);
+      INSERT INTO share_links (token, folder, label, expires_at, cover_image_id)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(token, folder ?? '', shareLabel, expiresAt, cover_image_id ?? null);
     // Skip ZIP build for large shares (>= 15 GB) — they use individual file downloads instead.
     const LARGE_THRESHOLD = 15 * 1024 * 1024 * 1024;
     const { total: folderSize } = db.prepare(`
@@ -127,7 +127,20 @@ function makeSharesPublicRouter(db) {
       return out;
     }));
 
-    res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files });
+    // Presign cover image if one was set
+    let coverUrl = null;
+    if (link.cover_image_id) {
+      const coverFile = db.prepare(`SELECT r2_key FROM files WHERE id=? AND status='available'`).get(link.cover_image_id);
+      if (coverFile) {
+        const cacheKey = `cover:${coverFile.r2_key}`;
+        coverUrl = getCached(cacheKey);
+        if (!coverUrl) {
+          try { coverUrl = await presignDownload(coverFile.r2_key, PRESIGN_TTL); setCached(cacheKey, coverUrl, PRESIGN_TTL); } catch {}
+        }
+      }
+    }
+
+    res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files, coverUrl });
   });
 
   // ── Public: generate presigned download URL (kept for legacy) ───────────────
@@ -149,10 +162,14 @@ function makeSharesPublicRouter(db) {
   // ── Public: ZIP status polling (used by share page while ZIP is building) ──
   router.get('/:token/zip-status', (req, res) => {
     const link = db.prepare(`
-      SELECT zip_status FROM share_links WHERE token=? AND expires_at > datetime('now')
+      SELECT zip_status, zip_files_total, zip_files_done FROM share_links WHERE token=? AND expires_at > datetime('now')
     `).get(req.params.token);
     if (!link) { res.status(404).json({ status: 'none' }); return; }
-    res.json({ status: link.zip_status || 'none' });
+    res.json({
+      status: link.zip_status || 'none',
+      files_total: link.zip_files_total || 0,
+      files_done:  link.zip_files_done  || 0,
+    });
   });
 
   // ── Public: download all files as a ZIP (preserves subfolder structure) ──
@@ -167,6 +184,7 @@ function makeSharesPublicRouter(db) {
       try {
         const zipName = (link.label || link.folder || 'files').replace(/[^a-zA-Z0-9._\- ]/g, '_');
         const url = await presignDownload(link.zip_key, 3600, `${zipName}.zip`);
+        db.prepare(`UPDATE share_links SET zip_downloaded_at=datetime('now') WHERE token=?`).run(req.params.token);
         res.redirect(302, url);
         return;
       } catch (err) {

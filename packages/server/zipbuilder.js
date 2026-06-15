@@ -59,8 +59,9 @@ async function _build(db, { token, folder, label }) {
     return;
   }
 
-  db.prepare(`UPDATE share_links SET zip_status='building' WHERE token=?`).run(token);
+  db.prepare(`UPDATE share_links SET zip_status='building', zip_files_total=?, zip_files_done=0 WHERE token=?`).run(files.length, token);
   console.log(`[zip] building token=${token} files=${files.length}`);
+  const updateProgress = db.prepare(`UPDATE share_links SET zip_files_done=? WHERE token=?`);
 
   const zipKey = `zips/${token}.zip`;
   const pass   = new PassThrough();
@@ -72,15 +73,21 @@ async function _build(db, { token, folder, label }) {
   // R2 upload runs in parallel with archiver — lib-storage handles multipart.
   const uploadPromise = uploadLarge(zipKey, pass, 'application/zip');
 
-  // Pre-fetch pipeline: start fetching the next file from R2 while archiver
-  // writes the current one. Streams (not buffers) so backpressure is respected
-  // and memory stays flat regardless of file count or size.
-  let nextFetch = files.length > 0 ? getObjectStream(files[0].r2_key).catch(e => e) : null;
+  // Sliding-window prefetch: keep PREFETCH R2 fetches in-flight while the
+  // archiver writes the current entry — same approach as the owner /zip endpoint.
+  // Streams (not buffers) so backpressure is respected; memory stays flat.
+  const PREFETCH = 4;
+  const pending = [];
+  for (let i = 0; i < Math.min(PREFETCH, files.length); i++) {
+    pending.push(getObjectStream(files[i].r2_key).catch(e => e));
+  }
 
   for (let i = 0; i < files.length; i++) {
     const f = files[i];
-    const streamOrErr = await nextFetch;
-    nextFetch = i + 1 < files.length ? getObjectStream(files[i + 1].r2_key).catch(e => e) : null;
+    const streamOrErr = await pending.shift();
+
+    const nextIdx = i + PREFETCH;
+    if (nextIdx < files.length) pending.push(getObjectStream(files[nextIdx].r2_key).catch(e => e));
 
     if (streamOrErr instanceof Error) {
       console.error(`[zip] skipping ${f.name}:`, streamOrErr.message);
@@ -97,12 +104,32 @@ async function _build(db, { token, folder, label }) {
       archive.append(streamOrErr, { name: archivePath });
       archive.once('entry', resolve);
     });
+
+    // Update progress every 5 files to keep polling overhead low
+    if ((i + 1) % 5 === 0 || i === files.length - 1) {
+      updateProgress.run(i + 1, token);
+    }
   }
 
   await archive.finalize();
   await uploadPromise;
 
+  // Mark this token ready, then propagate the zip_key to any other pending/building
+  // shares for the same folder so they don't each rebuild the same ZIP.
   db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`).run(zipKey, token);
+  const siblings = db.prepare(`
+    SELECT token FROM share_links
+    WHERE folder=? AND zip_status IN ('pending','building') AND token!=? AND expires_at > datetime('now')
+  `).all(folder, token);
+  if (siblings.length) {
+    const upd = db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`);
+    for (const s of siblings) {
+      upd.run(zipKey, s.token);
+      const idx = _queue.findIndex(j => j.token === s.token);
+      if (idx !== -1) _queue.splice(idx, 1);
+    }
+    console.log(`[zip] shared zip_key with ${siblings.length} sibling link(s) for same folder`);
+  }
   console.log(`[zip] done token=${token} key=${zipKey}`);
 }
 

@@ -124,6 +124,30 @@ function makeFilesRouter(db, sseBus) {
     res.json({ files: list, total, limit, offset });
   });
 
+  // Presigned thumbnail URLs for images in a folder (used by share modal cover picker)
+  router.get('/thumbs', async (req, res) => {
+    const folder = req.query.folder ?? '';
+    const IMAGE_EXTS = ['jpg','jpeg','png','gif','webp','heic','heif'];
+    const placeholders = IMAGE_EXTS.map(() => '?').join(',');
+    const rows = db.prepare(`
+      SELECT id, name, thumbnail_key, folder FROM files
+      WHERE (folder=? OR folder LIKE ?)
+        AND status='available'
+        AND LOWER(SUBSTR(name, INSTR(name,'.')+1)) IN (${placeholders})
+      ORDER BY folder, name COLLATE NOCASE ASC
+      LIMIT 60
+    `).all(folder, folder + '/%', ...IMAGE_EXTS);
+
+    const results = await Promise.all(rows.map(async f => {
+      let thumbnailUrl = null;
+      if (f.thumbnail_key) {
+        try { thumbnailUrl = await presignDownload(f.thumbnail_key, 3600); } catch {}
+      }
+      return { id: f.id, name: f.name, folder: f.folder, thumbnailUrl };
+    }));
+    res.json(results);
+  });
+
   // List all files — kept for SSE token validation only; returns empty array to avoid heavy load
   router.get('/', (req, res) => {
     res.json([]);

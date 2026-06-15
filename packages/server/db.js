@@ -129,8 +129,12 @@ function migrateAlter(db) {
 
     // Pre-built share ZIPs
     const shareCols = db.prepare(`PRAGMA table_info(share_links)`).all().map(c => c.name);
-    if (!shareCols.includes('zip_key'))    db.prepare(`ALTER TABLE share_links ADD COLUMN zip_key TEXT`).run();
-    if (!shareCols.includes('zip_status')) db.prepare(`ALTER TABLE share_links ADD COLUMN zip_status TEXT`).run();
+    if (!shareCols.includes('zip_key'))           db.prepare(`ALTER TABLE share_links ADD COLUMN zip_key TEXT`).run();
+    if (!shareCols.includes('zip_status'))        db.prepare(`ALTER TABLE share_links ADD COLUMN zip_status TEXT`).run();
+    if (!shareCols.includes('cover_image_id'))    db.prepare(`ALTER TABLE share_links ADD COLUMN cover_image_id TEXT`).run();
+    if (!shareCols.includes('zip_downloaded_at')) db.prepare(`ALTER TABLE share_links ADD COLUMN zip_downloaded_at TEXT`).run();
+    if (!shareCols.includes('zip_files_total'))   db.prepare(`ALTER TABLE share_links ADD COLUMN zip_files_total INTEGER`).run();
+    if (!shareCols.includes('zip_files_done'))    db.prepare(`ALTER TABLE share_links ADD COLUMN zip_files_done INTEGER DEFAULT 0`).run();
 
     // Proxy transcoding
     if (!cols.includes('proxy_key')) db.prepare(`ALTER TABLE files ADD COLUMN proxy_key TEXT`).run();
