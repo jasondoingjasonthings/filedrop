@@ -3643,12 +3643,18 @@ async function loadExistingShareLinks(folder) {
       ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#059669;background:#d1fae5;border-radius:99px;padding:1px 7px">✓ downloaded ${new Date(l.zip_downloaded_at + 'Z').toLocaleDateString('en-GB')}</span>`
       : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:600;color:var(--muted);background:var(--sunk);border-radius:99px;padding:1px 7px">not yet downloaded</span>`;
     return `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px" data-share-id="${l.id}">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;font-family:monospace;color:var(--accent-d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${url}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">${dlBadge}<span style="font-size:11px;color:var(--muted)">Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${expiry.toLocaleDateString('en-GB')}</span></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">${dlBadge}<span class="share-expiry-label" style="font-size:11px;color:var(--muted)">Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${expiry.toLocaleDateString('en-GB')}</span></div>
         </div>
         <button class="btn-sm" onclick="copyExistingShareLink('${safeUrl}', '${esc(folder).replace(/'/g,"\\'")}')">Copy</button>
+        <select class="btn-sm" style="padding:4px 8px;cursor:pointer" onchange="extendShareLink(${l.id}, this)">
+          <option value="">Extend…</option>
+          <option value="7">+7 days</option>
+          <option value="30">+30 days</option>
+          <option value="90">+90 days</option>
+        </select>
         <button class="btn-sm btn-delete" onclick="revokeShareLink(${l.id}, this)">Revoke</button>
       </div>`;
   }).join('');
@@ -3666,6 +3672,19 @@ async function revokeShareLink(id, btn) {
       document.getElementById('shareNewLabel').textContent = 'New link';
     }
   }
+}
+
+async function extendShareLink(id, select) {
+  const days = parseInt(select.value);
+  if (!days) return;
+  select.value = '';
+  const data = await api(`/api/shares/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ days }) });
+  if (!data) return;
+  const row = select.closest('[data-share-id]');
+  const expiry = new Date(data.expiresAt);
+  const daysLeft = Math.max(0, Math.round((expiry - Date.now()) / 86400000));
+  row.querySelector('.share-expiry-label').textContent = `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${expiry.toLocaleDateString('en-GB')}`;
+  toast(`Link extended by ${days} days`);
 }
 
 function copyExistingShareLink(url, folder) {

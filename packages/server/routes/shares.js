@@ -57,6 +57,16 @@ function makeSharesApiRouter(db, jwtSecret) {
     res.json(links);
   });
 
+  // ── Extend share link ────────────────────────────────────────────────────
+  router.patch('/:id/extend', jwtAuth, (req, res) => {
+    const { days = 7 } = req.body || {};
+    const link = db.prepare(`SELECT * FROM share_links WHERE id=?`).get(req.params.id);
+    if (!link) return res.status(404).json({ error: 'Not found' });
+    const newExpiry = new Date(Math.max(Date.now(), new Date(link.expires_at).getTime()) + days * 86400000).toISOString();
+    db.prepare(`UPDATE share_links SET expires_at=? WHERE id=?`).run(newExpiry, req.params.id);
+    res.json({ expiresAt: newExpiry });
+  });
+
   // ── Revoke share link ────────────────────────────────────────────────────
   router.delete('/:id', jwtAuth, (req, res) => {
     const link = db.prepare(`SELECT zip_key FROM share_links WHERE id=?`).get(req.params.id);
