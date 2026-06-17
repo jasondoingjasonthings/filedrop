@@ -537,6 +537,18 @@ body.multi-selecting .folder-select-cb { opacity:1; }
 .file-table tr:last-child td { border-bottom: none; }
 .file-table tr:hover td { background: #eaf6fb; }
 .file-row-check { width: 36px; }
+/* ── Bulk action bar ─────────────────────────────────────────────────────── */
+#bulkBar {
+  display: none; position: sticky; bottom: 16px; z-index: 200;
+  margin: 8px 0; padding: 10px 16px;
+  background: var(--accent-d); color: #fff;
+  border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+  align-items: center; gap: 12px;
+}
+#bulkBar.visible { display: flex; }
+#bulkBar .bulk-count { flex: 1; font-size: 13px; font-weight: 700; }
+.lib-row-check { width: 36px; padding-left: 12px !important; }
+.lib-row-check input[type=checkbox] { width: 15px; height: 15px; cursor: pointer; accent-color: var(--accent); }
 .file-row-name { font-weight: 600; }
 .file-row-name.is-dir { color: var(--accent-d); cursor: pointer; font-weight: 700; }
 .file-row-name.is-dir:hover { text-decoration: underline; }
@@ -649,6 +661,12 @@ body.multi-selecting .folder-select-cb { opacity:1; }
           <button class="filter-btn" data-filter="downloaded">Downloaded</button>
           <button class="filter-btn" data-filter="deleted">Deleted</button>
         </div>
+      </div>
+      <div id="bulkBar">
+        <span class="bulk-count" id="bulkCount">0 selected</span>
+        <button class="btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border-color:rgba(255,255,255,0.25)" onclick="bulkMove()">Move</button>
+        <button class="btn-sm btn-delete" onclick="bulkDelete()">Delete</button>
+        <button class="btn-sm" style="background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2)" onclick="clearSelection()">✕ Clear</button>
       </div>
       <div id="libraryGrid"></div>
       <div class="empty" id="libraryEmpty" style="display:none">
@@ -1522,6 +1540,7 @@ function renderLibrary() {
                </div>` : '';
           return `
             <tr id="fc-${f.id}" class="lib-row ${f.status}" data-file-id="${f.id}" data-file-folder="${esc(f.folder||'')}">
+              <td class="lib-row-check">${!isUploading ? `<input type="checkbox" class="file-select-cb" data-id="${f.id}" data-folder="${esc(f.folder||'')}" onchange="onFileCheckChange()">` : ''}</td>
               <td class="lib-name">${!isUploading ? `<span class="drag-handle" draggable="true" title="Drag to move">⠿</span>` : ''}<span>${esc(f.name)}</span>${progress}</td>
               <td class="lib-size">${fmtBytes(f.size)}</td>
               <td class="lib-date">${fmtDate(f.uploaded_at || f.created_at)}</td>
@@ -1548,7 +1567,7 @@ function renderLibrary() {
         expandedContent = `
           <div style="background:var(--bg);border-top:1.5px solid var(--border);margin-left:24px;border-left:3px solid var(--accent);border-radius:0 0 var(--r) 0">
             <table class="lib-table">
-              <thead><tr><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th class="lib-row-check"><input type="checkbox" title="Select all" onchange="toggleSelectAll(this,'${safeKey}')"></th><th>Name</th><th>Size</th><th>Date</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>${rows}</tbody>
             </table>
             ${loadMoreBtn}
@@ -2550,6 +2569,55 @@ async function deleteFile(id) {
     await api(`/api/files/${id}`, { method:'DELETE' });
     toast('File deleted from R2');
   } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Bulk selection ────────────────────────────────────────────────────────────
+function getCheckedBoxes() {
+  return Array.from(document.querySelectorAll('.file-select-cb:checked'));
+}
+
+function onFileCheckChange() {
+  const checked = getCheckedBoxes();
+  const bar = document.getElementById('bulkBar');
+  const count = document.getElementById('bulkCount');
+  if (checked.length > 0) {
+    bar.classList.add('visible');
+    count.textContent = `${checked.length} file${checked.length !== 1 ? 's' : ''} selected`;
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function toggleSelectAll(headerCb, folderKey) {
+  const allCbs = Array.from(document.querySelectorAll(`.file-select-cb[data-folder="${CSS.escape(folderKey)}"]`));
+  allCbs.forEach(cb => { cb.checked = headerCb.checked; });
+  onFileCheckChange();
+}
+
+function clearSelection() {
+  document.querySelectorAll('.file-select-cb').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('thead input[type=checkbox]').forEach(cb => { cb.checked = false; });
+  document.getElementById('bulkBar').classList.remove('visible');
+}
+
+async function bulkDelete() {
+  const checked = getCheckedBoxes();
+  if (!checked.length) return;
+  if (!confirm(`Delete ${checked.length} file${checked.length !== 1 ? 's' : ''} from R2? This cannot be undone.`)) return;
+  const ids = checked.map(cb => cb.dataset.id);
+  try {
+    await Promise.all(ids.map(id => api(`/api/files/${id}`, { method: 'DELETE' })));
+    toast(`Deleted ${ids.length} file${ids.length !== 1 ? 's' : ''}`);
+    clearSelection();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function bulkMove() {
+  const checked = getCheckedBoxes();
+  if (!checked.length) return;
+  const ids = checked.map(cb => cb.dataset.id);
+  const currentFolder = checked[0].dataset.folder;
+  openMoveFiles(ids, currentFolder);
 }
 
 async function deleteFolder(key) {
@@ -4479,6 +4547,7 @@ document.getElementById('moveModalConfirm').addEventListener('click', async () =
       await api('/api/files/move', { method: 'POST', body: JSON.stringify({ ids: moveTarget.ids, folder: dest }) });
     }
     document.getElementById('moveModal').style.display = 'none';
+    clearSelection();
     toast('Moved successfully');
     await loadFolders();
   } catch (e) {
