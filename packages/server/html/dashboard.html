@@ -739,7 +739,8 @@ body.multi-selecting .folder-select-cb { opacity:1; }
             </div>
             <div class="browse-upload-bar">
               <label>Virtual folder name (what editor sees):</label>
-              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root">
+              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root" list="browseFolderList" autocomplete="off">
+              <datalist id="browseFolderList"></datalist>
               <button class="btn-primary" id="browseUploadBtn" style="flex:0;white-space:nowrap;padding:7px 18px">Upload selected</button>
             </div>
             <div class="browse-table-wrap">
@@ -1297,6 +1298,17 @@ async function loadFolders() {
     if (!list) return;
     folderSummaries = list;
     shareLinksCache = shareList || [];
+    // Populate browse folder datalist with unique top-level folder names
+    const dl = document.getElementById('browseFolderList');
+    if (dl) {
+      const seen = new Set();
+      const opts = [];
+      for (const s of list) {
+        const top = (s.folder || '').split('/')[0];
+        if (top && !seen.has(top)) { seen.add(top); opts.push(`<option value="${esc(top)}">`); }
+      }
+      dl.innerHTML = opts.join('');
+    }
     // Eagerly load files for any folder currently uploading
     const uploading = list.filter(s => s.uploading_count > 0);
     await Promise.all(uploading.map(s => loadFolderFiles(s.folder || '')));
