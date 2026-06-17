@@ -3769,7 +3769,7 @@ async function extendShareLink(id, select) {
 
 function copyExistingShareLink(url, folder) {
   const days = '—';
-  const note = 'Download before the link expires.';
+  const note = 'Please download it before the link expires.';
   const label = folder || 'Shared files';
   const plainText = `${label}\n${url}\n\n${note}`;
   if (navigator.clipboard) {
@@ -3800,7 +3800,7 @@ document.getElementById('copyShareBtn')?.addEventListener('click', () => {
   const link = document.getElementById('shareLinkText').textContent;
   const label = shareFolderKey || 'Shared files';
   const days = parseInt(document.getElementById('shareExpiry').value);
-  const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — download before then.`;
+  const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — please download it before then.`;
   const plainText = `${label}\n${link}\n\n${note}`;
   if (navigator.clipboard && location.protocol === 'https:') {
     try {
@@ -3868,7 +3868,7 @@ async function copyMultiShare() {
       });
       return { label: key || 'Shared files', link: `${location.origin}/share/${data.token}` };
     }));
-    const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — download before then.`;
+    const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — please download it before then.`;
     const plainText = results.map(r => `${r.label}\n${r.link}`).join('\n\n') + `\n\n${note}`;
     const html = results.map(r => `<strong>${r.label}</strong><br><a href="${r.link}">${r.link}</a>`).join('<br><br>') + `<br><br><em>${note}</em>`;
     if (navigator.clipboard && location.protocol === 'https:') {
