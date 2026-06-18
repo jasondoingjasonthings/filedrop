@@ -701,7 +701,8 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Works on any device — phone, laptop, anything. No agent needed.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder</label>
-          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root">
+          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root" list="ownerUploadFolderList" autocomplete="off">
+          <datalist id="ownerUploadFolderList"></datalist>
         </div>
         <div id="ownerDropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:36px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:12px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
@@ -864,7 +865,8 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Select files to send to Jason. They'll appear in his library straight away.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder label (optional)</label>
-          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder">
+          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder" list="uploadFolderLabelList" autocomplete="off">
+          <datalist id="uploadFolderLabelList"></datalist>
         </div>
         <div id="dropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:16px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
@@ -1298,17 +1300,20 @@ async function loadFolders() {
     if (!list) return;
     folderSummaries = list;
     shareLinksCache = shareList || [];
-    // Populate browse folder datalist with unique top-level folder names
-    const dl = document.getElementById('browseFolderList');
-    if (dl) {
+    // Populate all folder datalists with existing folder names (full paths)
+    const folderOpts = (() => {
       const seen = new Set();
       const opts = [];
       for (const s of list) {
-        const top = (s.folder || '').split('/')[0];
-        if (top && !seen.has(top)) { seen.add(top); opts.push(`<option value="${esc(top)}">`); }
+        const name = s.folder || '';
+        if (name && !seen.has(name)) { seen.add(name); opts.push(`<option value="${esc(name)}">`); }
       }
-      dl.innerHTML = opts.join('');
-    }
+      return opts.join('');
+    })();
+    ['browseFolderList','ownerUploadFolderList','uploadFolderLabelList'].forEach(id => {
+      const dl = document.getElementById(id);
+      if (dl) dl.innerHTML = folderOpts;
+    });
     // Eagerly load files for any folder currently uploading
     const uploading = list.filter(s => s.uploading_count > 0);
     await Promise.all(uploading.map(s => loadFolderFiles(s.folder || '')));
