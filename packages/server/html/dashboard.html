@@ -537,6 +537,41 @@ body.multi-selecting .folder-select-cb { opacity:1; }
 .file-table tr:last-child td { border-bottom: none; }
 .file-table tr:hover td { background: #eaf6fb; }
 .file-row-check { width: 36px; }
+/* ── Folder picker dropdown ──────────────────────────────────────────────── */
+#folderPickerDropdown {
+  display: none; position: fixed; z-index: 600;
+  background: var(--card); border: 1.5px solid var(--border);
+  border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  max-height: 320px; overflow-y: auto; min-width: 220px;
+}
+.fp-group { border-bottom: 1px solid var(--border); }
+.fp-group:last-child { border-bottom: none; }
+.fp-top {
+  display: flex; align-items: center; gap: 6px;
+  padding: 9px 14px; font-size: 13px; font-weight: 600;
+  cursor: pointer; color: var(--text);
+}
+.fp-top:hover { background: var(--sunk); }
+.fp-arrow {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px; font-size: 13px; flex: none;
+  border-radius: 4px; color: var(--muted); transition: transform .15s;
+  cursor: pointer;
+}
+.fp-arrow:hover { background: var(--border); color: var(--text); }
+.fp-arrow.open { transform: rotate(90deg); }
+.fp-spacer { width: 18px; flex: none; }
+.fp-subs { display: none; }
+.fp-sub {
+  padding: 7px 14px 7px 38px; font-size: 12.5px;
+  cursor: pointer; color: var(--muted); border-top: 1px solid var(--border);
+}
+.fp-sub:hover { background: var(--sunk); color: var(--text); }
+.fp-clear {
+  padding: 9px 14px; font-size: 12px; color: var(--muted);
+  cursor: pointer; border-top: 1.5px solid var(--border); font-style: italic;
+}
+.fp-clear:hover { background: var(--sunk); }
 /* ── Bulk action bar ─────────────────────────────────────────────────────── */
 #bulkBar {
   display: none; position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
@@ -701,8 +736,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Works on any device — phone, laptop, anything. No agent needed.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder</label>
-          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root" list="ownerUploadFolderList" autocomplete="off">
-          <datalist id="ownerUploadFolderList"></datalist>
+          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root" autocomplete="off" readonly onclick="openFolderPicker(this)">
         </div>
         <div id="ownerDropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:36px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:12px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
@@ -740,8 +774,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
             </div>
             <div class="browse-upload-bar">
               <label>Virtual folder name (what editor sees):</label>
-              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root" list="browseFolderList" autocomplete="off">
-              <datalist id="browseFolderList"></datalist>
+              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root" autocomplete="off" readonly onclick="openFolderPicker(this)">
               <button class="btn-primary" id="browseUploadBtn" style="flex:0;white-space:nowrap;padding:7px 18px">Upload selected</button>
             </div>
             <div class="browse-table-wrap">
@@ -865,8 +898,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Select files to send to Jason. They'll appear in his library straight away.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder label (optional)</label>
-          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder" list="uploadFolderLabelList" autocomplete="off">
-          <datalist id="uploadFolderLabelList"></datalist>
+          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder" autocomplete="off" readonly onclick="openFolderPicker(this)">
         </div>
         <div id="dropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:16px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
@@ -1300,20 +1332,6 @@ async function loadFolders() {
     if (!list) return;
     folderSummaries = list;
     shareLinksCache = shareList || [];
-    // Populate all folder datalists with existing folder names (full paths)
-    const folderOpts = (() => {
-      const seen = new Set();
-      const opts = [];
-      for (const s of list) {
-        const name = s.folder || '';
-        if (name && !seen.has(name)) { seen.add(name); opts.push(`<option value="${esc(name)}">`); }
-      }
-      return opts.join('');
-    })();
-    ['browseFolderList','ownerUploadFolderList','uploadFolderLabelList'].forEach(id => {
-      const dl = document.getElementById(id);
-      if (dl) dl.innerHTML = folderOpts;
-    });
     // Eagerly load files for any folder currently uploading
     const uploading = list.filter(s => s.uploading_count > 0);
     await Promise.all(uploading.map(s => loadFolderFiles(s.folder || '')));
@@ -4702,6 +4720,75 @@ document.getElementById('watchDirSelectBtn').addEventListener('click', async () 
   });
 }
 
+
+// ── Folder picker ─────────────────────────────────────────────────────────────
+let _fpTarget = null;
+
+function openFolderPicker(inputEl) {
+  _fpTarget = inputEl;
+  const dd = document.getElementById('folderPickerDropdown');
+
+  // Build tree from folderSummaries
+  const groups = {};
+  for (const s of folderSummaries) {
+    const parts = (s.folder || '').split('/').filter(Boolean);
+    if (!parts.length) continue;
+    const top = parts[0];
+    if (!groups[top]) groups[top] = new Set();
+    if (parts.length > 1) groups[top].add(s.folder);
+  }
+
+  const keys = Object.keys(groups).sort((a, b) => a.localeCompare(b));
+  document.getElementById('folderPickerList').innerHTML = keys.map(top => {
+    const subs = [...groups[top]].sort((a, b) => a.localeCompare(b));
+    const hasSubs = subs.length > 0;
+    const safeTop = top.replace(/'/g, "\\'");
+    return `<div class="fp-group">
+      <div class="fp-top">
+        ${hasSubs ? `<span class="fp-arrow" onclick="fpToggle(event,this)">›</span>` : `<span class="fp-spacer"></span>`}
+        <span style="flex:1" onclick="fpSelect('${safeTop}')">${esc(top)}</span>
+      </div>
+      ${hasSubs ? `<div class="fp-subs">${subs.map(s => {
+        const label = s.split('/').slice(1).join('/');
+        const safeSub = s.replace(/'/g, "\\'");
+        return `<div class="fp-sub" onclick="fpSelect('${safeSub}')">${esc(label)}</div>`;
+      }).join('')}</div>` : ''}
+    </div>`;
+  }).join('') + `<div class="fp-clear" onclick="fpSelect('')">✕ Clear (no folder)</div>`;
+
+  // Position below input
+  const rect = inputEl.getBoundingClientRect();
+  dd.style.left = rect.left + 'px';
+  dd.style.top  = (rect.bottom + 4) + 'px';
+  dd.style.width = Math.max(rect.width, 240) + 'px';
+  dd.style.display = 'block';
+}
+
+function fpToggle(e, arrow) {
+  e.stopPropagation();
+  const subs = arrow.closest('.fp-group').querySelector('.fp-subs');
+  const open = subs.style.display === 'block';
+  subs.style.display = open ? 'none' : 'block';
+  arrow.classList.toggle('open', !open);
+}
+
+function fpSelect(folder) {
+  if (_fpTarget) { _fpTarget.value = folder; _fpTarget.dispatchEvent(new Event('input')); }
+  document.getElementById('folderPickerDropdown').style.display = 'none';
+  _fpTarget = null;
+}
+
+document.addEventListener('click', e => {
+  const dd = document.getElementById('folderPickerDropdown');
+  if (!dd || dd.style.display === 'none') return;
+  if (!dd.contains(e.target) && e.target !== _fpTarget) {
+    dd.style.display = 'none'; _fpTarget = null;
+  }
+});
 </script>
+
+<!-- Folder picker dropdown (shared) -->
+<div id="folderPickerDropdown"><div id="folderPickerList"></div></div>
+
 </body>
 </html>
