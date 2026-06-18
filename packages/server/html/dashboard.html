@@ -736,7 +736,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:12px">Works on any device — phone, laptop, anything. No agent needed.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder</label>
-          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root" autocomplete="off" readonly onclick="openFolderPicker(this)">
+          <input type="text" id="ownerUploadFolder" placeholder="e.g. Grow your own — leave blank for root" autocomplete="off" onclick="openFolderPicker(this)">
         </div>
         <div id="ownerDropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:36px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:12px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
@@ -774,7 +774,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
             </div>
             <div class="browse-upload-bar">
               <label>Virtual folder name (what editor sees):</label>
-              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root" autocomplete="off" readonly onclick="openFolderPicker(this)">
+              <input type="text" id="browseFolder" placeholder="e.g. Project Alpha · Leave blank for root" autocomplete="off" onclick="openFolderPicker(this)">
               <button class="btn-primary" id="browseUploadBtn" style="flex:0;white-space:nowrap;padding:7px 18px">Upload selected</button>
             </div>
             <div class="browse-table-wrap">
@@ -898,7 +898,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <p style="color:var(--muted);font-size:13px;margin-bottom:16px">Select files to send to Jason. They'll appear in his library straight away.</p>
         <div class="field" style="margin-bottom:12px">
           <label>Folder label (optional)</label>
-          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder" autocomplete="off" readonly onclick="openFolderPicker(this)">
+          <input type="text" id="uploadFolderLabel" placeholder="e.g. Grade 1 · Session 2 — leave blank for no folder" autocomplete="off" onclick="openFolderPicker(this)">
         </div>
         <div id="dropZone" style="border:2px dashed var(--border2);border-radius:10px;padding:40px;text-align:center;cursor:pointer;transition:border-color .15s;margin-bottom:16px">
           <div style="font-size:32px;margin-bottom:8px">📂</div>
