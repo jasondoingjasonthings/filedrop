@@ -108,7 +108,7 @@ function makeSharesPublicRouter(db) {
     const rows = db.prepare(`
       SELECT id, name, size, folder, uploaded_at, created_at, r2_key, thumbnail_key
       FROM files WHERE (folder=? OR folder LIKE ?) AND status='available'
-      ORDER BY folder, name
+      ORDER BY folder COLLATE NOCASE, name COLLATE NOCASE
     `).all(prefix, prefix + '/%');
 
     // Presign thumbnail and full-size URLs for JPEG files (1-hour expiry).
@@ -206,7 +206,7 @@ function makeSharesPublicRouter(db) {
     const files = db.prepare(`
       SELECT id, name, r2_key, folder FROM files
       WHERE (folder=? OR folder LIKE ?) AND status='available'
-      ORDER BY folder, name
+      ORDER BY folder COLLATE NOCASE, name COLLATE NOCASE
     `).all(prefix, prefix + '/%');
     if (!files.length) { res.status(404).send('No files'); return; }
 
