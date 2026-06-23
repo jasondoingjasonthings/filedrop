@@ -2000,17 +2000,20 @@ function renderEditor() {
     }
 
     const outerStyle = isChild
-      ? 'margin-bottom:0;box-shadow:none;border-color:var(--border)'
-      : '';
+      ? 'margin-bottom:0;box-shadow:none;border:1.5px solid var(--border);border-radius:var(--r);overflow:visible'
+      : 'margin-bottom:12px';
+
+    const iconLetter = (displayLabel || key || 'F').trim()[0]?.toUpperCase() || 'F';
 
     return `
       <div class="folder-group" data-folder-key="${esc(key)}" style="${outerStyle}">
         <div class="folder-group-header" onclick="toggleFolder('${safeKey}')">
           <label class="folder-cb-label" onmousedown="event.stopPropagation()" onclick="event.stopPropagation()"><input type="checkbox" class="folder-select-cb" data-folder-key="${esc(key)}" onchange="toggleMultiShare(this)" style="accent-color:var(--accent);width:15px;height:15px;"></label>
-          <span class="drag-handle" draggable="true" title="Drag to move folder">⠿</span><span class="folder-group-icon">${isExpanded ? ICON_FOLDER_OPEN : ICON_FOLDER_CLOSED}</span>
-          <div class="folder-group-info">
+          <span class="drag-handle" draggable="true" title="Drag to move folder">⠿</span>
+          <div style="width:36px;height:36px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-d));display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px;font-weight:800;color:#fff;font-family:var(--mono);letter-spacing:0">${iconLetter}</div>
+          <div class="folder-group-info" style="flex:1;min-width:0">
             <div class="folder-group-name">${esc(displayLabel)}</div>
-            <div class="folder-group-meta">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
+            <div class="folder-group-meta" style="font-family:var(--mono);font-size:11px">${summary.file_count} file${summary.file_count!==1?'s':''} · ${fmtBytes(summary.total_size||0)}${anyUploading?' · <span style="color:var(--info)">uploading…</span>':''}${(() => { const qs = queueStatus[key]; return qs && qs.total > 0 ? ` · <span style="color:var(--accent-d);font-weight:700">${qs.done}/${qs.total} queued${qs.failed > 0 ? `, ${qs.failed} failed` : ''}</span>` : ''; })()}</div>
           </div>
           ${dlBadgeHtml}
           <button class="btn-sm" style="${autoDownloadFolders.has(key)?'background:#15803d;color:#fff':'background:var(--bg);color:var(--muted);border:1.5px solid var(--border2)'}" onclick="event.stopPropagation();toggleAutoDownload('${safeKey}',this)">${autoDownloadFolders.has(key)?'⬇ Auto ON':'⬇ Auto'}</button>
@@ -2056,19 +2059,20 @@ function renderEditor() {
       return renderFolderCard(s, sub, true);
     }).join('');
 
+    const topIconLetter = (topKey || 'F').trim()[0].toUpperCase();
     return `
-      <div class="folder-group" style="margin-bottom:10px">
-        <div class="folder-group-header" onclick="toggleTreeGroup('${safeTopKey}')" style="border-radius:${isCollapsed?'var(--r)':'var(--r) var(--r) 0 0'}">
-          <span class="folder-group-icon">${isCollapsed ? ICON_FOLDER_CLOSED : ICON_FOLDER_OPEN}</span>
-          <div class="folder-group-info">
-            <div class="folder-group-name">${esc(topKey || '(root)')}</div>
-            <div class="folder-group-meta">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size)} · ${summaries.length} sub-folders${combined.uploading_count?' · <span style="color:var(--info)">uploading…</span>':''}</div>
+      <div class="folder-group" style="margin-bottom:12px;border:none;box-shadow:0 2px 20px oklch(0.3 0.04 232/.16)">
+        <div class="folder-group-header folder-group-header--top" onclick="toggleTreeGroup('${safeTopKey}')" style="border-radius:${isCollapsed?'var(--r)':'var(--r) var(--r) 0 0'}">
+          <div style="width:38px;height:38px;border-radius:10px;background:oklch(1 0 0/.12);border:1px solid var(--header-line);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px;font-weight:800;color:var(--header-ink);font-family:var(--mono)">${topIconLetter}</div>
+          <div class="folder-group-info" style="flex:1;min-width:0">
+            <div class="folder-group-name">${esc(topKey || '(root)')}<span class="folder-count-pill">${summaries.length}</span></div>
+            <div class="folder-group-meta" style="font-family:var(--mono);font-size:11px">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)}${combined.uploading_count?' · <span style="opacity:0.8">uploading…</span>':''}</div>
           </div>
-          ${!combined.uploading_count ? `<button class="btn-sm btn-get" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
+          ${!combined.uploading_count ? `<button class="btn-sm" style="background:oklch(1 0 0/.10);color:var(--header-ink);border-color:var(--header-line)" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `
-          <div style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--bg);border-top:1.5px solid var(--border);border-radius:0 0 var(--r) var(--r)">
+          <div style="display:flex;flex-direction:column;gap:6px;background:var(--sunk);border-top:1.5px solid var(--border2);border-radius:0 0 var(--r) var(--r);padding:12px 10px;overflow:hidden">
             ${childCards}
           </div>`}
       </div>`;
