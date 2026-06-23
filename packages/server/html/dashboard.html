@@ -1722,7 +1722,7 @@ function renderLibrary() {
                 const active = prog.processing > 0 || prog.pending > 0;
                 return `<div style="display:inline-flex;align-items:center;gap:5px;flex-shrink:0"><div style="width:44px;height:4px;background:var(--header-line);border-radius:99px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--success);border-radius:99px;transition:width .5s ease"></div></div><span style="font-size:11px;font-family:var(--mono);color:${active?'var(--success)':'var(--header-muted)'};font-weight:700;white-space:nowrap">${prog.done}/${total}</span></div>`;
               })() : '';
-              return `${pill}<div class="folder-menu-wrap"><button class="btn-sm folder-menu-btn" style="background:oklch(1 0 0/.08);color:var(--header-ink);border-color:var(--header-line)" onclick="toggleFolderMenu(this,event)">•••</button><div class="folder-menu-dropdown"><div class="folder-menu-item" onclick="fmAct(event,()=>addFilesToFolder('${safeTopKey}'))">+ Add files</div><div class="folder-menu-item" onclick="fmAct(event,()=>addFilesViaAgent('${safeTopKey}'))">+ Agent</div><div class="folder-menu-item" onclick="fmAct(event,()=>openMoveFolder('${safeTopKey}'))">Move</div><div class="folder-menu-sep"></div><div class="folder-menu-item" onclick="fmAct(event,()=>toggleFolderProxy('${safeTopKey}'))">${pe ? '✓ Proxies on' : 'Proxies off'}</div><div class="folder-menu-sep"></div><div class="folder-menu-item danger" onclick="fmAct(event,()=>deleteTopFolder('${safeTopKey}'))">Delete all</div></div></div>`;
+              return `${pill}<div class="folder-menu-wrap"><button class="btn-sm folder-menu-btn" style="background:oklch(1 0 0/.08);color:var(--header-ink);border-color:var(--header-line)" onclick="toggleFolderMenu(this,event)">•••</button><div class="folder-menu-dropdown"><div class="folder-menu-item" onclick="fmAct(event,el=>renameTopFolder('${safeTopKey}',el))">Rename</div><div class="folder-menu-item" onclick="fmAct(event,()=>addFilesToFolder('${safeTopKey}'))">+ Add files</div><div class="folder-menu-item" onclick="fmAct(event,()=>addFilesViaAgent('${safeTopKey}'))">+ Agent</div><div class="folder-menu-item" onclick="fmAct(event,()=>openMoveFolder('${safeTopKey}'))">Move</div><div class="folder-menu-sep"></div><div class="folder-menu-item" onclick="fmAct(event,()=>toggleFolderProxy('${safeTopKey}'))">${pe ? '✓ Proxies on' : 'Proxies off'}</div><div class="folder-menu-sep"></div><div class="folder-menu-item danger" onclick="fmAct(event,()=>deleteTopFolder('${safeTopKey}'))">Delete all</div></div></div>`;
             })()}
           </div>
           <span class="folder-chevron" style="margin-left:6px">${isCollapsed?'▼':'▲'}</span>
@@ -2130,6 +2130,39 @@ async function renameFile(id) {
     if (e.key === 'Enter') { e.preventDefault(); save(); }
     if (e.key === 'Escape') { saved = true; input.replaceWith(nameEl); }
   });
+  input.addEventListener('blur', save);
+}
+
+async function renameTopFolder(topKey, btn) {
+  const header = btn.closest('.folder-group-header');
+  const nameEl = header.querySelector('.folder-group-name');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.value = topKey;
+  input.style.cssText = 'font:700 15px inherit;border:1.5px solid var(--accent);border-radius:4px;padding:2px 8px;outline:none;color:var(--header-ink);background:oklch(1 0 0/.12);min-width:120px';
+  nameEl.replaceWith(input);
+  input.focus(); input.select();
+  input.addEventListener('click', e => e.stopPropagation());
+  let saved = false;
+  async function save() {
+    if (saved) return; saved = true;
+    const newName = input.value.trim();
+    if (!newName || newName === topKey) { input.replaceWith(nameEl); return; }
+    try {
+      await api('/api/files/folder-rename', { method: 'PATCH', body: JSON.stringify({ oldFolder: topKey, newFolder: newName, recursive: true }) });
+      // Update all matching entries in local state
+      Object.values(files).forEach(f => {
+        if ((f.folder || '') === topKey || (f.folder || '').startsWith(topKey + '/'))
+          f.folder = newName + f.folder.slice(topKey.length);
+      });
+      folderSummaries.forEach(s => {
+        if ((s.folder || '') === topKey || (s.folder || '').startsWith(topKey + '/'))
+          s.folder = newName + (s.folder || '').slice(topKey.length);
+      });
+      render();
+    } catch(e) { toast(e.message || 'Rename failed', 'error'); input.replaceWith(nameEl); }
+  }
+  input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { saved = true; input.replaceWith(nameEl); } });
   input.addEventListener('blur', save);
 }
 

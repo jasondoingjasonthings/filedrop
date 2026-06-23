@@ -288,19 +288,32 @@ function makeFilesRouter(db, sseBus) {
 
   // Rename a folder — updates folder field on all files in that folder
   router.patch('/folder-rename', (req, res) => {
-    const { oldFolder, newFolder } = req.body || {};
+    const { oldFolder, newFolder, recursive } = req.body || {};
     if (newFolder === undefined || newFolder === null) { res.status(400).json({ error: 'newFolder required' }); return; }
     const oldKey = oldFolder ?? '';
     const newKey = (newFolder || '').trim();
     if (oldKey === newKey) { res.json({ ok: true, count: 0 }); return; }
-    const affected = db.prepare(`SELECT id FROM files WHERE folder=? AND status NOT IN ('deleted','deleting')`).all(oldKey);
-    if (!affected.length) { res.status(404).json({ error: 'No files in that folder' }); return; }
-    db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
-    const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
-    for (const f of updated) sseBus.broadcast('file', f);
+
+    if (recursive) {
+      // Rename the top-level folder and all sub-folders that share its prefix.
+      // e.g. "Jobs/Alpha" and "Jobs/Beta" both become "NewName/Alpha", "NewName/Beta".
+      db.prepare(`
+        UPDATE files SET folder = ? || SUBSTR(folder, LENGTH(?) + 1)
+        WHERE (folder = ? OR folder LIKE ?) AND status NOT IN ('deleted','deleting')
+      `).run(newKey, oldKey, oldKey, oldKey + '/%');
+      const updated = db.prepare(`SELECT * FROM files WHERE folder = ? OR folder LIKE ?`).all(newKey, newKey + '/%');
+      for (const f of updated) sseBus.broadcast('file', f);
+    } else {
+      const affected = db.prepare(`SELECT id FROM files WHERE folder=? AND status NOT IN ('deleted','deleting')`).all(oldKey);
+      if (!affected.length) { res.status(404).json({ error: 'No files in that folder' }); return; }
+      db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
+      const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
+      for (const f of updated) sseBus.broadcast('file', f);
+    }
+
     sseBus.broadcast('folders-changed', {});
     logAudit(db, { action: 'folder_renamed', actor: req.user?.username, folder: newKey, detail: `was: ${oldKey}`, ip: req.ip });
-    res.json({ ok: true, count: affected.length });
+    res.json({ ok: true });
   });
 
   // Rename a file — any authenticated user (editor or owner)
