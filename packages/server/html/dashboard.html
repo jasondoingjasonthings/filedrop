@@ -4238,8 +4238,10 @@ function connectSSE() {
       summary = { folder: f.folder ?? '', file_count: 0, total_size: 0, uploading_count: 0, available_count: 0, downloaded_count: 0 };
       folderSummaries.unshift(summary);
     }
-    if (loadedFolders.has(folderKey)) {
-      // Recalculate precisely from the full loaded set (files[] already updated above)
+    const fps = folderPageState[folderKey];
+    const allPagesLoaded = loadedFolders.has(folderKey) && (!fps || fps.loaded >= fps.total);
+    if (allPagesLoaded) {
+      // All files are in memory — recalculate precisely
       const loaded = Object.values(files).filter(ff => (ff.folder ?? '') === folderKey && ff.status !== 'deleted' && ff.status !== 'deleting');
       summary.file_count       = loaded.length;
       summary.total_size       = loaded.reduce((s, ff) => s + (ff.size || 0), 0);
