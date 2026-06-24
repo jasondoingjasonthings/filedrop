@@ -3894,8 +3894,23 @@ const multiShareSelected = new Set();
 
 function toggleMultiShare(cb) {
   const key = cb.dataset.folderKey;
-  if (cb.checked) multiShareSelected.add(key);
-  else multiShareSelected.delete(key);
+  const children = folderSummaries.filter(s => (s.folder ?? '').startsWith(key + '/'));
+
+  if (children.length > 0) {
+    // Top-level group — expand into individual sub-folder links
+    children.forEach(s => {
+      const childKey = s.folder ?? '';
+      if (cb.checked) multiShareSelected.add(childKey);
+      else multiShareSelected.delete(childKey);
+    });
+    document.querySelectorAll('.folder-select-cb').forEach(childCb => {
+      if (children.some(s => (s.folder ?? '') === childCb.dataset.folderKey))
+        childCb.checked = cb.checked;
+    });
+  } else {
+    if (cb.checked) multiShareSelected.add(key);
+    else multiShareSelected.delete(key);
+  }
   updateMultiShareBar();
 }
 
