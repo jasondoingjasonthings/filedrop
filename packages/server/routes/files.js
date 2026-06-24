@@ -5,6 +5,28 @@ const archiver = require('archiver');
 const { requireOwner } = require('../auth');
 const { presignDownload, deleteObject, getObjectStream } = require('../r2');
 const { logAudit } = require('../audit');
+const { queueZipBuild, deleteShareZip } = require('../zipbuilder');
+
+// Debounced ZIP invalidation — batches rapid bulk deletes into one rebuild per folder
+const _zipInvalidateTimers = new Map();
+function scheduleZipInvalidation(db, folder) {
+  if (_zipInvalidateTimers.has(folder)) clearTimeout(_zipInvalidateTimers.get(folder));
+  _zipInvalidateTimers.set(folder, setTimeout(async () => {
+    _zipInvalidateTimers.delete(folder);
+    const links = db.prepare(`
+      SELECT * FROM share_links
+      WHERE (folder=? OR ? LIKE folder || '/%')
+        AND zip_status='ready' AND zip_key IS NOT NULL
+        AND expires_at > datetime('now')
+    `).all(folder, folder);
+    for (const link of links) {
+      try { await deleteShareZip(link.zip_key); } catch {}
+      db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE id=?`).run(link.id);
+      queueZipBuild(db, link.token, link.folder, link.label);
+      console.log(`[zip] invalidated and re-queued after file delete: ${link.folder}`);
+    }
+  }, 3000));
+}
 
 function makeFilesRouter(db, sseBus) {
   const router = express.Router();
@@ -279,6 +301,7 @@ function makeFilesRouter(db, sseBus) {
       db.prepare(`UPDATE files SET proxy_key=NULL WHERE proxy_key=?`).run(file.r2_key);
       sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(file.id));
       logAudit(db, { action: 'file_deleted', actor: req.user?.username, fileId: file.id, fileName: file.name, folder: file.folder, ip: req.ip });
+      if (file.folder !== undefined) scheduleZipInvalidation(db, file.folder ?? '');
       res.json({ ok: true });
     } catch (err) {
       console.error('[files] delete error:', err.message);
