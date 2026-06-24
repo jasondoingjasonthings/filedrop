@@ -3894,18 +3894,26 @@ const multiShareSelected = new Set();
 
 function toggleMultiShare(cb) {
   const key = cb.dataset.folderKey;
-  const children = folderSummaries.filter(s => (s.folder ?? '').startsWith(key + '/'));
 
-  if (children.length > 0) {
-    // Top-level group — expand into individual sub-folder links
-    children.forEach(s => {
-      const childKey = s.folder ?? '';
-      if (cb.checked) multiShareSelected.add(childKey);
-      else multiShareSelected.delete(childKey);
+  // Look for child checkboxes within the same folder-group DOM element (works when expanded)
+  const group = cb.closest('.folder-group');
+  const domChildren = group
+    ? [...group.querySelectorAll('.folder-select-cb')].filter(c => c !== cb)
+    : [];
+
+  // Fall back to folderSummaries when group is collapsed (no child DOM elements)
+  const summaryChildren = folderSummaries.filter(s => (s.folder ?? '').startsWith(key + '/'));
+
+  if (domChildren.length > 0) {
+    domChildren.forEach(c => {
+      c.checked = cb.checked;
+      if (cb.checked) multiShareSelected.add(c.dataset.folderKey);
+      else multiShareSelected.delete(c.dataset.folderKey);
     });
-    document.querySelectorAll('.folder-select-cb').forEach(childCb => {
-      if (children.some(s => (s.folder ?? '') === childCb.dataset.folderKey))
-        childCb.checked = cb.checked;
+  } else if (summaryChildren.length > 0) {
+    summaryChildren.forEach(s => {
+      if (cb.checked) multiShareSelected.add(s.folder ?? '');
+      else multiShareSelected.delete(s.folder ?? '');
     });
   } else {
     if (cb.checked) multiShareSelected.add(key);
