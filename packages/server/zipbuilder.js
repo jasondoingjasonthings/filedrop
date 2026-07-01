@@ -8,11 +8,15 @@ const { getObjectStream, uploadLarge, deleteObject } = require('./r2');
 const _queue  = [];
 let _building = false;
 
+const MAX_RETRIES      = 3;
+const RETRY_DELAY_MS   = 15 * 1000;        // 15 seconds between retries
+const BUILD_TIMEOUT_MS = 25 * 60 * 1000;   // 25 minutes max per ZIP
+
 // Called after a share link is created. Sets zip_status='pending' synchronously
 // then kicks off the background queue.
 function queueZipBuild(db, token, folder, label) {
   db.prepare(`UPDATE share_links SET zip_status='pending' WHERE token=?`).run(token);
-  _queue.push({ token, folder, label });
+  _queue.push({ token, folder, label, retries: 0 });
   _kick(db);
 }
 
@@ -24,15 +28,13 @@ function resumePendingBuilds(db) {
   `).all();
   for (const s of stuck) {
     db.prepare(`UPDATE share_links SET zip_status='pending' WHERE token=?`).run(s.token);
-    _queue.push(s);
+    _queue.push({ ...s, retries: 0 });
   }
   if (_queue.length) {
     console.log(`[zip] resuming ${_queue.length} pending build(s) from last run`);
     _kick(db);
   }
 }
-
-const BUILD_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes max per ZIP
 
 function _kick(db) {
   if (_building || _queue.length === 0) return;
@@ -43,8 +45,19 @@ function _kick(db) {
   );
   Promise.race([_build(db, job), timeout])
     .catch(err => {
-      console.error(`[zip] build failed token=${job.token}:`, err.message);
-      db.prepare(`UPDATE share_links SET zip_status='failed' WHERE token=?`).run(job.token);
+      console.error(`[zip] build failed token=${job.token} (attempt ${job.retries + 1}/${MAX_RETRIES + 1}):`, err.message);
+      if (job.retries < MAX_RETRIES) {
+        job.retries++;
+        db.prepare(`UPDATE share_links SET zip_status='pending' WHERE token=?`).run(job.token);
+        console.log(`[zip] retrying token=${job.token} in ${RETRY_DELAY_MS / 1000}s (attempt ${job.retries + 1}/${MAX_RETRIES + 1})`);
+        setTimeout(() => {
+          _queue.push(job);
+          _kick(db);
+        }, RETRY_DELAY_MS);
+      } else {
+        console.error(`[zip] giving up on token=${job.token} after ${MAX_RETRIES + 1} attempts`);
+        db.prepare(`UPDATE share_links SET zip_status='failed' WHERE token=?`).run(job.token);
+      }
     })
     .finally(() => {
       _building = false;
@@ -65,7 +78,7 @@ async function _build(db, { token, folder, label }) {
   }
 
   db.prepare(`UPDATE share_links SET zip_status='building', zip_files_total=?, zip_files_done=0 WHERE token=?`).run(files.length, token);
-  console.log(`[zip] building token=${token} files=${files.length}`);
+  console.log(`[zip] building token=${token} folder="${folder}" files=${files.length}`);
   const updateProgress = db.prepare(`UPDATE share_links SET zip_files_done=? WHERE token=?`);
 
   const zipKey = `zips/${token}.zip`;
@@ -95,7 +108,7 @@ async function _build(db, { token, folder, label }) {
     if (nextIdx < files.length) pending.push(getObjectStream(files[nextIdx].r2_key).catch(e => e));
 
     if (streamOrErr instanceof Error) {
-      console.error(`[zip] skipping ${f.name}:`, streamOrErr.message);
+      console.error(`[zip] skipping missing file "${f.name}" (${f.r2_key}):`, streamOrErr.message);
       continue;
     }
 
@@ -105,7 +118,10 @@ async function _build(db, { token, folder, label }) {
     const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
 
     await new Promise((resolve, reject) => {
-      streamOrErr.on('error', reject);
+      streamOrErr.once('error', err => {
+        console.error(`[zip] stream error on file "${f.name}" (${f.r2_key}):`, err.message);
+        reject(err);
+      });
       archive.append(streamOrErr, { name: archivePath });
       archive.once('entry', resolve);
     });
