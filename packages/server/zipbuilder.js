@@ -32,11 +32,16 @@ function resumePendingBuilds(db) {
   }
 }
 
+const BUILD_TIMEOUT_MS = 25 * 60 * 1000; // 25 minutes max per ZIP
+
 function _kick(db) {
   if (_building || _queue.length === 0) return;
   _building = true;
   const job = _queue.shift();
-  _build(db, job)
+  const timeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error(`build timeout after ${BUILD_TIMEOUT_MS / 60000} min`)), BUILD_TIMEOUT_MS)
+  );
+  Promise.race([_build(db, job), timeout])
     .catch(err => {
       console.error(`[zip] build failed token=${job.token}:`, err.message);
       db.prepare(`UPDATE share_links SET zip_status='failed' WHERE token=?`).run(job.token);
