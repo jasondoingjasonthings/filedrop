@@ -68,8 +68,8 @@ async function uploadLarge(key, stream, contentType = 'application/octet-stream'
   const upload = new Upload({
     client,
     params: { Bucket: BUCKET, Key: key, Body: stream, ContentType: contentType },
-    queueSize: 2,
-    partSize: 10 * 1024 * 1024,
+    queueSize: 6,
+    partSize: 25 * 1024 * 1024,
     abortController,
   });
   await upload.done();
