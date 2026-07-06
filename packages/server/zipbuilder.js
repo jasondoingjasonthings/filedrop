@@ -11,6 +11,7 @@ let _building = false;
 const MAX_RETRIES      = 3;
 const RETRY_DELAY_MS   = 15 * 1000;        // 15 seconds between retries
 const BUILD_TIMEOUT_MS = 25 * 60 * 1000;   // 25 minutes max per ZIP
+const MAX_FILES        = 1500;             // refuse to ZIP folders larger than this
 
 // Called after a share link is created. Sets zip_status='pending' synchronously
 // then kicks off the background queue.
@@ -21,14 +22,19 @@ function queueZipBuild(db, token, folder, label) {
 }
 
 // On server start, re-queue any shares that were mid-build when the process last stopped.
+// Only queues ONE token per folder — the builder's sibling logic marks the rest ready.
 function resumePendingBuilds(db) {
   const stuck = db.prepare(`
     SELECT token, folder, label FROM share_links
     WHERE zip_status IN ('pending','building') AND expires_at > datetime('now')
   `).all();
+  const seen = new Set();
   for (const s of stuck) {
     db.prepare(`UPDATE share_links SET zip_status='pending' WHERE token=?`).run(s.token);
-    _queue.push({ ...s, retries: 0 });
+    if (!seen.has(s.folder)) {
+      seen.add(s.folder);
+      _queue.push({ ...s, retries: 0 });
+    }
   }
   if (_queue.length) {
     console.log(`[zip] resuming ${_queue.length} pending build(s) from last run`);
@@ -77,59 +83,73 @@ async function _build(db, { token, folder, label }) {
     return;
   }
 
+  if (files.length > MAX_FILES) {
+    console.warn(`[zip] folder "${folder}" has ${files.length} files (limit ${MAX_FILES}) — marking too_large`);
+    db.prepare(`UPDATE share_links SET zip_status='large' WHERE token=?`).run(token);
+    return;
+  }
+
   db.prepare(`UPDATE share_links SET zip_status='building', zip_files_total=?, zip_files_done=0 WHERE token=?`).run(files.length, token);
   console.log(`[zip] building token=${token} folder="${folder}" files=${files.length}`);
   const updateProgress = db.prepare(`UPDATE share_links SET zip_files_done=? WHERE token=?`);
 
-  const zipKey = `zips/${token}.zip`;
-  const pass   = new PassThrough();
-  const archive = archiver('zip', { store: true });
+  const zipKey        = `zips/${token}.zip`;
+  const pass          = new PassThrough();
+  const archive       = archiver('zip', { store: true });
+  const uploadAbort   = new AbortController();
 
-  archive.on('error', err => pass.destroy(err));
+  archive.on('error', err => { pass.destroy(err); });
   archive.pipe(pass);
 
   // R2 upload runs in parallel with archiver — lib-storage handles multipart.
-  const uploadPromise = uploadLarge(zipKey, pass, 'application/zip');
+  // uploadAbort lets us cancel the multipart upload if the build fails mid-stream.
+  const uploadPromise = uploadLarge(zipKey, pass, 'application/zip', uploadAbort);
 
   // Sliding-window prefetch: keep PREFETCH R2 fetches in-flight while the
-  // archiver writes the current entry — same approach as the owner /zip endpoint.
-  // Streams (not buffers) so backpressure is respected; memory stays flat.
+  // archiver writes the current entry.
   const PREFETCH = 4;
   const pending = [];
   for (let i = 0; i < Math.min(PREFETCH, files.length); i++) {
     pending.push(getObjectStream(files[i].r2_key).catch(e => e));
   }
 
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    const streamOrErr = await pending.shift();
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const streamOrErr = await pending.shift();
 
-    const nextIdx = i + PREFETCH;
-    if (nextIdx < files.length) pending.push(getObjectStream(files[nextIdx].r2_key).catch(e => e));
+      const nextIdx = i + PREFETCH;
+      if (nextIdx < files.length) pending.push(getObjectStream(files[nextIdx].r2_key).catch(e => e));
 
-    if (streamOrErr instanceof Error) {
-      console.error(`[zip] skipping missing file "${f.name}" (${f.r2_key}):`, streamOrErr.message);
-      continue;
-    }
+      if (streamOrErr instanceof Error) {
+        console.error(`[zip] skipping missing file "${f.name}" (${f.r2_key}):`, streamOrErr.message);
+        continue;
+      }
 
-    const relFolder  = folder
-      ? (f.folder === folder ? '' : f.folder.slice(folder.length + 1))
-      : f.folder;
-    const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
+      const relFolder  = folder
+        ? (f.folder === folder ? '' : f.folder.slice(folder.length + 1))
+        : f.folder;
+      const archivePath = relFolder ? `${relFolder}/${f.name}` : f.name;
 
-    await new Promise((resolve, reject) => {
-      streamOrErr.once('error', err => {
-        console.error(`[zip] stream error on file "${f.name}" (${f.r2_key}):`, err.message);
-        reject(err);
+      await new Promise((resolve, reject) => {
+        streamOrErr.once('error', err => {
+          console.error(`[zip] stream error on file "${f.name}" (${f.r2_key}):`, err.message);
+          reject(err);
+        });
+        archive.append(streamOrErr, { name: archivePath });
+        archive.once('entry', resolve);
       });
-      archive.append(streamOrErr, { name: archivePath });
-      archive.once('entry', resolve);
-    });
 
-    // Update progress every 5 files to keep polling overhead low
-    if ((i + 1) % 5 === 0 || i === files.length - 1) {
-      updateProgress.run(i + 1, token);
+      // Update progress every 5 files to keep polling overhead low
+      if ((i + 1) % 5 === 0 || i === files.length - 1) {
+        updateProgress.run(i + 1, token);
+      }
     }
+  } catch (err) {
+    // Abort the in-flight R2 multipart upload so we don't leave corrupted data
+    uploadAbort.abort();
+    pass.destroy();
+    throw err;
   }
 
   await archive.finalize();

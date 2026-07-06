@@ -63,12 +63,14 @@ async function putObjectStream(key, stream, size, contentType = 'application/oct
 
 // Upload a stream of unknown size using multipart (no ContentLength required).
 // Used for pre-built share ZIPs where the final size isn't known upfront.
-async function uploadLarge(key, stream, contentType = 'application/octet-stream') {
+// Pass an AbortController to cancel the upload if the build fails mid-stream.
+async function uploadLarge(key, stream, contentType = 'application/octet-stream', abortController) {
   const upload = new Upload({
     client,
     params: { Bucket: BUCKET, Key: key, Body: stream, ContentType: contentType },
     queueSize: 2,
     partSize: 10 * 1024 * 1024,
+    abortController,
   });
   await upload.done();
 }
