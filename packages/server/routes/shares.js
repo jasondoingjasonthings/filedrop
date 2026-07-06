@@ -35,13 +35,24 @@ function makeSharesApiRouter(db, jwtSecret) {
       db.prepare(`UPDATE share_links SET zip_status='large' WHERE token=?`).run(token);
     } else {
       // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
+      // Verify it's actually in R2 before reusing; if missing, fall through to rebuild.
       const existing = db.prepare(`
         SELECT zip_key FROM share_links
         WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
       `).get(folder ?? '', token);
       if (existing) {
-        db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
-          .run(existing.zip_key, token);
+        getObjectStream(existing.zip_key)
+          .then(s => {
+            s.destroy();
+            db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
+              .run(existing.zip_key, token);
+          })
+          .catch(() => {
+            // ZIP missing from R2 — invalidate all tokens for this folder and rebuild
+            db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE folder=? AND zip_status='ready'`)
+              .run(folder ?? '');
+            queueZipBuild(db, token, folder ?? '', shareLabel);
+          });
       } else {
         queueZipBuild(db, token, folder ?? '', shareLabel);
       }
