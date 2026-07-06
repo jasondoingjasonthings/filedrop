@@ -47,12 +47,19 @@ async function _doCleanup(db, sseBus) {
   }
 
   // ── Delete R2 ZIPs for expired share links, then remove the link row ────────
+  // Only delete the ZIP from R2 if no other non-expired token shares the same
+  // zip_key — sibling tokens reuse the same ZIP file.
   const expiredWithZip = db.prepare(`
     SELECT token, zip_key FROM share_links
     WHERE expires_at <= datetime('now') AND zip_key IS NOT NULL
   `).all();
+  const countSiblings = db.prepare(`
+    SELECT COUNT(*) as n FROM share_links
+    WHERE zip_key=? AND token!=? AND expires_at > datetime('now')
+  `);
   for (const share of expiredWithZip) {
-    await deleteShareZip(share.zip_key);
+    const { n } = countSiblings.get(share.zip_key, share.token);
+    if (n === 0) await deleteShareZip(share.zip_key);
     db.prepare(`DELETE FROM share_links WHERE token=?`).run(share.token);
   }
 
