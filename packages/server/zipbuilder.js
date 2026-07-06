@@ -46,10 +46,14 @@ function _kick(db) {
   if (_building || _queue.length === 0) return;
   _building = true;
   const job = _queue.shift();
+  const uploadAbort = new AbortController();
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error(`build timeout after ${BUILD_TIMEOUT_MS / 60000} min`)), BUILD_TIMEOUT_MS)
+    setTimeout(() => {
+      uploadAbort.abort();
+      reject(new Error(`build timeout after ${BUILD_TIMEOUT_MS / 60000} min`));
+    }, BUILD_TIMEOUT_MS)
   );
-  Promise.race([_build(db, job), timeout])
+  Promise.race([_build(db, job, uploadAbort), timeout])
     .catch(err => {
       console.error(`[zip] build failed token=${job.token} (attempt ${job.retries + 1}/${MAX_RETRIES + 1}):`, err.message);
       if (job.retries < MAX_RETRIES) {
@@ -71,7 +75,7 @@ function _kick(db) {
     });
 }
 
-async function _build(db, { token, folder, label }) {
+async function _build(db, { token, folder, label }, uploadAbort) {
   const files = db.prepare(`
     SELECT id, name, r2_key, folder FROM files
     WHERE (folder=? OR folder LIKE ?) AND status='available'
@@ -93,16 +97,15 @@ async function _build(db, { token, folder, label }) {
   console.log(`[zip] building token=${token} folder="${folder}" files=${files.length}`);
   const updateProgress = db.prepare(`UPDATE share_links SET zip_files_done=? WHERE token=?`);
 
-  const zipKey        = `zips/${token}.zip`;
-  const pass          = new PassThrough();
-  const archive       = archiver('zip', { store: true });
-  const uploadAbort   = new AbortController();
+  const zipKey = `zips/${token}.zip`;
+  const pass   = new PassThrough();
+  const archive = archiver('zip', { store: true });
 
   archive.on('error', err => { pass.destroy(err); });
   archive.pipe(pass);
 
   // R2 upload runs in parallel with archiver — lib-storage handles multipart.
-  // uploadAbort lets us cancel the multipart upload if the build fails mid-stream.
+  // uploadAbort is passed in from _kick so the timeout can cancel it directly.
   const uploadPromise = uploadLarge(zipKey, pass, 'application/zip', uploadAbort);
 
   // Sliding-window prefetch: keep PREFETCH R2 fetches in-flight while the
@@ -145,15 +148,14 @@ async function _build(db, { token, folder, label }) {
         updateProgress.run(i + 1, token);
       }
     }
+    await archive.finalize();
+    await uploadPromise;
   } catch (err) {
     // Abort the in-flight R2 multipart upload so we don't leave corrupted data
     uploadAbort.abort();
     pass.destroy();
     throw err;
   }
-
-  await archive.finalize();
-  await uploadPromise;
 
   // Mark this token ready, then propagate the zip_key to any other pending/building
   // shares for the same folder so they don't each rebuild the same ZIP.
