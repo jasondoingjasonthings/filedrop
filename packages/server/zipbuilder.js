@@ -10,7 +10,7 @@ let _building = false;
 
 const MAX_RETRIES      = 3;
 const RETRY_DELAY_MS   = 15 * 1000;        // 15 seconds between retries
-const BUILD_TIMEOUT_MS = 25 * 60 * 1000;   // 25 minutes max per ZIP
+const BUILD_TIMEOUT_MS = 45 * 60 * 1000;   // 45 minutes max per ZIP
 const MAX_FILES        = 1500;             // refuse to ZIP folders larger than this
 
 // Called after a share link is created. Sets zip_status='pending' synchronously
