@@ -371,7 +371,9 @@ const token = location.pathname.split('/').filter(Boolean).pop();
 let allFiles   = [];
 let imageFiles = [];
 let otherFiles = [];
+let shareFolder = '';
 let lbIndex    = 0;
+let _dlAbort   = false;
 
 function fmtBytes(b) {
   if (!b) return '0 B';
@@ -436,9 +438,10 @@ async function init() {
   if (!res.ok) { dismissIntro(); renderExpired(); return; }
 
   const data = await res.json();
-  allFiles   = data.files || [];
-  imageFiles = allFiles.filter(f => f.isImage);
-  otherFiles = allFiles.filter(f => !f.isImage);
+  allFiles    = data.files || [];
+  shareFolder = data.folder || '';
+  imageFiles  = allFiles.filter(f => f.isImage);
+  otherFiles  = allFiles.filter(f => !f.isImage);
 
   const totalSize = allFiles.reduce((s, f) => s + (f.size || 0), 0);
   document.title = `FileDrop · ${data.label}`;
@@ -582,7 +585,7 @@ function buildDlAction(zipState, totalSize) {
     </button>
     <div class="large-notice" style="margin-top:13px">
       <span style="color:var(--accent);flex:none;margin-top:1px">${SVG.film}</span>
-      <span><strong>This job is too large to ZIP.</strong> Files will download one at a time — keep this tab open until it finishes.</span>
+      <span><strong>Large delivery.</strong> You'll choose a folder on your computer — files download directly into it, one by one. Keep this tab open. Works in Chrome and Edge.</span>
     </div>`;
 
   if (zipState === 'preparing') return `
@@ -748,19 +751,101 @@ function downloadOne(fileId, name, btn) {
 }
 
 async function downloadAll() {
-  const btn = document.getElementById('dlLargeBtn');
-  if (!btn) return;
-  btn.disabled = true;
-  const label = btn.querySelector('strong');
-  for (let i = 0; i < allFiles.length; i++) {
-    if (label) label.textContent = `Downloading ${i + 1} / ${allFiles.length}…`;
-    const f = allFiles[i];
-    const a = document.createElement('a');
-    a.href = `/share/${token}/dl/${f.id}`; a.download = f.name;
-    document.body.appendChild(a); a.click(); a.remove();
-    if (i < allFiles.length - 1) await new Promise(r => setTimeout(r, 300));
+  if (!window.showDirectoryPicker) {
+    toast('Please open this page in Chrome or Edge to download all files at once.', 'error');
+    return;
   }
-  if (label) label.textContent = '✓ All downloads started';
+
+  let dirHandle;
+  try {
+    dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
+  } catch (e) {
+    return; // user cancelled picker
+  }
+
+  _dlAbort = false;
+  const dlAction = document.getElementById('dlAction');
+  dlAction.innerHTML = buildBatchProgress(allFiles.length);
+
+  const CONCURRENCY = 3;
+  const queue = [...allFiles];
+  let done = 0, failed = 0;
+
+  function updateBatchUI(name) {
+    const total = done + failed;
+    const pct   = allFiles.length ? Math.round((total / allFiles.length) * 100) : 0;
+    const fill  = document.getElementById('batchFill');
+    const count = document.getElementById('batchCount');
+    const fname = document.getElementById('batchFile');
+    if (fill)  { fill.style.animation = 'none'; fill.style.width = pct + '%'; }
+    if (count) count.textContent = `${total} / ${allFiles.length} files`;
+    if (fname && name) fname.textContent = name;
+  }
+
+  async function worker() {
+    while (queue.length > 0 && !_dlAbort) {
+      const f = queue.shift();
+      updateBatchUI(f.name);
+      try {
+        const subDir = await resolveSubDir(dirHandle, f.folder, shareFolder);
+        const fileHandle = await subDir.getFileHandle(f.name, { create: true });
+        const writable   = await fileHandle.createWritable();
+        const resp = await fetch(`/share/${token}/stream/${f.id}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        await resp.body.pipeTo(writable);
+        done++;
+      } catch (err) {
+        failed++;
+        console.error(`[dl] ${f.name}:`, err.message);
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
+  const errNote = failed > 0 ? ` · <span style="color:var(--accent)">${failed} failed</span>` : '';
+  const dlAction2 = document.getElementById('dlAction');
+  if (dlAction2) dlAction2.innerHTML = `
+    <div class="preparing-row" style="background:oklch(0.50 0.13 162/0.12);border-color:oklch(0.70 0.13 162/0.4)">
+      <span style="color:var(--ok);font-size:20px;flex:none;line-height:1">✓</span>
+      <div class="preparing-info">
+        <strong style="color:var(--header-ink)">${_dlAbort ? 'Download cancelled' : 'Download complete'}</strong>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--header-muted);margin-top:4px">${done} of ${allFiles.length} files saved${errNote}</div>
+      </div>
+    </div>`;
+}
+
+async function resolveSubDir(rootHandle, fileFolder, rootFolder) {
+  const rel = (rootFolder && fileFolder && fileFolder.startsWith(rootFolder))
+    ? fileFolder.slice(rootFolder.length).replace(/^\/+/, '')
+    : (fileFolder || '');
+  let dir = rootHandle;
+  for (const part of rel.split('/').filter(Boolean)) {
+    dir = await dir.getDirectoryHandle(part, { create: true });
+  }
+  return dir;
+}
+
+function buildBatchProgress(total) {
+  return `
+    <div class="preparing-row">
+      <span class="spinner"></span>
+      <div class="preparing-info" style="min-width:0">
+        <strong>Downloading files…</strong>
+        <div class="prog-track" style="margin-top:7px">
+          <div id="batchFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width 0.3s ease"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
+          <span id="batchCount" style="font-family:var(--mono);font-size:11px;color:var(--header-muted)">0 / ${total} files</span>
+          <button onclick="_dlAbort=true" style="background:none;border:none;font-family:var(--mono);font-size:11px;color:var(--header-muted);cursor:pointer;padding:0">Cancel</button>
+        </div>
+        <div id="batchFile" style="font-family:var(--mono);font-size:10px;color:var(--header-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%"></div>
+      </div>
+    </div>
+    <div class="preparing-hint" style="margin-top:10px">
+      <span style="flex:none;margin-top:1px">${SVG.film}</span>
+      <span>Keep this tab open. Files are saving directly to your chosen folder.</span>
+    </div>`;
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────

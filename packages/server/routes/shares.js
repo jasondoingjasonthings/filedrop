@@ -129,7 +129,7 @@ function makeSharesPublicRouter(db) {
     const files = await Promise.all(rows.map(async f => {
       const ext = (f.name || '').split('.').pop().toLowerCase();
       const isImage = ext === 'jpg' || ext === 'jpeg';
-      const out = { id: f.id, name: f.name, size: f.size, uploaded_at: f.uploaded_at, created_at: f.created_at, isImage };
+      const out = { id: f.id, name: f.name, size: f.size, folder: f.folder, uploaded_at: f.uploaded_at, created_at: f.created_at, isImage };
       if (isImage) {
         if (f.thumbnail_key) {
           let url = getCached(f.thumbnail_key);
@@ -263,6 +263,37 @@ function makeSharesPublicRouter(db) {
 
     console.log(`[zip] share finalizing token=${req.params.token}`);
     await archive.finalize();
+  });
+
+  // ── Public: stream a single file from R2 via server (used by bulk download / FSAPI)
+  // Proxies R2 → client so browser JS can read the body without CORS issues.
+  router.get('/:token/stream/:fileId', async (req, res) => {
+    const link = db.prepare(`
+      SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).send('Link expired'); return; }
+
+    const file = db.prepare(`
+      SELECT * FROM files WHERE id=? AND (folder=? OR folder LIKE ?) AND status='available'
+    `).get(req.params.fileId, link.folder, link.folder + '/%');
+    if (!file) { res.status(404).send('File not found'); return; }
+
+    try {
+      const stream = await getObjectStream(file.r2_key);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(file.name)}`);
+      res.setHeader('Content-Type', 'application/octet-stream');
+      if (file.size) res.setHeader('Content-Length', file.size);
+      res.on('close', () => { try { stream.destroy(); } catch {} });
+      stream.on('error', err => {
+        console.error('[stream] R2 error:', err.message);
+        if (!res.headersSent) res.status(500).send('Stream error');
+        else res.destroy();
+      });
+      stream.pipe(res);
+    } catch (err) {
+      console.error('[stream] error:', err.message);
+      if (!res.headersSent) res.status(500).send('Download failed');
+    }
   });
 
   // ── Public: same-origin redirect — browser follows to R2 with Content-Disposition
