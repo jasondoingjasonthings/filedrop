@@ -3828,10 +3828,8 @@ async function extendShareLink(id, select) {
 }
 
 function copyExistingShareLink(url, folder) {
-  const days = '—';
-  const note = 'Please download it before the link expires.';
   const label = folder || 'Shared files';
-  const plainText = `${label}\n${url}\n\n${note}`;
+  const plainText = `${label}\n${url}`;
   if (navigator.clipboard) {
     navigator.clipboard.writeText(plainText).then(() => toast('Link copied'));
   }
@@ -3859,12 +3857,10 @@ document.getElementById('generateShareBtn')?.addEventListener('click', async () 
 document.getElementById('copyShareBtn')?.addEventListener('click', () => {
   const link = document.getElementById('shareLinkText').textContent;
   const label = shareFolderKey || 'Shared files';
-  const days = parseInt(document.getElementById('shareExpiry').value);
-  const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — please download it before then.`;
-  const plainText = `${label}\n${link}\n\n${note}`;
+  const plainText = `${label}\n${link}`;
   if (navigator.clipboard && location.protocol === 'https:') {
     try {
-      const html = `<strong>${label}</strong><br><a href="${link}">${link}</a><br><br><em>${note}</em>`;
+      const html = `<strong>${label}</strong><br><a href="${link}">${link}</a>`;
       const item = new ClipboardItem({
         'text/html':  new Blob([html],      { type: 'text/html' }),
         'text/plain': new Blob([plainText], { type: 'text/plain' }),
@@ -3951,9 +3947,8 @@ async function copyMultiShare() {
       });
       return { label: key || 'Shared files', link: `${location.origin}/share/${data.token}` };
     }));
-    const note = `This link expires in ${days} day${days !== 1 ? 's' : ''} — please download it before then.`;
-    const plainText = results.map(r => `${r.label}\n${r.link}`).join('\n\n') + `\n\n${note}`;
-    const html = results.map(r => `<strong>${r.label}</strong><br><a href="${r.link}">${r.link}</a>`).join('<br><br>') + `<br><br><em>${note}</em>`;
+    const plainText = results.map(r => `${r.label}\n${r.link}`).join('\n\n');
+    const html = results.map(r => `<strong>${r.label}</strong><br><a href="${r.link}">${r.link}</a>`).join('<br><br>');
     if (navigator.clipboard && location.protocol === 'https:') {
       try {
         await navigator.clipboard.write([new ClipboardItem({
