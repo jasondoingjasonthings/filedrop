@@ -1,0 +1,26 @@
+name = "filedrop-worker"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+# Static HTML is served from the existing server/html directory.
+# The Worker intercepts dynamic routes (/share/:token, /upload/:token, /)
+# before falling through to static assets.
+assets = { directory = "../server/html", binding = "ASSETS" }
+
+[[d1_databases]]
+binding = "DB"
+database_name = "filedrop"
+database_id = "REPLACE_AFTER_RUNNING_wrangler_d1_create_filedrop"
+
+[triggers]
+crons = ["0 3 * * *"]
+
+[vars]
+R2_BUCKET = "filedrop"
+
+# Secrets — set with: wrangler secret put <NAME>
+#   JWT_SECRET
+#   R2_ACCOUNT_ID
+#   R2_ACCESS_KEY_ID
+#   R2_SECRET_ACCESS_KEY
