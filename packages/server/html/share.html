@@ -328,6 +328,15 @@ body {
   cursor: pointer; transition: color 0.14s, border-color 0.14s;
 }
 .dl-cancel-btn:hover { color: oklch(1 0 0 / 0.7); border-color: oklch(1 0 0 / 0.3); }
+.dl-btn-row { display: flex; gap: 8px; margin-top: 4px; }
+.dl-pause-btn {
+  height: 30px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid oklch(1 0 0 / 0.3); background: transparent;
+  color: oklch(1 0 0 / 0.8); font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: color 0.14s, border-color 0.14s;
+}
+.dl-pause-btn:hover { color: oklch(1 0 0 / 1); border-color: oklch(1 0 0 / 0.6); }
+.dl-prog-speed { font-family: var(--mono); font-size: 11px; color: var(--header-muted); }
 
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
@@ -391,7 +400,13 @@ let imageFiles = [];
 let otherFiles = [];
 let shareFolder = '';
 let lbIndex    = 0;
-let _dlAbort   = false;
+let _dlAbort      = false;
+let _dlPaused     = false;
+let _dlActive     = false;
+let _dlLiveBytes  = 0;
+let _speedBps     = 0;
+let _speedSamples = [];
+let _lastSpeedTick = 0;
 
 function fmtBytes(b) {
   if (!b) return '0 B';
@@ -399,6 +414,17 @@ function fmtBytes(b) {
   if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
   if (b < 1073741824) return (b / 1048576).toFixed(1) + ' MB';
   return (b / 1073741824).toFixed(2) + ' GB';
+}
+function fmtSpeed(bps) {
+  if (bps < 1048576)    return (bps / 1024).toFixed(0) + ' KB/s';
+  if (bps < 1073741824) return (bps / 1048576).toFixed(1) + ' MB/s';
+  return (bps / 1073741824).toFixed(2) + ' GB/s';
+}
+function fmtEta(secs) {
+  if (!isFinite(secs) || secs < 0) return '';
+  if (secs < 60)   return `${Math.round(secs)}s`;
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ${Math.round(secs % 60)}s`;
+  return `${Math.floor(secs / 3600)}h ${Math.floor((secs % 3600) / 60)}m`;
 }
 function fmtDate(iso) {
   if (!iso) return '';
@@ -771,8 +797,28 @@ function downloadOne(fileId, name, btn) {
 let _currentFetch = null;
 
 function cancelDownload() {
-  _dlAbort = true;
+  _dlAbort  = true;
+  _dlPaused = false;
   if (_currentFetch) { try { _currentFetch.abort(); } catch {} }
+}
+
+function pauseDownload() {
+  _dlPaused = !_dlPaused;
+  if (!_dlPaused) {
+    // Clear speed history so stale pre-pause data doesn't skew ETA after resume
+    _speedSamples = [];
+    _speedBps     = 0;
+  }
+  const btn = document.getElementById('dlPauseBtn');
+  if (btn) btn.textContent = _dlPaused ? 'Resume' : 'Pause';
+}
+
+async function checkAlreadyDone(subDir, name, expectedSize) {
+  try {
+    const fh = await subDir.getFileHandle(name);
+    const f  = await fh.getFile();
+    return expectedSize > 0 && f.size === expectedSize;
+  } catch { return false; }
 }
 
 async function downloadAll() {
@@ -784,36 +830,69 @@ async function downloadAll() {
   let dirHandle;
   try {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
-  } catch (e) {
-    return; // user cancelled picker
-  }
+  } catch { return; }
 
-  _dlAbort = false;
-  const totalBytes = allFiles.reduce((s, f) => s + (f.size || 0), 0);
-  let bytesDone = 0, filesDone = 0, filesFailed = 0;
-  const dlAction = document.getElementById('dlAction');
+  _dlAbort       = false;
+  _dlPaused      = false;
+  _dlActive      = true;
+  _dlLiveBytes   = 0;
+  _speedBps      = 0;
+  _speedSamples  = [];
+  _lastSpeedTick = 0;
+
+  const beforeUnload = e => { e.preventDefault(); return e.returnValue = 'Download in progress — are you sure you want to leave?'; };
+  window.addEventListener('beforeunload', beforeUnload);
+
+  const totalBytes  = allFiles.reduce((s, f) => s + (f.size || 0), 0);
+  let bytesDone     = 0, filesDone = 0, filesFailed = 0, filesSkipped = 0;
+  const failedNames = [];
+  const dlAction    = document.getElementById('dlAction');
 
   function renderProgress(fileIdx, fileName, fileReceived, fileTotal) {
-    const overallPct = totalBytes > 0 ? Math.min(100, Math.round(bytesDone / totalBytes * 100)) : 0;
+    _dlLiveBytes = bytesDone + fileReceived;
+    const overallPct = totalBytes > 0 ? Math.min(100, Math.round(_dlLiveBytes / totalBytes * 100)) : 0;
     const filePct    = fileTotal  > 0 ? Math.min(100, Math.round(fileReceived / fileTotal * 100)) : 0;
+
+    // Rolling 4-second speed window
+    const now = Date.now();
+    if (now - _lastSpeedTick > 500 && !_dlPaused) {
+      _speedSamples.push({ t: now, b: _dlLiveBytes });
+      _speedSamples = _speedSamples.filter(s => now - s.t < 4000);
+      if (_speedSamples.length >= 2) {
+        const oldest = _speedSamples[0];
+        const elapsed = (now - oldest.t) / 1000;
+        if (elapsed > 0) _speedBps = (_dlLiveBytes - oldest.b) / elapsed;
+      }
+      _lastSpeedTick = now;
+    }
+
+    const etaSecs  = _speedBps > 0 ? (totalBytes - _dlLiveBytes) / _speedBps : 0;
+    const speedStr = _dlPaused    ? 'Paused'
+                   : _speedBps > 0 ? `${fmtSpeed(_speedBps)} · ETA ${fmtEta(etaSecs)}` : '';
+
     if (dlAction && !dlAction.querySelector('.dl-progress-wrap')) {
       dlAction.innerHTML = `
         <div class="dl-progress-wrap">
           <div class="dl-prog-header">
             <span class="dl-prog-label" id="dlProgLabel"></span>
-            <span class="dl-prog-bytes" id="dlProgBytes"></span>
+            <span class="dl-prog-speed" id="dlProgSpeed"></span>
           </div>
+          <span class="dl-prog-bytes" id="dlProgBytes"></span>
           <div class="dl-prog-track"><div class="dl-prog-fill" id="dlProgFill"></div></div>
           <div class="dl-prog-filename" id="dlProgFilename"></div>
           <div class="dl-file-track"><div class="dl-file-fill" id="dlFileFill"></div></div>
-          <button class="dl-cancel-btn" onclick="cancelDownload()" type="button">Cancel</button>
+          <div class="dl-btn-row">
+            <button class="dl-pause-btn" id="dlPauseBtn" onclick="pauseDownload()" type="button">Pause</button>
+            <button class="dl-cancel-btn" onclick="cancelDownload()" type="button">Cancel</button>
+          </div>
         </div>`;
     }
     const g = id => document.getElementById(id);
-    const label = g('dlProgLabel'), bytes = g('dlProgBytes'),
+    const label = g('dlProgLabel'), speed = g('dlProgSpeed'), bytes = g('dlProgBytes'),
           fill  = g('dlProgFill'),  fname = g('dlProgFilename'), ffill = g('dlFileFill');
-    if (label) label.textContent = `${fileIdx} of ${allFiles.length} files`;
-    if (bytes) bytes.textContent = `${fmtBytes(bytesDone)} of ${fmtBytes(totalBytes)}`;
+    if (label) label.textContent = `${fileIdx + 1} of ${allFiles.length} files`;
+    if (speed) speed.textContent = speedStr;
+    if (bytes) bytes.textContent = `${fmtBytes(_dlLiveBytes)} of ${fmtBytes(totalBytes)}`;
     if (fill)  fill.style.width  = overallPct + '%';
     if (fname) fname.textContent = fileReceived > 0
       ? `${fileName} — ${fmtBytes(fileReceived)} of ${fmtBytes(fileTotal)}`
@@ -822,15 +901,30 @@ async function downloadAll() {
   }
 
   for (let i = 0; i < allFiles.length; i++) {
+    // Wait at file boundary if paused
+    while (_dlPaused && !_dlAbort) await new Promise(r => setTimeout(r, 300));
     if (_dlAbort) break;
+
     const f = allFiles[i];
     renderProgress(i, f.name, 0, f.size || 0);
 
+    // Resume: skip files already saved with matching size
+    const subDir = await resolveSubDir(dirHandle, f.folder, shareFolder);
+    if (await checkAlreadyDone(subDir, f.name, f.size)) {
+      bytesDone += f.size || 0;
+      filesDone++;
+      filesSkipped++;
+      continue;
+    }
+
     let success = false;
     for (let attempt = 0; attempt < 3 && !success && !_dlAbort; attempt++) {
+      // Wait at retry boundary if paused
+      while (_dlPaused && !_dlAbort) await new Promise(r => setTimeout(r, 300));
+      if (_dlAbort) break;
+
       let writable = null, reader = null;
       try {
-        const subDir     = await resolveSubDir(dirHandle, f.folder, shareFolder);
         const fileHandle = await subDir.getFileHandle(f.name, { create: true });
         writable = await fileHandle.createWritable();
 
@@ -847,6 +941,12 @@ async function downloadAll() {
         const fileTotal  = f.size || 0;
 
         while (!_dlAbort) {
+          // Pause mid-stream between chunks
+          while (_dlPaused && !_dlAbort) {
+            renderProgress(i, f.name, fileReceived, fileTotal);
+            await new Promise(r => setTimeout(r, 300));
+          }
+          if (_dlAbort) break;
           const { done, value } = await reader.read();
           if (done) break;
           await writable.write(value);
@@ -854,40 +954,42 @@ async function downloadAll() {
           renderProgress(i, f.name, fileReceived, fileTotal);
         }
 
-        if (_dlAbort) {
-          reader.cancel();
-          await writable.abort();
-          break;
-        }
+        if (_dlAbort) { reader.cancel(); await writable.abort(); break; }
 
         await writable.close();
         success = true;
         bytesDone += f.size || 0;
         filesDone++;
       } catch (err) {
-        try { if (reader)   reader.cancel();       } catch {}
+        try { if (reader)   reader.cancel();        } catch {}
         try { if (writable) await writable.abort(); } catch {}
         if (_dlAbort) break;
         console.error(`[dl] ${f.name} attempt ${attempt + 1}:`, err.message);
         if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-        else filesFailed++;
+        else { filesFailed++; failedNames.push(f.name); }
       } finally {
         _currentFetch = null;
       }
     }
   }
 
+  _dlActive = false;
+  window.removeEventListener('beforeunload', beforeUnload);
+
   if (!dlAction) return;
-  const errNote = filesFailed > 0
-    ? ` · <span style="color:var(--accent)">${filesFailed} failed</span>` : '';
-  const retryBtn = filesFailed > 0
+  const errNote    = filesFailed  > 0 ? ` · <span style="color:var(--accent)">${filesFailed} failed</span>` : '';
+  const skipNote   = filesSkipped > 0 ? ` · ${filesSkipped} already saved` : '';
+  const failedList = failedNames.length
+    ? `<div style="font-family:var(--mono);font-size:10px;color:var(--header-muted);margin-top:4px">${failedNames.map(n => `↳ ${n}`).join('<br>')}</div>` : '';
+  const retryBtn   = filesFailed  > 0
     ? ` — <button onclick="downloadAll()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;padding:0">Retry</button>` : '';
   dlAction.innerHTML = `
     <div class="preparing-row" style="background:oklch(0.50 0.13 162/0.12);border-color:oklch(0.70 0.13 162/0.4)">
       <span style="color:var(--ok);font-size:20px;flex:none;line-height:1">✓</span>
       <div class="preparing-info">
         <strong style="color:var(--header-ink)">${_dlAbort ? 'Download cancelled' : 'Download complete'}</strong>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--header-muted);margin-top:4px">${filesDone} of ${allFiles.length} files saved${errNote}${retryBtn}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--header-muted);margin-top:4px">${filesDone} of ${allFiles.length} files saved${skipNote}${errNote}${retryBtn}</div>
+        ${failedList}
       </div>
     </div>`;
 }
