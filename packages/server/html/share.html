@@ -400,13 +400,14 @@ let imageFiles = [];
 let otherFiles = [];
 let shareFolder = '';
 let lbIndex    = 0;
-let _dlAbort      = false;
-let _dlPaused     = false;
-let _dlActive     = false;
-let _dlLiveBytes  = 0;
-let _speedBps     = 0;
-let _speedSamples = [];
-let _lastSpeedTick = 0;
+let _dlAbort         = false;
+let _dlPaused        = false;
+let _dlNetworkPaused = false;
+let _dlActive        = false;
+let _dlLiveBytes     = 0;
+let _speedBps        = 0;
+let _speedSamples    = [];
+let _lastSpeedTick   = 0;
 
 function fmtBytes(b) {
   if (!b) return '0 B';
@@ -794,23 +795,20 @@ function downloadOne(fileId, name, btn) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
-let _currentFetch = null;
+// Set of active AbortControllers — cancel/stall-detector aborts all simultaneously
+const _activeFetches = new Set();
 
 function cancelDownload() {
   _dlAbort  = true;
   _dlPaused = false;
-  if (_currentFetch) { try { _currentFetch.abort(); } catch {} }
+  for (const ac of _activeFetches) { try { ac.abort(); } catch {} }
 }
 
 function pauseDownload() {
   _dlPaused = !_dlPaused;
-  if (!_dlPaused) {
-    // Clear speed history so stale pre-pause data doesn't skew ETA after resume
-    _speedSamples = [];
-    _speedBps     = 0;
-  }
+  if (!_dlPaused) { _speedSamples = []; _speedBps = 0; }
   const btn = document.getElementById('dlPauseBtn');
-  if (btn) btn.textContent = _dlPaused ? 'Resume' : 'Pause';
+  if (btn) btn.textContent = (_dlPaused || _dlNetworkPaused) ? 'Resume' : 'Pause';
 }
 
 async function checkAlreadyDone(subDir, name, expectedSize) {
@@ -822,6 +820,11 @@ async function checkAlreadyDone(subDir, name, expectedSize) {
 }
 
 async function downloadAll() {
+  // Request notification permission early (non-blocking, user gesture context)
+  if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+    Notification.requestPermission().catch(() => {});
+  }
+
   if (!window.showDirectoryPicker) {
     toast('Please use Chrome or Edge to download all files at once.', 'error');
     return;
@@ -832,30 +835,88 @@ async function downloadAll() {
     dirHandle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'downloads' });
   } catch { return; }
 
-  _dlAbort       = false;
-  _dlPaused      = false;
-  _dlActive      = true;
-  _dlLiveBytes   = 0;
-  _speedBps      = 0;
-  _speedSamples  = [];
-  _lastSpeedTick = 0;
+  _dlAbort         = false;
+  _dlPaused        = false;
+  _dlNetworkPaused = false;
+  _dlActive        = true;
+  _dlLiveBytes     = 0;
+  _speedBps        = 0;
+  _speedSamples    = [];
+  _lastSpeedTick   = 0;
 
+  // ── Tab close warning ──────────────────────────────────────────────────────
   const beforeUnload = e => { e.preventDefault(); return e.returnValue = 'Download in progress — are you sure you want to leave?'; };
   window.addEventListener('beforeunload', beforeUnload);
+
+  // ── Network offline / online detection ────────────────────────────────────
+  const onOffline = () => {
+    _dlNetworkPaused = true;
+    const btn = document.getElementById('dlPauseBtn');
+    if (btn) btn.textContent = 'Resume';
+    const sp = document.getElementById('dlProgSpeed');
+    if (sp) sp.textContent = 'No connection — waiting…';
+  };
+  const onOnline = () => {
+    _dlNetworkPaused = false;
+    _speedSamples = []; _speedBps = 0;
+    if (!_dlPaused) {
+      const btn = document.getElementById('dlPauseBtn');
+      if (btn) btn.textContent = 'Pause';
+    }
+  };
+  window.addEventListener('offline', onOffline);
+  window.addEventListener('online',  onOnline);
 
   const totalBytes  = allFiles.reduce((s, f) => s + (f.size || 0), 0);
   let bytesDone     = 0, filesDone = 0, filesFailed = 0, filesSkipped = 0;
   const failedNames = [];
   const dlAction    = document.getElementById('dlAction');
 
-  function renderProgress(fileIdx, fileName, fileReceived, fileTotal) {
-    _dlLiveBytes = bytesDone + fileReceived;
-    const overallPct = totalBytes > 0 ? Math.min(100, Math.round(_dlLiveBytes / totalBytes * 100)) : 0;
-    const filePct    = fileTotal  > 0 ? Math.min(100, Math.round(fileReceived / fileTotal * 100)) : 0;
+  // ── Presign cache ──────────────────────────────────────────────────────────
+  // Fire-and-forget prefetch of presigned URLs for upcoming files so each
+  // file starts immediately rather than waiting for a presign round-trip.
+  const presignCache = new Map();
+  function prefetchPresigns(startIdx, count) {
+    for (let j = startIdx; j < Math.min(startIdx + count, allFiles.length); j++) {
+      const f = allFiles[j];
+      if (presignCache.has(f.id)) continue;
+      fetch(`/share/${token}/presign/${f.id}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d?.url) presignCache.set(f.id, { url: d.url, exp: Date.now() + 600_000 }); })
+        .catch(() => {});
+    }
+  }
 
-    // Rolling 4-second speed window
+  // ── Parallel worker pool ───────────────────────────────────────────────────
+  const CONCURRENCY      = 3;
+  const workerReceived   = new Array(CONCURRENCY).fill(0);
+  let   nextFileIndex    = 0;
+  const activeFileNames  = new Set();
+
+  function getLiveBytes() {
+    return bytesDone + workerReceived.reduce((s, b) => s + b, 0);
+  }
+
+  // ── Stall detector ─────────────────────────────────────────────────────────
+  // If no chunk arrives for 30s while active, abort all fetches so the retry
+  // loop restarts them — handles sleep, network freezes, etc. transparently.
+  let _lastProgressTime = Date.now();
+  const stallTimer = setInterval(() => {
+    if (_dlAbort || _dlPaused || _dlNetworkPaused || !_dlActive) return;
+    if (Date.now() - _lastProgressTime > 30_000) {
+      console.log('[dl] stall detected — aborting fetches for retry');
+      for (const ac of _activeFetches) { try { ac.abort(); } catch {} }
+      _lastProgressTime = Date.now();
+    }
+  }, 10_000);
+
+  // ── Progress renderer ──────────────────────────────────────────────────────
+  function renderProgress() {
+    _dlLiveBytes = getLiveBytes();
+    const overallPct = totalBytes > 0 ? Math.min(100, Math.round(_dlLiveBytes / totalBytes * 100)) : 0;
+
     const now = Date.now();
-    if (now - _lastSpeedTick > 500 && !_dlPaused) {
+    if (now - _lastSpeedTick > 500 && !_dlPaused && !_dlNetworkPaused) {
       _speedSamples.push({ t: now, b: _dlLiveBytes });
       _speedSamples = _speedSamples.filter(s => now - s.t < 4000);
       if (_speedSamples.length >= 2) {
@@ -867,8 +928,9 @@ async function downloadAll() {
     }
 
     const etaSecs  = _speedBps > 0 ? (totalBytes - _dlLiveBytes) / _speedBps : 0;
-    const speedStr = _dlPaused    ? 'Paused'
-                   : _speedBps > 0 ? `${fmtSpeed(_speedBps)} · ETA ${fmtEta(etaSecs)}` : '';
+    const speedStr = _dlNetworkPaused ? 'No connection — waiting…'
+                   : _dlPaused        ? 'Paused'
+                   : _speedBps > 0    ? `${fmtSpeed(_speedBps)} · ETA ${fmtEta(etaSecs)}` : '';
 
     if (dlAction && !dlAction.querySelector('.dl-progress-wrap')) {
       dlAction.innerHTML = `
@@ -890,91 +952,148 @@ async function downloadAll() {
     const g = id => document.getElementById(id);
     const label = g('dlProgLabel'), speed = g('dlProgSpeed'), bytes = g('dlProgBytes'),
           fill  = g('dlProgFill'),  fname = g('dlProgFilename'), ffill = g('dlFileFill');
-    if (label) label.textContent = `${fileIdx + 1} of ${allFiles.length} files`;
+    const activeArr = [...activeFileNames];
+    const fnText = activeArr.length > 1 ? `${activeArr.length} files downloading…`
+                 : activeArr.length === 1 ? activeArr[0] : '';
+    if (label) label.textContent = `${filesDone} of ${allFiles.length} files`;
     if (speed) speed.textContent = speedStr;
     if (bytes) bytes.textContent = `${fmtBytes(_dlLiveBytes)} of ${fmtBytes(totalBytes)}`;
     if (fill)  fill.style.width  = overallPct + '%';
-    if (fname) fname.textContent = fileReceived > 0
-      ? `${fileName} — ${fmtBytes(fileReceived)} of ${fmtBytes(fileTotal)}`
-      : fileName;
-    if (ffill) ffill.style.width = filePct + '%';
+    if (fname) fname.textContent = fnText;
+    if (ffill) ffill.style.width = overallPct + '%';
   }
 
-  for (let i = 0; i < allFiles.length; i++) {
-    // Wait at file boundary if paused
-    while (_dlPaused && !_dlAbort) await new Promise(r => setTimeout(r, 300));
-    if (_dlAbort) break;
-
-    const f = allFiles[i];
-    renderProgress(i, f.name, 0, f.size || 0);
-
-    // Resume: skip files already saved with matching size
-    const subDir = await resolveSubDir(dirHandle, f.folder, shareFolder);
-    if (await checkAlreadyDone(subDir, f.name, f.size)) {
-      bytesDone += f.size || 0;
-      filesDone++;
-      filesSkipped++;
-      continue;
-    }
-
-    let success = false;
-    for (let attempt = 0; attempt < 3 && !success && !_dlAbort; attempt++) {
-      // Wait at retry boundary if paused
-      while (_dlPaused && !_dlAbort) await new Promise(r => setTimeout(r, 300));
+  // ── Worker function ────────────────────────────────────────────────────────
+  async function dlWorker(workerIndex) {
+    while (!_dlAbort) {
+      while ((_dlPaused || _dlNetworkPaused) && !_dlAbort) await new Promise(r => setTimeout(r, 300));
       if (_dlAbort) break;
 
-      let writable = null, reader = null;
-      try {
-        const fileHandle = await subDir.getFileHandle(f.name, { create: true });
-        writable = await fileHandle.createWritable();
+      const i = nextFileIndex++;
+      if (i >= allFiles.length) break;
 
-        _currentFetch = new AbortController();
-        const pRes = await fetch(`/share/${token}/presign/${f.id}`, { signal: _currentFetch.signal });
-        if (!pRes.ok) throw new Error(`Presign ${pRes.status}`);
-        const { url: r2Url } = await pRes.json();
+      const f = allFiles[i];
+      activeFileNames.add(f.name);
+      renderProgress();
 
-        const resp = await fetch(r2Url, { signal: _currentFetch.signal });
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      // Prefetch presigns for files coming up behind this one
+      prefetchPresigns(nextFileIndex, 4);
 
-        reader = resp.body.getReader();
-        let fileReceived = 0;
-        const fileTotal  = f.size || 0;
+      const subDir = await resolveSubDir(dirHandle, f.folder, shareFolder);
 
-        while (!_dlAbort) {
-          // Pause mid-stream between chunks
-          while (_dlPaused && !_dlAbort) {
-            renderProgress(i, f.name, fileReceived, fileTotal);
-            await new Promise(r => setTimeout(r, 300));
-          }
-          if (_dlAbort) break;
-          const { done, value } = await reader.read();
-          if (done) break;
-          await writable.write(value);
-          fileReceived += value.length;
-          renderProgress(i, f.name, fileReceived, fileTotal);
-        }
-
-        if (_dlAbort) { reader.cancel(); await writable.abort(); break; }
-
-        await writable.close();
-        success = true;
+      // Resume: skip files already on disk with correct size
+      if (await checkAlreadyDone(subDir, f.name, f.size)) {
         bytesDone += f.size || 0;
+        workerReceived[workerIndex] = 0;
         filesDone++;
-      } catch (err) {
-        try { if (reader)   reader.cancel();        } catch {}
-        try { if (writable) await writable.abort(); } catch {}
-        if (_dlAbort) break;
-        console.error(`[dl] ${f.name} attempt ${attempt + 1}:`, err.message);
-        if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
-        else { filesFailed++; failedNames.push(f.name); }
-      } finally {
-        _currentFetch = null;
+        filesSkipped++;
+        activeFileNames.delete(f.name);
+        renderProgress();
+        continue;
       }
+
+      let success = false;
+      for (let attempt = 0; attempt < 3 && !success && !_dlAbort; attempt++) {
+        while ((_dlPaused || _dlNetworkPaused) && !_dlAbort) await new Promise(r => setTimeout(r, 300));
+        if (_dlAbort) break;
+
+        workerReceived[workerIndex] = 0;
+        let writable = null, reader = null, fetchAc = null;
+        try {
+          const fileHandle = await subDir.getFileHandle(f.name, { create: true });
+          writable = await fileHandle.createWritable();
+
+          // Use cached presigned URL if still fresh, otherwise fetch fresh
+          let r2Url;
+          const cached = presignCache.get(f.id);
+          if (cached && cached.exp > Date.now() + 5000) {
+            r2Url = cached.url;
+            presignCache.delete(f.id);
+          } else {
+            fetchAc = new AbortController();
+            _activeFetches.add(fetchAc);
+            try {
+              const pRes = await fetch(`/share/${token}/presign/${f.id}`, { signal: fetchAc.signal });
+              if (!pRes.ok) throw new Error(`Presign ${pRes.status}`);
+              r2Url = (await pRes.json()).url;
+            } finally { _activeFetches.delete(fetchAc); fetchAc = null; }
+          }
+
+          fetchAc = new AbortController();
+          _activeFetches.add(fetchAc);
+          const resp = await fetch(r2Url, { signal: fetchAc.signal });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+          // Content-Length for truncation detection
+          const contentLength = parseInt(resp.headers.get('content-length') || '0', 10);
+
+          reader = resp.body.getReader();
+          let fileReceived = 0;
+
+          while (!_dlAbort) {
+            while ((_dlPaused || _dlNetworkPaused) && !_dlAbort) {
+              renderProgress();
+              await new Promise(r => setTimeout(r, 300));
+            }
+            if (_dlAbort) break;
+            const { done, value } = await reader.read();
+            if (done) break;
+            await writable.write(value);
+            fileReceived              += value.length;
+            workerReceived[workerIndex] = fileReceived;
+            _lastProgressTime           = Date.now(); // stall detector heartbeat
+            renderProgress();
+          }
+
+          if (_dlAbort) { reader.cancel(); await writable.abort(); break; }
+
+          // Validate no truncation before closing
+          if (contentLength > 0 && fileReceived !== contentLength) {
+            throw new Error(`Truncated: got ${fileReceived}, expected ${contentLength}`);
+          }
+
+          await writable.close();
+          success = true;
+          bytesDone += f.size || 0;
+          workerReceived[workerIndex] = 0;
+          filesDone++;
+        } catch (err) {
+          try { if (reader)   reader.cancel();        } catch {}
+          try { if (writable) await writable.abort(); } catch {}
+          workerReceived[workerIndex] = 0;
+          if (_dlAbort) break;
+          console.error(`[dl] ${f.name} attempt ${attempt + 1}:`, err.message);
+          if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+          else { filesFailed++; failedNames.push(f.name); }
+        } finally {
+          if (fetchAc) _activeFetches.delete(fetchAc);
+        }
+      }
+
+      activeFileNames.delete(f.name);
+      renderProgress();
     }
   }
 
+  // Launch CONCURRENCY workers in parallel
+  await Promise.all(Array.from({ length: CONCURRENCY }, (_, i) => dlWorker(i)));
+
+  // ── Cleanup ────────────────────────────────────────────────────────────────
+  clearInterval(stallTimer);
   _dlActive = false;
   window.removeEventListener('beforeunload', beforeUnload);
+  window.removeEventListener('offline', onOffline);
+  window.removeEventListener('online',  onOnline);
+
+  // ── System notification ────────────────────────────────────────────────────
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && !_dlAbort) {
+    try {
+      new Notification('FileDrop — download complete', {
+        body: `${filesDone} of ${allFiles.length} files saved`,
+        icon: '/favicon.ico',
+      });
+    } catch {}
+  }
 
   if (!dlAction) return;
   const errNote    = filesFailed  > 0 ? ` · <span style="color:var(--accent)">${filesFailed} failed</span>` : '';
