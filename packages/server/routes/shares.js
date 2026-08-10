@@ -16,9 +16,9 @@ function makeSharesApiRouter(db, jwtSecret) {
 
   // ── Owner or Editor: create share link ───────────────────────────────────
   router.post('/', jwtAuth, (req, res) => {
-    const { folder, label, days = 7, cover_image_id } = req.body || {};
+    const { folder, label, cover_image_id } = req.body || {};
     const token     = crypto.randomBytes(24).toString('hex');
-    const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+    const expiresAt = '9999-12-31 23:59:59';
     const shareLabel = label || folder || 'Shared files';
     db.prepare(`
       INSERT INTO share_links (token, folder, label, expires_at, cover_image_id)

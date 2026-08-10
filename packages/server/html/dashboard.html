@@ -994,14 +994,6 @@ body.multi-selecting .folder-select-cb { opacity:1; }
     <!-- New link form -->
     <div id="shareNewForm" style="display:flex;flex-direction:column;gap:14px">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)" id="shareNewLabel">New link</div>
-      <div class="field">
-        <label>Expires after</label>
-        <select id="shareExpiry" style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;color:var(--text);padding:10px 14px;font-size:14px;font-family:inherit;outline:none">
-          <option value="1">1 day</option>
-          <option value="7" selected>7 days</option>
-          <option value="30">30 days</option>
-        </select>
-      </div>
       <button class="btn-primary" id="generateShareBtn">Generate link</button>
       <div id="shareLinkWrap" style="display:none;flex-direction:column;gap:8px">
         <div style="background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--accent-d);word-break:break-all;font-family:monospace;font-weight:700" id="shareLinkText"></div>
@@ -1015,11 +1007,6 @@ body.multi-selecting .folder-select-cb { opacity:1; }
 <div id="multiShareBar" style="display:none;position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--header-a),var(--header-b));border:1px solid var(--header-line);border-radius:14px;padding:12px 20px;align-items:center;gap:14px;box-shadow:0 2px 4px oklch(0.3 0.04 232/.18),0 20px 48px -12px oklch(0.3 0.04 232/.55);z-index:250;white-space:nowrap">
   <span id="multiShareCount" style="font-size:13px;font-weight:700;color:var(--header-ink)"></span>
   <div style="width:1px;align-self:stretch;background:var(--header-line);margin:2px 0"></div>
-  <select id="multiShareExpiry" style="background:oklch(1 0 0/.10);border:1px solid var(--header-line);border-radius:8px;color:var(--header-ink);padding:7px 11px;font-size:12px;font-family:inherit;outline:none">
-    <option value="1">1 day</option>
-    <option value="7" selected>7 days</option>
-    <option value="30">30 days</option>
-  </select>
   <button id="multiShareCopyBtn" style="padding:8px 18px;font-size:13px;font-weight:700;background:var(--accent);color:#0b1f2a;border:none;border-radius:8px;cursor:pointer;font-family:inherit" onclick="copyMultiShare()">Copy share links</button>
   <button style="padding:8px 12px;font-size:13px;background:oklch(1 0 0/.08);color:var(--header-ink);border:1px solid var(--header-line);border-radius:8px;cursor:pointer;font-family:inherit" onclick="clearMultiShare()">Clear</button>
 </div>
@@ -3776,8 +3763,6 @@ async function loadExistingShareLinks(folder) {
   document.getElementById('shareNewLabel').textContent = 'Create another link';
   list.innerHTML = matching.map(l => {
     const url = `${location.origin}/share/${l.token}`;
-    const expiry = new Date(l.expires_at);
-    const daysLeft = Math.max(0, Math.round((expiry - Date.now()) / 86400000));
     const safeUrl = url.replace(/'/g, "\\'");
     const dlBadge = l.zip_downloaded_at
       ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:#059669;background:#d1fae5;border-radius:99px;padding:1px 7px">✓ downloaded ${new Date(l.zip_downloaded_at + 'Z').toLocaleDateString('en-GB')}</span>`
@@ -3786,15 +3771,9 @@ async function loadExistingShareLinks(folder) {
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--bg);border:1.5px solid var(--border);border-radius:10px" data-share-id="${l.id}">
         <div style="flex:1;min-width:0">
           <div style="font-size:12px;font-weight:700;font-family:monospace;color:var(--accent-d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${url}</div>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">${dlBadge}<span class="share-expiry-label" style="font-size:11px;color:var(--muted)">Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${expiry.toLocaleDateString('en-GB')}</span></div>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap">${dlBadge}</div>
         </div>
         <button class="btn-sm" onclick="copyExistingShareLink('${safeUrl}', '${esc(folder).replace(/'/g,"\\'")}')">Copy</button>
-        <select class="btn-sm" style="padding:4px 8px;cursor:pointer" onchange="extendShareLink(${l.id}, this)">
-          <option value="">Extend…</option>
-          <option value="7">+7 days</option>
-          <option value="30">+30 days</option>
-          <option value="90">+90 days</option>
-        </select>
         <button class="btn-sm btn-delete" onclick="revokeShareLink(${l.id}, this)">Revoke</button>
       </div>`;
   }).join('');
@@ -3814,18 +3793,6 @@ async function revokeShareLink(id, btn) {
   }
 }
 
-async function extendShareLink(id, select) {
-  const days = parseInt(select.value);
-  if (!days) return;
-  select.value = '';
-  const data = await api(`/api/shares/${id}/extend`, { method: 'PATCH', body: JSON.stringify({ days }) });
-  if (!data) return;
-  const row = select.closest('[data-share-id]');
-  const expiry = new Date(data.expiresAt);
-  const daysLeft = Math.max(0, Math.round((expiry - Date.now()) / 86400000));
-  row.querySelector('.share-expiry-label').textContent = `Expires in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} · ${expiry.toLocaleDateString('en-GB')}`;
-  toast(`Link extended by ${days} days`);
-}
 
 function copyExistingShareLink(url, folder) {
   const label = folder || 'Shared files';
@@ -3841,11 +3808,10 @@ function closeShareModal() {
 }
 
 document.getElementById('generateShareBtn')?.addEventListener('click', async () => {
-  const days = parseInt(document.getElementById('shareExpiry').value);
   try {
     const data = await api('/api/shares', {
       method: 'POST',
-      body: JSON.stringify({ folder: shareFolderKey, days, label: shareFolderKey || 'Shared files' }),
+      body: JSON.stringify({ folder: shareFolderKey, label: shareFolderKey || 'Shared files' }),
     });
     if (!data) return;
     const link = `${location.origin}/share/${data.token}`;
@@ -3934,7 +3900,6 @@ function clearMultiShare() {
 }
 
 async function copyMultiShare() {
-  const days = parseInt(document.getElementById('multiShareExpiry').value);
   const keys = [...multiShareSelected];
   const btn = document.getElementById('multiShareCopyBtn');
   btn.disabled = true;
@@ -3943,7 +3908,7 @@ async function copyMultiShare() {
     const results = await Promise.all(keys.map(async key => {
       const data = await api('/api/shares', {
         method: 'POST',
-        body: JSON.stringify({ folder: key, days, label: key || 'Shared files' }),
+        body: JSON.stringify({ folder: key, label: key || 'Shared files' }),
       });
       return { label: key || 'Shared files', link: `${location.origin}/share/${data.token}` };
     }));

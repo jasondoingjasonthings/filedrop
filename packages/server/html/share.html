@@ -566,27 +566,12 @@ function renderPage(data, totalSize, zipState) {
           <span class="hi">${fmtBytes(totalSize)}</span>
         </div>
         <div class="dl-action" id="dlAction">${buildDlAction(zipState, totalSize)}</div>
-        ${days !== null ? `
-        <div class="expiry-chip">
-          <span style="color:${urgent ? 'var(--accent)' : 'var(--header-muted)'}; display:flex">${SVG.clock}</span>
-          <span class="lbl">Available until</span>
-          <span class="dt">${expiryDate}</span>
-          <span class="sep"></span>
-          <span class="days${urgent ? ' urgent' : ''}">${days} day${days !== 1 ? 's' : ''} left</span>
-        </div>` : ''}
       </div>
 
       ${imageFiles.length ? buildGallery() : ''}
       ${otherFiles.length ? buildFileList() : ''}
       ${!allFiles.length ? `<div style="text-align:center;padding:60px 20px;color:var(--muted)"><p style="font-size:15px;font-weight:600">No files available</p></div>` : ''}
 
-      ${days !== null ? `
-      <footer class="share-footer">
-        <div class="footer-expiry">
-          ${SVG.clock}
-          <span>This link expires on <strong>${expiryDate}</strong>. Download before then.</span>
-        </div>
-      </footer>` : ''}
 
       <div class="wttf-footer">
         <div class="wttf-footer-left">
