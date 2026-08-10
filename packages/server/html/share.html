@@ -848,6 +848,16 @@ async function downloadAll() {
   const beforeUnload = e => { e.preventDefault(); return e.returnValue = 'Download in progress — are you sure you want to leave?'; };
   window.addEventListener('beforeunload', beforeUnload);
 
+  // ── Wake Lock — keep the screen/system awake during download ───────────────
+  let wakeLock = null;
+  async function acquireWakeLock() {
+    try { wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+  }
+  // Re-acquire after visibility change (OS releases lock when tab goes hidden)
+  const onVisibilityChange = () => { if (document.visibilityState === 'visible' && _dlActive) acquireWakeLock(); };
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  await acquireWakeLock();
+
   // ── Network offline / online detection ────────────────────────────────────
   const onOffline = () => {
     _dlNetworkPaused = true;
@@ -1081,6 +1091,8 @@ async function downloadAll() {
   // ── Cleanup ────────────────────────────────────────────────────────────────
   clearInterval(stallTimer);
   _dlActive = false;
+  try { if (wakeLock) wakeLock.release(); } catch {}
+  document.removeEventListener('visibilitychange', onVisibilityChange);
   window.removeEventListener('beforeunload', beforeUnload);
   window.removeEventListener('offline', onOffline);
   window.removeEventListener('online',  onOnline);
