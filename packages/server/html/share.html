@@ -311,6 +311,24 @@ body {
 @keyframes deck-cursor { 0%,49%{ opacity:1 } 50%,100%{ opacity:0 } }
 .intro-cursor { animation: deck-cursor 0.8s step-start infinite; }
 
+/* ── Bulk download progress ──────────────────────────────────────────────── */
+.dl-progress-wrap { display: flex; flex-direction: column; gap: 10px; }
+.dl-prog-header { display: flex; justify-content: space-between; align-items: baseline; }
+.dl-prog-label { font-size: 15px; font-weight: 600; color: var(--header-ink); }
+.dl-prog-bytes { font-family: var(--mono); font-size: 12px; color: var(--header-muted); }
+.dl-prog-track { height: 6px; border-radius: 999px; background: oklch(1 0 0 / 0.12); overflow: hidden; margin: 4px 0; }
+.dl-prog-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #00857a, #00A896); transition: width 0.4s ease; }
+.dl-prog-filename { font-family: var(--mono); font-size: 11px; color: var(--header-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 5px; }
+.dl-file-track { height: 3px; border-radius: 999px; background: oklch(1 0 0 / 0.08); overflow: hidden; }
+.dl-file-fill { height: 100%; border-radius: 999px; background: oklch(1 0 0 / 0.3); transition: width 0.15s ease; }
+.dl-cancel-btn {
+  align-self: flex-start; margin-top: 4px; height: 30px; padding: 0 14px; border-radius: 8px;
+  border: 1px solid oklch(1 0 0 / 0.15); background: transparent;
+  color: oklch(1 0 0 / 0.45); font-family: var(--font); font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: color 0.14s, border-color 0.14s;
+}
+.dl-cancel-btn:hover { color: oklch(1 0 0 / 0.7); border-color: oklch(1 0 0 / 0.3); }
+
 /* ── Mobile ──────────────────────────────────────────────────────────────── */
 @media (max-width: 600px) {
   .wrap { padding: 22px 18px 36px; }
@@ -750,9 +768,16 @@ function downloadOne(fileId, name, btn) {
   document.body.appendChild(a); a.click(); a.remove();
 }
 
+let _currentFetch = null;
+
+function cancelDownload() {
+  _dlAbort = true;
+  if (_currentFetch) { try { _currentFetch.abort(); } catch {} }
+}
+
 async function downloadAll() {
   if (!window.showDirectoryPicker) {
-    toast('Please open this page in Chrome or Edge to download all files at once.', 'error');
+    toast('Please use Chrome or Edge to download all files at once.', 'error');
     return;
   }
 
@@ -764,53 +789,105 @@ async function downloadAll() {
   }
 
   _dlAbort = false;
+  const totalBytes = allFiles.reduce((s, f) => s + (f.size || 0), 0);
+  let bytesDone = 0, filesDone = 0, filesFailed = 0;
   const dlAction = document.getElementById('dlAction');
-  dlAction.innerHTML = buildBatchProgress(allFiles.length);
 
-  const CONCURRENCY = 3;
-  const queue = [...allFiles];
-  let done = 0, failed = 0;
-
-  function updateBatchUI(name) {
-    const total = done + failed;
-    const pct   = allFiles.length ? Math.round((total / allFiles.length) * 100) : 0;
-    const fill  = document.getElementById('batchFill');
-    const count = document.getElementById('batchCount');
-    const fname = document.getElementById('batchFile');
-    if (fill)  { fill.style.animation = 'none'; fill.style.width = pct + '%'; }
-    if (count) count.textContent = `${total} / ${allFiles.length} files`;
-    if (fname && name) fname.textContent = name;
+  function renderProgress(fileIdx, fileName, fileReceived, fileTotal) {
+    const overallPct = totalBytes > 0 ? Math.min(100, Math.round(bytesDone / totalBytes * 100)) : 0;
+    const filePct    = fileTotal  > 0 ? Math.min(100, Math.round(fileReceived / fileTotal * 100)) : 0;
+    if (dlAction && !dlAction.querySelector('.dl-progress-wrap')) {
+      dlAction.innerHTML = `
+        <div class="dl-progress-wrap">
+          <div class="dl-prog-header">
+            <span class="dl-prog-label" id="dlProgLabel"></span>
+            <span class="dl-prog-bytes" id="dlProgBytes"></span>
+          </div>
+          <div class="dl-prog-track"><div class="dl-prog-fill" id="dlProgFill"></div></div>
+          <div class="dl-prog-filename" id="dlProgFilename"></div>
+          <div class="dl-file-track"><div class="dl-file-fill" id="dlFileFill"></div></div>
+          <button class="dl-cancel-btn" onclick="cancelDownload()" type="button">Cancel</button>
+        </div>`;
+    }
+    const g = id => document.getElementById(id);
+    const label = g('dlProgLabel'), bytes = g('dlProgBytes'),
+          fill  = g('dlProgFill'),  fname = g('dlProgFilename'), ffill = g('dlFileFill');
+    if (label) label.textContent = `${fileIdx} of ${allFiles.length} files`;
+    if (bytes) bytes.textContent = `${fmtBytes(bytesDone)} of ${fmtBytes(totalBytes)}`;
+    if (fill)  fill.style.width  = overallPct + '%';
+    if (fname) fname.textContent = fileReceived > 0
+      ? `${fileName} — ${fmtBytes(fileReceived)} of ${fmtBytes(fileTotal)}`
+      : fileName;
+    if (ffill) ffill.style.width = filePct + '%';
   }
 
-  async function worker() {
-    while (queue.length > 0 && !_dlAbort) {
-      const f = queue.shift();
-      updateBatchUI(f.name);
+  for (let i = 0; i < allFiles.length; i++) {
+    if (_dlAbort) break;
+    const f = allFiles[i];
+    renderProgress(i, f.name, 0, f.size || 0);
+
+    let success = false;
+    for (let attempt = 0; attempt < 3 && !success && !_dlAbort; attempt++) {
+      let writable = null, reader = null;
       try {
-        const subDir = await resolveSubDir(dirHandle, f.folder, shareFolder);
+        const subDir     = await resolveSubDir(dirHandle, f.folder, shareFolder);
         const fileHandle = await subDir.getFileHandle(f.name, { create: true });
-        const writable   = await fileHandle.createWritable();
-        const resp = await fetch(`/share/${token}/stream/${f.id}`);
+        writable = await fileHandle.createWritable();
+
+        _currentFetch = new AbortController();
+        const pRes = await fetch(`/share/${token}/presign/${f.id}`, { signal: _currentFetch.signal });
+        if (!pRes.ok) throw new Error(`Presign ${pRes.status}`);
+        const { url: r2Url } = await pRes.json();
+
+        const resp = await fetch(r2Url, { signal: _currentFetch.signal });
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        await resp.body.pipeTo(writable);
-        done++;
+
+        reader = resp.body.getReader();
+        let fileReceived = 0;
+        const fileTotal  = f.size || 0;
+
+        while (!_dlAbort) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await writable.write(value);
+          fileReceived += value.length;
+          renderProgress(i, f.name, fileReceived, fileTotal);
+        }
+
+        if (_dlAbort) {
+          reader.cancel();
+          await writable.abort();
+          break;
+        }
+
+        await writable.close();
+        success = true;
+        bytesDone += f.size || 0;
+        filesDone++;
       } catch (err) {
-        failed++;
-        console.error(`[dl] ${f.name}:`, err.message);
+        try { if (reader)   reader.cancel();       } catch {}
+        try { if (writable) await writable.abort(); } catch {}
+        if (_dlAbort) break;
+        console.error(`[dl] ${f.name} attempt ${attempt + 1}:`, err.message);
+        if (attempt < 2) await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+        else filesFailed++;
+      } finally {
+        _currentFetch = null;
       }
     }
   }
 
-  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
-
-  const errNote = failed > 0 ? ` · <span style="color:var(--accent)">${failed} failed</span>` : '';
-  const dlAction2 = document.getElementById('dlAction');
-  if (dlAction2) dlAction2.innerHTML = `
+  if (!dlAction) return;
+  const errNote = filesFailed > 0
+    ? ` · <span style="color:var(--accent)">${filesFailed} failed</span>` : '';
+  const retryBtn = filesFailed > 0
+    ? ` — <button onclick="downloadAll()" style="background:none;border:none;color:var(--accent);cursor:pointer;font-family:var(--mono);font-size:11px;font-weight:700;padding:0">Retry</button>` : '';
+  dlAction.innerHTML = `
     <div class="preparing-row" style="background:oklch(0.50 0.13 162/0.12);border-color:oklch(0.70 0.13 162/0.4)">
       <span style="color:var(--ok);font-size:20px;flex:none;line-height:1">✓</span>
       <div class="preparing-info">
         <strong style="color:var(--header-ink)">${_dlAbort ? 'Download cancelled' : 'Download complete'}</strong>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--header-muted);margin-top:4px">${done} of ${allFiles.length} files saved${errNote}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--header-muted);margin-top:4px">${filesDone} of ${allFiles.length} files saved${errNote}${retryBtn}</div>
       </div>
     </div>`;
 }
@@ -824,28 +901,6 @@ async function resolveSubDir(rootHandle, fileFolder, rootFolder) {
     dir = await dir.getDirectoryHandle(part, { create: true });
   }
   return dir;
-}
-
-function buildBatchProgress(total) {
-  return `
-    <div class="preparing-row">
-      <span class="spinner"></span>
-      <div class="preparing-info" style="min-width:0">
-        <strong>Downloading files…</strong>
-        <div class="prog-track" style="margin-top:7px">
-          <div id="batchFill" style="position:absolute;left:0;top:0;bottom:0;width:0%;border-radius:999px;background:linear-gradient(90deg,var(--accent-2),var(--accent));transition:width 0.3s ease"></div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:5px">
-          <span id="batchCount" style="font-family:var(--mono);font-size:11px;color:var(--header-muted)">0 / ${total} files</span>
-          <button onclick="_dlAbort=true" style="background:none;border:none;font-family:var(--mono);font-size:11px;color:var(--header-muted);cursor:pointer;padding:0">Cancel</button>
-        </div>
-        <div id="batchFile" style="font-family:var(--mono);font-size:10px;color:var(--header-muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%"></div>
-      </div>
-    </div>
-    <div class="preparing-hint" style="margin-top:10px">
-      <span style="flex:none;margin-top:1px">${SVG.film}</span>
-      <span>Keep this tab open. Files are saving directly to your chosen folder.</span>
-    </div>`;
 }
 
 // ── Lightbox ──────────────────────────────────────────────────────────────────

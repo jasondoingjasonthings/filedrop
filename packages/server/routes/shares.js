@@ -265,8 +265,29 @@ function makeSharesPublicRouter(db) {
     await archive.finalize();
   });
 
-  // ── Public: stream a single file from R2 via server (used by bulk download / FSAPI)
-  // Proxies R2 → client so browser JS can read the body without CORS issues.
+  // ── Public: presign a single file for direct R2 download (FSAPI bulk download)
+  // Returns a short-lived presigned URL — server only checks auth, never touches bytes.
+  router.get('/:token/presign/:fileId', async (req, res) => {
+    const link = db.prepare(`
+      SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
+    `).get(req.params.token);
+    if (!link) { res.status(404).json({ error: 'Link expired' }); return; }
+
+    const file = db.prepare(`
+      SELECT * FROM files WHERE id=? AND (folder=? OR folder LIKE ?) AND status='available'
+    `).get(req.params.fileId, link.folder, link.folder + '/%');
+    if (!file) { res.status(404).json({ error: 'File not found' }); return; }
+
+    try {
+      const url = await presignDownload(file.r2_key, 7200);
+      res.json({ url });
+    } catch (err) {
+      console.error('[presign] error:', err.message);
+      res.status(500).json({ error: 'Failed to generate URL' });
+    }
+  });
+
+  // ── Public: stream a single file from R2 via server (fallback — use /presign/ instead)
   router.get('/:token/stream/:fileId', async (req, res) => {
     const link = db.prepare(`
       SELECT * FROM share_links WHERE token=? AND expires_at > datetime('now')
