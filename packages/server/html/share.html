@@ -508,7 +508,8 @@ async function init() {
   renderPage(data, totalSize, zipState);
   if (zipState === 'preparing') pollZipStatus();
 
-  playIntro(data.label, data.folder);
+  // Opened from a print card: type the client's name, not "Prints/2026-10 …"
+  playIntro(data.label, data.print ? '' : data.folder);
 }
 
 function playIntro(label, folder) {
@@ -1143,11 +1144,11 @@ function lbRender() {
 
   const wrap = document.getElementById('lbImgWrap');
   wrap.innerHTML = '<span class="lb-spinner-txt">Loading…</span>';
-  if (f.fullUrl) {
+  if (f.previewUrl || f.fullUrl) {
     const img = new Image();
     img.onload  = () => { wrap.innerHTML = ''; wrap.appendChild(img); };
     img.onerror = () => { wrap.innerHTML = '<span class="lb-spinner-txt">Failed to load</span>'; };
-    img.src     = f.fullUrl; img.alt = f.name;
+    img.src     = f.previewUrl || f.fullUrl; img.alt = f.name; // phone-size copy when there is one
     img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;border-radius:6px;box-shadow:0 30px 80px -20px oklch(0 0 0/0.6);border:1px solid oklch(1 0 0/0.08)';
   } else {
     wrap.innerHTML = '<span class="lb-spinner-txt">No preview available</span>';

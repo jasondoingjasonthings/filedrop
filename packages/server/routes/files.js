@@ -5,27 +5,18 @@ const archiver = require('archiver');
 const { requireOwner } = require('../auth');
 const { presignDownload, deleteObject, getObjectStream } = require('../r2');
 const { logAudit } = require('../audit');
-const { queueZipBuild, deleteShareZip } = require('../zipbuilder');
+const { scheduleZipInvalidation } = require('../zipbuilder');
 
-// Debounced ZIP invalidation — batches rapid bulk deletes into one rebuild per folder
-const _zipInvalidateTimers = new Map();
-function scheduleZipInvalidation(db, folder) {
-  if (_zipInvalidateTimers.has(folder)) clearTimeout(_zipInvalidateTimers.get(folder));
-  _zipInvalidateTimers.set(folder, setTimeout(async () => {
-    _zipInvalidateTimers.delete(folder);
-    const links = db.prepare(`
-      SELECT * FROM share_links
-      WHERE (folder=? OR ? LIKE folder || '/%')
-        AND zip_status='ready' AND zip_key IS NOT NULL
-        AND expires_at > datetime('now')
-    `).all(folder, folder);
-    for (const link of links) {
-      try { await deleteShareZip(link.zip_key); } catch {}
-      db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE id=?`).run(link.id);
-      queueZipBuild(db, link.token, link.folder, link.label);
-      console.log(`[zip] invalidated and re-queued after file delete: ${link.folder}`);
+// Keep share links and print sets pointing at a folder after it is renamed or moved.
+// Without this, a renamed folder's share links (and printed print-set cards) show nothing.
+function moveFolderRefs(db, fromKey, toKey, withSubfolders) {
+  for (const table of ['share_links', 'print_sets']) {
+    db.prepare(`UPDATE ${table} SET folder=? WHERE folder=?`).run(toKey, fromKey);
+    if (withSubfolders && fromKey) {
+      db.prepare(`UPDATE ${table} SET folder=? || SUBSTR(folder, ?) WHERE folder LIKE ?`)
+        .run(toKey, fromKey.length + 1, fromKey + '/%');
     }
-  }, 3000));
+  }
 }
 
 function makeFilesRouter(db, sseBus) {
@@ -122,6 +113,7 @@ function makeFilesRouter(db, sseBus) {
       }
       // Move the explicit folder entry itself
       db.prepare(`UPDATE folders SET path=? WHERE path=?`).run(toKey, fromKey);
+      moveFolderRefs(db, fromKey, toKey, true);
     })();
 
     sseBus.broadcast('folders-changed', {});
@@ -324,12 +316,14 @@ function makeFilesRouter(db, sseBus) {
         UPDATE files SET folder = ? || SUBSTR(folder, LENGTH(?) + 1)
         WHERE (folder = ? OR folder LIKE ?) AND status NOT IN ('deleted','deleting')
       `).run(newKey, oldKey, oldKey, oldKey + '/%');
+      moveFolderRefs(db, oldKey, newKey, true);
       const updated = db.prepare(`SELECT * FROM files WHERE folder = ? OR folder LIKE ?`).all(newKey, newKey + '/%');
       for (const f of updated) sseBus.broadcast('file', f);
     } else {
       const affected = db.prepare(`SELECT id FROM files WHERE folder=? AND status NOT IN ('deleted','deleting')`).all(oldKey);
       if (!affected.length) { res.status(404).json({ error: 'No files in that folder' }); return; }
       db.prepare(`UPDATE files SET folder=? WHERE folder=? AND status NOT IN ('deleted','deleting')`).run(newKey, oldKey);
+      moveFolderRefs(db, oldKey, newKey, false);
       const updated = db.prepare(`SELECT * FROM files WHERE folder=?`).all(newKey);
       for (const f of updated) sseBus.broadcast('file', f);
     }

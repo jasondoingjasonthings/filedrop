@@ -33,6 +33,7 @@ const { makeSharesApiRouter, makeSharesPublicRouter } = require('./routes/shares
 const { makeUploadLinksRouter } = require('./routes/uploadlinks');
 const { makeRequestsRouter }   = require('./routes/requests');
 const { makeTranscodeRouter }  = require('./routes/transcode');
+const { makePrintsApiRouter, makePrintsPublicRouter } = require('./routes/prints');
 const { startTranscodeScheduler } = require('./transcode');
 const { resumePendingBuilds }    = require('./zipbuilder');
 const { presignDownload }      = require('./r2');
@@ -177,6 +178,8 @@ app.use('/share',      makeSharesPublicRouter(db));
 app.use('/upload',        makeUploadLinksRouter(db, sseBus, JWT_SECRET));
 app.use('/api/requests',  makeRequestsRouter(db, JWT_SECRET));
 app.use('/api/transcode', makeTranscodeRouter(db, JWT_SECRET));
+app.use('/api/prints',    makePrintsApiRouter(db, JWT_SECRET, sseBus));
+app.use('/prints',        makePrintsPublicRouter(db, sseBus));   // wttf.com.au/prints redirects here
 
 // Serve dashboard HTML
 const HTML_DIR = path.join(__dirname, 'html');

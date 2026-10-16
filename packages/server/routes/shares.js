@@ -10,6 +10,52 @@ const { presignDownload, getObjectStream } = require('../r2');
 const { getCached, setCached } = require('../urlcache');
 const { queueZipBuild, deleteShareZip } = require('../zipbuilder');
 
+// Create a share link for a folder and start its ZIP (or reuse a ready one).
+// Used by the share modal and by print sets.
+function createShareLink(db, { folder, label, coverImageId }) {
+  const token     = crypto.randomBytes(24).toString('hex');
+  const expiresAt = '9999-12-31 23:59:59';
+  const shareLabel = label || folder || 'Shared files';
+  db.prepare(`
+    INSERT INTO share_links (token, folder, label, expires_at, cover_image_id)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(token, folder ?? '', shareLabel, expiresAt, coverImageId ?? null);
+  // Skip ZIP build for large shares (>= 15 GB) — they use individual file downloads instead.
+  const LARGE_THRESHOLD = 15 * 1024 * 1024 * 1024;
+  const { total: folderSize } = db.prepare(`
+    SELECT COALESCE(SUM(size), 0) AS total FROM files
+    WHERE (folder=? OR folder LIKE ?) AND status='available'
+  `).get(folder ?? '', (folder ?? '') + '/%');
+
+  if (folderSize >= LARGE_THRESHOLD) {
+    db.prepare(`UPDATE share_links SET zip_status='large' WHERE token=?`).run(token);
+  } else {
+    // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
+    // Verify it's actually in R2 before reusing; if missing, fall through to rebuild.
+    const existing = db.prepare(`
+      SELECT zip_key FROM share_links
+      WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
+    `).get(folder ?? '', token);
+    if (existing) {
+      getObjectStream(existing.zip_key)
+        .then(s => {
+          s.destroy();
+          db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
+            .run(existing.zip_key, token);
+        })
+        .catch(() => {
+          // ZIP missing from R2 — invalidate all tokens for this folder and rebuild
+          db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE folder=? AND zip_status='ready'`)
+            .run(folder ?? '');
+          queueZipBuild(db, token, folder ?? '', shareLabel);
+        });
+    } else {
+      queueZipBuild(db, token, folder ?? '', shareLabel);
+    }
+  }
+  return { token, expiresAt };
+}
+
 function makeSharesApiRouter(db, jwtSecret) {
   const router  = express.Router();
   const jwtAuth = makeAuthMiddleware(jwtSecret, db);
@@ -17,47 +63,7 @@ function makeSharesApiRouter(db, jwtSecret) {
   // ── Owner or Editor: create share link ───────────────────────────────────
   router.post('/', jwtAuth, (req, res) => {
     const { folder, label, cover_image_id } = req.body || {};
-    const token     = crypto.randomBytes(24).toString('hex');
-    const expiresAt = '9999-12-31 23:59:59';
-    const shareLabel = label || folder || 'Shared files';
-    db.prepare(`
-      INSERT INTO share_links (token, folder, label, expires_at, cover_image_id)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(token, folder ?? '', shareLabel, expiresAt, cover_image_id ?? null);
-    // Skip ZIP build for large shares (>= 15 GB) — they use individual file downloads instead.
-    const LARGE_THRESHOLD = 15 * 1024 * 1024 * 1024;
-    const { total: folderSize } = db.prepare(`
-      SELECT COALESCE(SUM(size), 0) AS total FROM files
-      WHERE (folder=? OR folder LIKE ?) AND status='available'
-    `).get(folder ?? '', (folder ?? '') + '/%');
-
-    if (folderSize >= LARGE_THRESHOLD) {
-      db.prepare(`UPDATE share_links SET zip_status='large' WHERE token=?`).run(token);
-    } else {
-      // Reuse an existing ready ZIP for this folder if one exists — no rebuild needed.
-      // Verify it's actually in R2 before reusing; if missing, fall through to rebuild.
-      const existing = db.prepare(`
-        SELECT zip_key FROM share_links
-        WHERE folder=? AND zip_status='ready' AND zip_key IS NOT NULL AND token!=? LIMIT 1
-      `).get(folder ?? '', token);
-      if (existing) {
-        getObjectStream(existing.zip_key)
-          .then(s => {
-            s.destroy();
-            db.prepare(`UPDATE share_links SET zip_key=?, zip_status='ready' WHERE token=?`)
-              .run(existing.zip_key, token);
-          })
-          .catch(() => {
-            // ZIP missing from R2 — invalidate all tokens for this folder and rebuild
-            db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE folder=? AND zip_status='ready'`)
-              .run(folder ?? '');
-            queueZipBuild(db, token, folder ?? '', shareLabel);
-          });
-      } else {
-        queueZipBuild(db, token, folder ?? '', shareLabel);
-      }
-    }
-    res.json({ token, expiresAt });
+    res.json(createShareLink(db, { folder, label, coverImageId: cover_image_id }));
   });
 
   // ── List share links ─────────────────────────────────────────────────────
@@ -117,7 +123,7 @@ function makeSharesPublicRouter(db) {
 
     const prefix = link.folder;
     const rows = db.prepare(`
-      SELECT id, name, size, folder, uploaded_at, created_at, r2_key, thumbnail_key
+      SELECT id, name, size, folder, uploaded_at, created_at, r2_key, thumbnail_key, preview_key
       FROM files WHERE (folder=? OR folder LIKE ?) AND status='available'
       ORDER BY folder COLLATE NOCASE, name COLLATE NOCASE
     `).all(prefix, prefix + '/%');
@@ -144,6 +150,14 @@ function makeSharesPublicRouter(db) {
           try { fullUrl = await presignDownload(f.r2_key, PRESIGN_TTL, f.name); setCached(dlKey, fullUrl, PRESIGN_TTL); } catch {}
         }
         if (fullUrl) out.fullUrl = fullUrl;
+        // Phone-size copy for the lightbox (print sets) — Download still serves the original
+        if (f.preview_key) {
+          let pvUrl = getCached(f.preview_key);
+          if (!pvUrl) {
+            try { pvUrl = await presignDownload(f.preview_key, PRESIGN_TTL); setCached(f.preview_key, pvUrl, PRESIGN_TTL); } catch {}
+          }
+          if (pvUrl) out.previewUrl = pvUrl;
+        }
       }
       return out;
     }));
@@ -161,7 +175,10 @@ function makeSharesPublicRouter(db) {
       }
     }
 
-    res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files, coverUrl });
+    // Opened from a print card: the intro types the client name rather than the folder path
+    const isPrint = !!db.prepare(`SELECT 1 FROM print_sets WHERE share_token=?`).get(link.token);
+
+    res.json({ label: link.label, folder: link.folder, expiresAt: link.expires_at, files, coverUrl, print: isPrint });
   });
 
   // ── Public: generate presigned download URL (kept for legacy) ───────────────
@@ -341,4 +358,4 @@ function makeSharesPublicRouter(db) {
   return router;
 }
 
-module.exports = { makeSharesApiRouter, makeSharesPublicRouter };
+module.exports = { makeSharesApiRouter, makeSharesPublicRouter, createShareLink };

@@ -6,7 +6,7 @@
 <title>FileDrop — Welcome to the Fold</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -600,6 +600,146 @@ body.multi-selecting .folder-select-cb { opacity:1; }
 }
 #browseAgentWarn strong { color: var(--warn); display: block; margin-bottom: 6px; font-size: 16px; }
 
+/* ── Prints tab (wttf.com.au/prints) ────────────────────────────────────── */
+.prints-stats { flex-wrap: wrap; row-gap: 16px; }
+.pr-qr-block {
+  margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 10px;
+  border-radius: 12px; background: oklch(1 0 0 / 0.06); border: 1px solid var(--header-line);
+}
+.pr-qr-box { width: 64px; height: 64px; padding: 5px; border-radius: 8px; background: #fff; flex: none; }
+.pr-qr-box svg, .pr-card-qr svg { width: 100%; height: 100%; display: block; }
+.pr-qr-meta { display: flex; flex-direction: column; gap: 6px; }
+.pr-qr-url { font-family: var(--mono); font-size: 13px; color: var(--header-ink); }
+.pr-qr-btns { display: flex; gap: 6px; }
+.pr-dark-btn { background: oklch(1 0 0 / 0.10); color: var(--header-ink); border: 1px solid var(--header-line); }
+.pr-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.pr-search {
+  display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; min-width: 260px;
+  background: var(--card); border: 1.5px solid var(--border); border-radius: 8px; color: var(--muted);
+}
+.pr-search:focus-within { border-color: var(--accent); }
+.pr-search input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font: inherit; font-size: 13.5px; color: var(--text); }
+.pr-new-btn { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; }
+.pc-table { background: var(--card); border: 1.5px solid var(--border2); border-radius: var(--r); box-shadow: 0 2px 12px oklch(0.3 0.04 232 / 0.08); }
+.pc-head, .pc-row {
+  display: grid; align-items: center; gap: 16px; padding: 13px 18px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1.1fr) 64px 80px 160px 36px;
+}
+.pc-head {
+  font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .07em; color: var(--muted);
+  background: var(--bg); border-bottom: 1.5px solid var(--border); border-radius: var(--r) var(--r) 0 0;
+}
+.pc-row { border-bottom: 1px solid var(--border); transition: background .12s; }
+.pc-row:last-child { border-bottom: none; }
+.pc-row:hover { background: rgba(91,200,232,0.06); }
+.pc-client { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pc-name { font-weight: 800; font-size: 14.5px; letter-spacing: -.01em; }
+.pc-folder { font-family: var(--mono); font-size: 11.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-note { font-size: 12.5px; color: var(--ink-2); }
+.pc-note::before { content: '✎ '; color: var(--muted2); }
+.pc-mobile-meta { display: none; font-size: 12px; color: var(--muted); }
+.pc-num { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 13px; }
+.pc-code {
+  display: inline-flex; max-width: 100%; padding: 4px 11px; border-radius: 999px;
+  background: var(--accent-tint); color: var(--accent-d); font-family: var(--mono); font-size: 13px; font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pc-code.is-dead { background: var(--sunk); color: var(--muted2); text-decoration: line-through; }
+.pc-none { color: var(--muted2); font-family: var(--mono); }
+.pc-menu-btn { width: 34px; height: 30px; padding: 0; border-radius: 7px; border: 1.5px solid var(--border); background: var(--card); color: var(--ink-2); font-size: 15px; letter-spacing: 1px; cursor: pointer; }
+.pc-menu-btn:hover { background: var(--sunk); }
+.pc-empty { padding: 40px 20px; text-align: center; color: var(--muted); font-size: 13px; }
+.pc-empty strong { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; }
+.pr-modal-bg {
+  position: fixed; inset: 0; z-index: 300; display: none; align-items: center; justify-content: center;
+  padding: 16px; background: rgba(11,31,42,0.6); backdrop-filter: blur(4px);
+}
+.pr-modal-bg.open { display: flex; }
+.pr-modal {
+  width: 540px; max-width: 100%; max-height: calc(100vh - 32px); overflow-y: auto; background: #fff;
+  border: 1.5px solid var(--border); border-radius: 16px; padding: 28px; box-shadow: 0 24px 80px rgba(11,31,42,0.18);
+  display: flex; flex-direction: column; gap: 18px;
+}
+.pr-modal.narrow { width: 440px; }
+.pr-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pr-modal-title { font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.pr-x { width: 32px; height: 32px; border-radius: 8px; border: 1.5px solid var(--border); background: #fff; color: var(--muted); cursor: pointer; font-size: 15px; flex: none; }
+.pr-x:hover { background: var(--sunk); color: var(--text); }
+.pr-x:disabled { opacity: .35; cursor: not-allowed; }
+.pr-section { display: flex; flex-direction: column; gap: 18px; }
+.pr-hint { font-size: 12.5px; color: var(--muted); }
+.pr-err { font-size: 13px; color: var(--danger); font-weight: 600; }
+.pr-folder-line { font-size: 12.5px; color: var(--muted); }
+.pr-folder-line code { font-family: var(--mono); font-size: 12px; color: var(--accent-d); background: var(--accent-tint); padding: 2px 7px; border-radius: 5px; overflow-wrap: anywhere; }
+.pr-for { font-size: 20px; font-weight: 800; letter-spacing: -.01em; }
+.pr-drop {
+  display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: 24px 18px; border-radius: 12px; border: 2px dashed var(--border2); background: var(--bg);
+  transition: border-color .15s, background .15s;
+}
+.pr-drop.over { border-color: var(--accent); background: var(--accent-tint); }
+.pr-drop-title { font-weight: 800; font-size: 14.5px; }
+.pr-drop-sub { font-size: 12.5px; color: var(--muted); max-width: 42ch; }
+.pr-plain-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 38px; padding: 0 14px;
+  background: #fff; color: var(--ink-2); border: 1.5px solid var(--border2); border-radius: 8px;
+  font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; cursor: pointer;
+}
+.pr-plain-btn:hover { background: var(--sunk); }
+.pr-flist { display: flex; flex-direction: column; border: 1.5px solid var(--border); border-radius: 10px; overflow: hidden; }
+.pr-frow { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.pr-frow:last-child { border-bottom: none; }
+.pr-frow.is-warn { background: #fff8e1; }
+.pr-fthumb { width: 48px; height: 34px; border-radius: 5px; object-fit: cover; background: var(--sunk); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 9px; color: var(--muted); }
+.pr-fname { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-fsub { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.pr-fwarn { font-size: 12px; color: #b45309; font-weight: 600; }
+.pr-frm { border: none; background: none; color: var(--muted); cursor: pointer; font: inherit; font-size: 12.5px; padding: 4px 6px; border-radius: 5px; }
+.pr-frm:hover { background: var(--sunk); color: var(--text); }
+.pr-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.pr-foot-sum { font-size: 12.5px; color: var(--muted); font-family: var(--mono); }
+.pr-foot-btns { display: flex; gap: 8px; margin-left: auto; }
+.pr-up-total { height: 8px; border-radius: 99px; background: var(--border); overflow: hidden; }
+.pr-up-total i { display: block; height: 100%; width: 0; border-radius: 99px; background: linear-gradient(90deg, var(--accent-d), var(--accent)); transition: width .3s ease; }
+.pr-up-line { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-notice { display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--sunk); border: 1px solid var(--border); font-size: 13px; color: var(--ink-2); }
+.pr-notice.is-warn { background: #fff8e1; border-color: #fcd34d; }
+.pr-reveal { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.pr-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.pr-words { font-family: var(--mono); font-size: clamp(26px, 7vw, 40px); font-weight: 600; color: var(--text); line-height: 1.15; overflow-wrap: anywhere; }
+.pr-reveal-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.pr-card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; font-weight: 700; }
+.pr-card {
+  display: flex; align-items: center; gap: 18px; padding: 16px 20px; border-radius: 6px;
+  background: #fffdf8; border: 1px solid #e7e2d6; transform: rotate(-0.6deg);
+  box-shadow: 0 1px 2px rgba(60,50,30,0.08), 0 14px 28px -18px rgba(60,50,30,0.35);
+}
+.pr-card-qr { width: 78px; height: 78px; flex: none; }
+.pr-card-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pr-card-print { font-size: 12px; color: #4b4637; }
+.pr-card-url { font-family: var(--mono); font-size: 13px; color: #2b2718; font-weight: 600; }
+.pr-card-hand { font-family: 'Caveat', 'Bradley Hand', 'Segoe Print', cursive; font-size: 34px; font-weight: 600; color: #1f3a8a; line-height: 1.05; margin-top: 4px; overflow-wrap: anywhere; }
+.pr-link { font-size: 13px; font-weight: 700; color: var(--accent-d); text-decoration: none; }
+.pr-link:hover { text-decoration: underline; }
+.pr-meta { font-size: 13px; color: var(--muted); text-align: center; }
+@media (max-width: 760px) {
+  .pr-qr-block { margin-left: 0; width: 100%; }
+  .pr-tools, .pr-search { width: 100%; min-width: 0; }
+  .pr-search { flex: 1; }
+  .pc-head { display: none; }
+  .pc-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "client menu" "code opened"; gap: 10px 12px; padding: 14px 16px; }
+  .pc-row > .pc-client { grid-area: client; }
+  .pc-row > .pc-code-cell { grid-area: code; min-width: 0; }
+  .pc-row > .pc-opened { grid-area: opened; justify-self: end; }
+  .pc-row > .pc-menu { grid-area: menu; align-self: start; }
+  .pc-row > .pc-photos, .pc-row > .pc-made { display: none; }
+  .pc-mobile-meta { display: block; }
+  .pr-modal { padding: 22px 18px; }
+  .pr-card { gap: 14px; padding: 14px; }
+  .pr-card-qr { width: 64px; height: 64px; }
+  .pr-card-hand { font-size: 29px; }
+}
+
 /* ── Toasts ─────────────────────────────────────────────────────────────── */
 #toasts {
   position: fixed; bottom: 24px; right: 24px;
@@ -665,6 +805,7 @@ body.multi-selecting .folder-select-cb { opacity:1; }
   <!-- Owner tabs -->
   <nav class="tabs" id="ownerTabs" style="display:none">
     <button class="tab-btn active" data-tab="library">Available</button>
+    <button class="tab-btn" data-tab="prints">Prints</button>
     <button class="tab-btn" data-tab="browse">Browse & Upload</button>
     <button class="tab-btn" data-tab="uploads">Uploads <span class="tab-badge" id="uploadBadge" style="display:none">0</span></button>
     <button class="tab-btn" data-tab="settings">Settings</button>
@@ -708,6 +849,49 @@ body.multi-selecting .folder-select-cb { opacity:1; }
         <div class="empty-icon">📁</div>
         <h3>No files yet</h3>
         <p>Start the FileDrop agent on your machine to upload files.</p>
+      </div>
+    </div>
+
+    <!-- ── Owner: Prints (wttf.com.au/prints) ── -->
+    <div class="tab-panel" id="tab-prints">
+      <div class="stats-bar">
+        <div class="stats-bar-inner prints-stats">
+          <div class="stats-bar-title">
+            <span class="eyebrow">Print codes</span>
+            <span class="heading">One QR on every card</span>
+          </div>
+          <div class="stats-divider"></div>
+          <div class="stats-cell"><div class="stat"><span class="stat-val" id="prStatLive">0</span><span class="stat-label">Live codes</span></div></div>
+          <div class="stats-cell"><div class="stat"><span class="stat-val accent" id="prStatOpened">0</span><span class="stat-label">Opened</span></div></div>
+          <div class="stats-cell"><div class="stat"><span class="stat-val" id="prStatWaiting">0</span><span class="stat-label">Not opened yet</span></div></div>
+          <div class="pr-qr-block">
+            <div class="pr-qr-box" data-print-qr></div>
+            <div class="pr-qr-meta">
+              <span class="pr-qr-url">wttf.com.au/prints</span>
+              <div class="pr-qr-btns">
+                <button class="btn-sm pr-dark-btn" onclick="downloadPrintQr('svg')">SVG</button>
+                <button class="btn-sm pr-dark-btn" onclick="downloadPrintQr('png')">PNG</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="section-header" style="flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="section-title">Print sets</div>
+          <div class="section-sub">One client, one folder, one two-word code.</div>
+        </div>
+        <div class="pr-tools">
+          <label class="pr-search" for="prSearch">
+            <svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="M13 13l4 4"/></svg>
+            <input id="prSearch" type="search" placeholder="Search client or code words" autocomplete="off" oninput="renderPrints()">
+          </label>
+          <button class="btn-primary pr-new-btn" onclick="openPrintNew()">+ New print set</button>
+        </div>
+      </div>
+      <div class="pc-table">
+        <div class="pc-head" aria-hidden="true"><span>Client</span><span>Code</span><span>Photos</span><span>Made</span><span>Opened</span><span></span></div>
+        <div id="prRows"><div class="pc-empty">Loading…</div></div>
       </div>
     </div>
 
@@ -1003,6 +1187,133 @@ body.multi-selecting .folder-select-cb { opacity:1; }
   </div>
 </div>
 
+<!-- Print set: new / add photos / resume -->
+<div class="pr-modal-bg" id="prNewModal">
+  <div class="pr-modal" role="dialog" aria-modal="true" aria-labelledby="prNewTitle">
+    <div class="pr-modal-head">
+      <span class="pr-modal-title" id="prNewTitle">New print set</span>
+      <button class="pr-x" id="prNewClose" onclick="closePrintModal('prNewModal')" aria-label="Close">✕</button>
+    </div>
+
+    <!-- Step 1: client + photos -->
+    <div class="pr-section" id="prForm">
+      <div class="field" id="prClientField">
+        <label for="prClient">Client name</label>
+        <input id="prClient" type="text" placeholder="e.g. Riverbend Station" autocomplete="off" maxlength="60" oninput="_prUpdateFolderLine()">
+        <span class="pr-hint">Shown as the title on their photo page.</span>
+      </div>
+      <div class="pr-for" id="prForWho" style="display:none"></div>
+      <div class="pr-folder-line">Saves to <code id="prFolder"></code></div>
+      <div class="pr-hint" id="prResumeHint" style="display:none">Choose the same photos again. Any that already made it up are skipped.</div>
+
+      <div class="pr-drop" id="prDrop">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="color:var(--accent)"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>
+        <span class="pr-drop-title">Drop the printed photos here</span>
+        <span class="pr-drop-sub">Full-resolution JPEGs. FileDrop makes the lighter phone copies itself.</span>
+        <label class="pr-plain-btn" for="prFiles">Choose files</label>
+        <input id="prFiles" type="file" multiple accept="image/jpeg,.jpg,.jpeg,image/*" style="display:none">
+      </div>
+      <div class="pr-flist" id="prFileList" style="display:none"></div>
+
+      <div class="field" id="prNoteField">
+        <label for="prNote">Private note <span style="text-transform:none;letter-spacing:0;font-weight:500">(optional, only you see it)</span></label>
+        <input id="prNote" type="text" placeholder="e.g. 3 prints, posted 14 May" autocomplete="off" maxlength="120">
+      </div>
+
+      <div class="pr-err" id="prFormErr" style="display:none"></div>
+      <div class="pr-foot">
+        <span class="pr-foot-sum" id="prSum">No photos yet</span>
+        <div class="pr-foot-btns">
+          <button class="pr-plain-btn" onclick="closePrintModal('prNewModal')">Cancel</button>
+          <button class="btn-primary" id="prSubmit" onclick="prSubmit()">Create print set</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: uploading -->
+    <div class="pr-section" id="prUpload" style="display:none">
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span class="pr-eyebrow">Uploading</span>
+        <span class="pr-for" id="prUpClient"></span>
+        <div class="pr-up-total"><i id="prUpBar"></i></div>
+        <span class="pr-up-line" id="prUpLine"></span>
+      </div>
+      <div class="upload-list" id="printUploadQueue"></div>
+      <span id="printCancelAll" style="display:none"></span>
+      <div class="pr-notice" id="prUpNotice">The code appears once every photo has landed. Keep this tab open. If it gets interrupted, the set waits in your list with a Resume option.</div>
+      <div class="pr-notice is-warn" id="prUpFail" style="display:none;flex-direction:column;gap:10px">
+        <span id="prUpFailText"></span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-primary" onclick="prRetry()">Try again</button>
+          <button class="pr-plain-btn" onclick="closePrintModal('prNewModal', true)">Close for now</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: the code -->
+    <div class="pr-section" id="prDone" style="display:none">
+      <div class="pr-reveal">
+        <span class="pr-eyebrow" id="prDoneFor"></span>
+        <span class="pr-words" id="prDoneWords"></span>
+        <span class="pr-hint">Write these two words on the card.</span>
+      </div>
+      <div class="pr-reveal-btns">
+        <button class="pr-plain-btn" onclick="prShuffle()">Shuffle words</button>
+        <button class="pr-plain-btn" onclick="prCopy(document.getElementById('prDoneWords').textContent)">Copy</button>
+      </div>
+      <p class="pr-meta">Shuffle before you write the card. Once it's posted, keep the code.</p>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <span class="pr-card-label">How the card reads</span>
+        <div id="prDoneCard"></div>
+      </div>
+      <div class="pr-foot">
+        <a class="pr-link" id="prDoneView" href="#" target="_blank" rel="noopener">See their page ↗</a>
+        <div class="pr-foot-btns"><button class="btn-primary" onclick="closePrintModal('prNewModal')">Done</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Print set: show code -->
+<div class="pr-modal-bg" id="prShowModal">
+  <div class="pr-modal" role="dialog" aria-modal="true" aria-labelledby="prShowTitle">
+    <div class="pr-modal-head">
+      <span class="pr-modal-title" id="prShowTitle">Print code</span>
+      <button class="pr-x" onclick="closePrintModal('prShowModal')" aria-label="Close">✕</button>
+    </div>
+    <div class="pr-reveal">
+      <span class="pr-eyebrow" id="prShowFor"></span>
+      <span class="pr-words" id="prShowWords"></span>
+      <span class="pr-hint" id="prShowMeta"></span>
+    </div>
+    <div class="pr-reveal-btns"><button class="pr-plain-btn" onclick="prCopy(document.getElementById('prShowWords').textContent)">Copy</button></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <span class="pr-card-label">How the card reads</span>
+      <div id="prShowCard"></div>
+    </div>
+    <div class="pr-foot"><a class="pr-link" id="prShowView" href="#" target="_blank" rel="noopener">See their page ↗</a></div>
+  </div>
+</div>
+
+<!-- Print set: confirm (revoke / remove) -->
+<div class="pr-modal-bg" id="prConfirmModal">
+  <div class="pr-modal narrow" role="dialog" aria-modal="true" aria-labelledby="prConfirmTitle">
+    <div class="pr-modal-head">
+      <span class="pr-modal-title" id="prConfirmTitle"></span>
+      <button class="pr-x" onclick="closePrintModal('prConfirmModal')" aria-label="Close">✕</button>
+    </div>
+    <p id="prConfirmBody" style="font-size:14px;color:var(--ink-2);line-height:1.6"></p>
+    <div class="pr-foot">
+      <div class="pr-foot-btns">
+        <button class="pr-plain-btn" onclick="closePrintModal('prConfirmModal')">Cancel</button>
+        <button class="btn-primary" id="prConfirmBtn" style="background:var(--danger)"></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="folder-menu-dropdown" id="prRowMenu" role="menu"></div>
+
 <!-- Multi-folder share bar -->
 <div id="multiShareBar" style="display:none;position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--header-a),var(--header-b));border:1px solid var(--header-line);border-radius:14px;padding:12px 20px;align-items:center;gap:14px;box-shadow:0 2px 4px oklch(0.3 0.04 232/.18),0 20px 48px -12px oklch(0.3 0.04 232/.55);z-index:250;white-space:nowrap">
   <span id="multiShareCount" style="font-size:13px;font-weight:700;color:var(--header-ink)"></span>
@@ -1184,7 +1495,7 @@ async function showApp() {
       const el = document.getElementById(id);
       if (el) { el.classList.remove('active'); el.style.display='none'; }
     });
-    ['tab-browse','tab-uploads','tab-settings'].forEach(id => {
+    ['tab-browse','tab-uploads','tab-settings','tab-prints'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.classList.remove('active'); el.style.display='none'; }
     });
@@ -1200,7 +1511,7 @@ async function showApp() {
   } else {
     document.getElementById('ownerTabs').style.display = 'none';
     document.getElementById('editorTabs').style.display = 'flex';
-    ['tab-library','tab-browse','tab-uploads','tab-settings'].forEach(id => {
+    ['tab-library','tab-browse','tab-uploads','tab-settings','tab-prints'].forEach(id => {
       const el = document.getElementById(id);
       if (el) { el.classList.remove('active'); el.style.display='none'; }
     });
@@ -3383,6 +3694,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     }
     if (!start || cancelled) return;
     fileId = start.id;
+    file._fdFileId = fileId; // read by the print set uploader
     r2Key  = start.r2Key;
     _activeUploadIds.add(fileId);
     // If server assigned a different key than the resume state, the saved uploadId is
@@ -3534,6 +3846,7 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
 
     _clearResume(file);
     if (fileId) _activeUploadIds.delete(fileId);
+    file._fdUploaded = true; // read by the print set uploader
     setProgress(100);
     pctEl.textContent = '✓';
     pctEl.style.color = 'var(--success)';
@@ -4208,6 +4521,9 @@ function connectSSE() {
     if (summaries) { folderSummaries = summaries; render(); }
   });
 
+  // A print code was opened, made or revoked — refresh the Prints tab
+  es.addEventListener('prints-changed', () => { if (role === 'owner') loadPrints(); });
+
   es.addEventListener('file', e => {
     const f = JSON.parse(e.data);
     const folderKey = f.folder ?? '';
@@ -4409,6 +4725,476 @@ function connectSSE() {
   };
 }
 
+// ── Print sets (wttf.com.au/prints) ──────────────────────────────────────────
+// One QR on every thank-you card, plus a handwritten two-word code per client.
+// The QR never changes, so it's baked in here (checked: it decodes to PRINT_URL).
+const PRINT_URL = 'https://wttf.com.au/prints';
+const PRINT_QR  = { n: 29, d: 'M0 0h7v1h-7zM8 0h2v1h-2zM15 0h2v1h-2zM18 0h1v1h-1zM22 0h7v1h-7zM0 1h1v1h-1zM6 1h1v1h-1zM10 1h2v1h-2zM16 1h4v1h-4zM22 1h1v1h-1zM28 1h1v1h-1zM0 2h1v1h-1zM2 2h3v1h-3zM6 2h1v1h-1zM8 2h2v1h-2zM11 2h4v1h-4zM17 2h4v1h-4zM22 2h1v1h-1zM24 2h3v1h-3zM28 2h1v1h-1zM0 3h1v1h-1zM2 3h3v1h-3zM6 3h1v1h-1zM8 3h1v1h-1zM10 3h1v1h-1zM13 3h1v1h-1zM15 3h2v1h-2zM18 3h1v1h-1zM20 3h1v1h-1zM22 3h1v1h-1zM24 3h3v1h-3zM28 3h1v1h-1zM0 4h1v1h-1zM2 4h3v1h-3zM6 4h1v1h-1zM9 4h2v1h-2zM12 4h4v1h-4zM18 4h1v1h-1zM22 4h1v1h-1zM24 4h3v1h-3zM28 4h1v1h-1zM0 5h1v1h-1zM6 5h1v1h-1zM8 5h5v1h-5zM15 5h1v1h-1zM19 5h2v1h-2zM22 5h1v1h-1zM28 5h1v1h-1zM0 6h7v1h-7zM8 6h1v1h-1zM10 6h1v1h-1zM12 6h1v1h-1zM14 6h1v1h-1zM16 6h1v1h-1zM18 6h1v1h-1zM20 6h1v1h-1zM22 6h7v1h-7zM8 7h1v1h-1zM11 7h3v1h-3zM15 7h4v1h-4zM20 7h1v1h-1zM1 8h1v1h-1zM3 8h1v1h-1zM5 8h4v1h-4zM10 8h1v1h-1zM14 8h1v1h-1zM17 8h2v1h-2zM21 8h3v1h-3zM25 8h2v1h-2zM28 8h1v1h-1zM0 9h1v1h-1zM2 9h4v1h-4zM8 9h2v1h-2zM11 9h4v1h-4zM16 9h4v1h-4zM21 9h2v1h-2zM25 9h1v1h-1zM28 9h1v1h-1zM0 10h4v1h-4zM5 10h2v1h-2zM9 10h1v1h-1zM13 10h1v1h-1zM17 10h1v1h-1zM19 10h1v1h-1zM22 10h1v1h-1zM26 10h2v1h-2zM0 11h1v1h-1zM5 11h1v1h-1zM7 11h2v1h-2zM12 11h1v1h-1zM14 11h3v1h-3zM20 11h3v1h-3zM26 11h2v1h-2zM0 12h1v1h-1zM3 12h7v1h-7zM11 12h1v1h-1zM13 12h1v1h-1zM15 12h4v1h-4zM22 12h2v1h-2zM25 12h1v1h-1zM0 13h1v1h-1zM4 13h2v1h-2zM8 13h1v1h-1zM10 13h1v1h-1zM13 13h1v1h-1zM15 13h2v1h-2zM19 13h3v1h-3zM23 13h1v1h-1zM25 13h1v1h-1zM27 13h1v1h-1zM2 14h1v1h-1zM4 14h1v1h-1zM6 14h1v1h-1zM11 14h6v1h-6zM20 14h1v1h-1zM27 14h2v1h-2zM4 15h1v1h-1zM8 15h1v1h-1zM11 15h1v1h-1zM13 15h2v1h-2zM20 15h1v1h-1zM23 15h1v1h-1zM27 15h2v1h-2zM0 16h1v1h-1zM3 16h2v1h-2zM6 16h2v1h-2zM9 16h1v1h-1zM11 16h1v1h-1zM13 16h1v1h-1zM15 16h2v1h-2zM19 16h1v1h-1zM21 16h1v1h-1zM23 16h1v1h-1zM27 16h2v1h-2zM1 17h1v1h-1zM3 17h1v1h-1zM8 17h1v1h-1zM11 17h2v1h-2zM15 17h1v1h-1zM17 17h1v1h-1zM21 17h3v1h-3zM26 17h3v1h-3zM0 18h1v1h-1zM2 18h1v1h-1zM6 18h2v1h-2zM9 18h1v1h-1zM11 18h1v1h-1zM14 18h1v1h-1zM17 18h1v1h-1zM20 18h2v1h-2zM24 18h5v1h-5zM2 19h2v1h-2zM5 19h1v1h-1zM7 19h1v1h-1zM9 19h9v1h-9zM20 19h1v1h-1zM23 19h1v1h-1zM27 19h1v1h-1zM0 20h1v1h-1zM3 20h7v1h-7zM11 20h1v1h-1zM13 20h2v1h-2zM16 20h1v1h-1zM20 20h5v1h-5zM26 20h1v1h-1zM8 21h2v1h-2zM12 21h2v1h-2zM16 21h2v1h-2zM20 21h1v1h-1zM24 21h1v1h-1zM27 21h2v1h-2zM0 22h7v1h-7zM8 22h2v1h-2zM11 22h1v1h-1zM16 22h1v1h-1zM18 22h1v1h-1zM20 22h1v1h-1zM22 22h1v1h-1zM24 22h3v1h-3zM0 23h1v1h-1zM6 23h1v1h-1zM8 23h1v1h-1zM12 23h2v1h-2zM16 23h1v1h-1zM18 23h1v1h-1zM20 23h1v1h-1zM24 23h1v1h-1zM26 23h1v1h-1zM0 24h1v1h-1zM2 24h3v1h-3zM6 24h1v1h-1zM9 24h2v1h-2zM12 24h1v1h-1zM15 24h2v1h-2zM18 24h1v1h-1zM20 24h6v1h-6zM27 24h1v1h-1zM0 25h1v1h-1zM2 25h3v1h-3zM6 25h1v1h-1zM8 25h4v1h-4zM15 25h1v1h-1zM17 25h6v1h-6zM24 25h3v1h-3zM28 25h1v1h-1zM0 26h1v1h-1zM2 26h3v1h-3zM6 26h1v1h-1zM9 26h3v1h-3zM13 26h1v1h-1zM15 26h2v1h-2zM18 26h3v1h-3zM24 26h3v1h-3zM28 26h1v1h-1zM0 27h1v1h-1zM6 27h1v1h-1zM8 27h4v1h-4zM16 27h3v1h-3zM20 27h1v1h-1zM22 27h2v1h-2zM27 27h1v1h-1zM0 28h7v1h-7zM9 28h1v1h-1zM12 28h1v1h-1zM15 28h1v1h-1zM17 28h1v1h-1zM20 28h1v1h-1zM22 28h1v1h-1zM24 28h1v1h-1zM27 28h1v1h-1z' };
+const _PR_MONTH = new Intl.DateTimeFormat('en-CA', { timeZone: 'Australia/Brisbane', year: 'numeric', month: '2-digit' });
+let printSets  = [];
+let _prFlow    = null;   // { mode: 'new'|'add'|'resume', set, files: [File], failed: [File], busy, skipped }
+let _prMenuFor = null;
+
+function _prQrSvg(margin = 0, fg = '#0b1f2a') {
+  const s = PRINT_QR.n + margin * 2;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${s} ${s}" shape-rendering="crispEdges" role="img" aria-label="QR code for wttf.com.au/prints">` +
+         `<rect width="${s}" height="${s}" fill="#fff"/><path transform="translate(${margin} ${margin})" d="${PRINT_QR.d}" fill="${fg}"/></svg>`;
+}
+function _prPaintQrs() {
+  document.querySelectorAll('[data-print-qr]').forEach(el => { if (!el.firstChild) el.innerHTML = _prQrSvg(); });
+}
+
+// Print-ready QR: pure black, 4-module quiet zone, whole pixels per module
+function downloadPrintQr(kind) {
+  const svg  = _prQrSvg(4, '#000');
+  const save = (blob, name) => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  };
+  if (kind === 'svg') { save(new Blob([svg], { type: 'image/svg+xml' }), 'wttf-prints-qr.svg'); return; }
+  const px  = (PRINT_QR.n + 8) * 44;
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = c.height = px;
+    const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, px, px);
+    c.toBlob(b => save(b, 'wttf-prints-qr.png'), 'image/png');
+  };
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+}
+
+// SQLite "2026-10-15 03:12:00" is UTC — show it as "15 Oct" (with the year if not this year)
+function _prDate(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return '';
+  const opts = { day: 'numeric', month: 'short' };
+  if (d.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('en-AU', opts);
+}
+
+async function loadPrints() {
+  _prPaintQrs();
+  try {
+    const data = await api('/api/prints');
+    if (data) { printSets = data; renderPrints(); }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+function _prCodeCell(s) {
+  if (!s.code) return '<span class="pc-none">—</span>';
+  return `<span class="pc-code${s.status === 'revoked' ? ' is-dead' : ''}">${esc(s.code)}</span>`;
+}
+function _prStatusChip(s) {
+  if (s.status === 'uploading') return `<span class="status-badge uploading">Unfinished · ${s.photos} up</span>`;
+  if (s.status === 'revoked')   return `<span class="status-badge deleting">Revoked ${_prDate(s.revokedAt)}</span>`;
+  if (s.status === 'broken')    return `<span class="status-badge deleting" title="Its share link was revoked from the Share window">Link removed</span>`;
+  if (s.openedAt)               return `<span class="status-badge available">✓ Opened ${_prDate(s.openedAt)}</span>`;
+  return `<span class="status-badge deleted">Not yet</span>`;
+}
+
+function renderPrints() {
+  const live = printSets.filter(s => s.status === 'live');
+  document.getElementById('prStatLive').textContent    = live.length;
+  document.getElementById('prStatOpened').textContent  = live.filter(s => s.openedAt).length;
+  document.getElementById('prStatWaiting').textContent = live.filter(s => !s.openedAt).length;
+
+  // Search by client, note, or the code words as a client might read them out
+  const raw   = document.getElementById('prSearch').value || '';
+  const words = raw.toLowerCase().replace(/[^a-z0-9&]+/g, ' ').trim().split(' ').filter(Boolean);
+  const list  = printSets.filter(s => {
+    const hay = `${s.client} ${s.code || ''} ${(s.code || '').replace(/ /g, '')} ${s.note || ''}`.toLowerCase();
+    return words.every(w => hay.includes(w));
+  });
+
+  const el = document.getElementById('prRows');
+  if (!printSets.length) {
+    el.innerHTML = `<div class="pc-empty"><strong>No print sets yet</strong>Click New print set, name the client and drop in the printed photos.</div>`;
+    return;
+  }
+  if (!list.length) {
+    el.innerHTML = `<div class="pc-empty"><strong>No print set matches “${esc(raw)}”</strong>Check the spelling of the words on the card, or search by client name.</div>`;
+    return;
+  }
+  el.innerHTML = list.map(s => `
+    <div class="pc-row">
+      <div class="pc-client">
+        <span class="pc-name">${esc(s.client)}</span>
+        <span class="pc-folder" title="${esc(s.folder)}">${esc(s.folder)}</span>
+        ${s.note ? `<span class="pc-note">${esc(s.note)}</span>` : ''}
+        <span class="pc-mobile-meta">${s.photos} photo${s.photos === 1 ? '' : 's'}${s.codeMadeAt ? ' · made ' + _prDate(s.codeMadeAt) : ''}</span>
+      </div>
+      <div class="pc-code-cell">${_prCodeCell(s)}</div>
+      <div class="pc-photos pc-num">${s.photos}</div>
+      <div class="pc-made pc-num">${_prDate(s.codeMadeAt || s.createdAt)}</div>
+      <div class="pc-opened">${_prStatusChip(s)}</div>
+      <div class="pc-menu"><button class="pc-menu-btn" aria-label="Actions for ${esc(s.client)}" onclick="togglePrintMenu(${s.id}, this, event)">⋯</button></div>
+    </div>`).join('');
+}
+
+// ── Row menu ──
+function togglePrintMenu(id, btn, e) {
+  e.stopPropagation();
+  const menu = document.getElementById('prRowMenu');
+  if (_prMenuFor === id && menu.classList.contains('open')) { _prCloseMenu(); return; }
+  const s = printSets.find(x => x.id === id);
+  if (!s) return;
+  _prMenuFor = id;
+  const items = s.status === 'uploading'
+    ? [['resume', 'Resume upload'], null, ['remove', 'Remove from list', 'danger']]
+    : (s.status === 'revoked' || s.status === 'broken')
+      ? [['newcode', 'Make a new code']]
+      : [['show', 'Show code'], ['view', 'See their page'], ['add', 'Add photos'], null, ['revoke', 'Revoke code', 'danger']];
+  menu.innerHTML = items.map(it => it
+    ? `<div class="folder-menu-item${it[2] ? ' danger' : ''}" role="menuitem" onclick="printAction(${id}, '${it[0]}')">${it[1]}</div>`
+    : '<div class="folder-menu-sep"></div>').join('');
+  menu.classList.add('open');
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+  menu.style.top  = (r.bottom + 6 + h > window.innerHeight ? r.top - h - 6 : r.bottom + 6) + 'px';
+}
+function _prCloseMenu() {
+  document.getElementById('prRowMenu')?.classList.remove('open');
+  _prMenuFor = null;
+}
+document.addEventListener('click', e => { if (!e.target.closest('#prRowMenu')) _prCloseMenu(); });
+window.addEventListener('scroll', _prCloseMenu, { passive: true });
+
+async function printAction(id, act) {
+  _prCloseMenu();
+  const s = printSets.find(x => x.id === id);
+  if (!s) return;
+  const mono = t => `<span style="font-family:var(--mono);font-size:12.5px">${esc(t)}</span>`;
+  if (act === 'show')   { openPrintShow(s); return; }
+  if (act === 'view')   { window.open(`/share/${s.shareToken}`, '_blank', 'noopener'); return; }
+  if (act === 'add')    { _prOpenUploader('add', s); return; }
+  if (act === 'resume') { _prOpenUploader('resume', s); return; }
+  if (act === 'revoke') {
+    _prConfirm({
+      title: 'Revoke code',
+      body: `Anyone who types <strong>${esc(s.code)}</strong> will be told the words didn't match, and the page link stops working. ` +
+            `The photos stay in ${mono(s.folder)}, and you can make a new code later.`,
+      button: 'Revoke code',
+      run: async () => { await api(`/api/prints/${id}/revoke`, { method: 'POST' }); toast(`Code for ${s.client} revoked`); },
+    });
+    return;
+  }
+  if (act === 'remove') {
+    _prConfirm({
+      title: 'Remove from list',
+      body: `This removes the unfinished set for <strong>${esc(s.client)}</strong> from the list. Photos that already uploaded stay in ${mono(s.folder)}.`,
+      button: 'Remove',
+      run: async () => { await api(`/api/prints/${id}`, { method: 'DELETE' }); toast('Removed from the list'); },
+    });
+    return;
+  }
+  if (act === 'newcode') {
+    try {
+      const set = await api(`/api/prints/${id}/new-code`, { method: 'POST' });
+      if (set) { await loadPrints(); openPrintShow(set, true); }
+    } catch (e) { toast(e.message, 'error'); }
+  }
+}
+
+// ── Modals ──
+function _prOpenModal(id) { document.getElementById(id).classList.add('open'); }
+function closePrintModal(id, force) {
+  if (id === 'prNewModal' && _prFlow?.busy && !force) return; // mid-upload — keep it open
+  document.getElementById(id).classList.remove('open');
+  if (id === 'prNewModal') { _prFlow = null; loadPrints(); }
+}
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  for (const id of ['prConfirmModal', 'prShowModal', 'prNewModal']) {
+    if (document.getElementById(id)?.classList.contains('open')) { closePrintModal(id); break; }
+  }
+});
+
+function _prConfirm({ title, body, button, run }) {
+  document.getElementById('prConfirmTitle').textContent = title;
+  document.getElementById('prConfirmBody').innerHTML = body;
+  const btn = document.getElementById('prConfirmBtn');
+  btn.textContent = button; btn.disabled = false;
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try { await run(); closePrintModal('prConfirmModal'); loadPrints(); }
+    catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+  };
+  _prOpenModal('prConfirmModal');
+}
+
+function _prCard(code) {
+  return `<div class="pr-card">
+    <div class="pr-card-qr">${_prQrSvg(1)}</div>
+    <div class="pr-card-text">
+      <span class="pr-card-print">Your photos, online</span>
+      <span class="pr-card-url">wttf.com.au/prints</span>
+      <span class="pr-card-hand">${esc(code)}</span>
+    </div>
+  </div>`;
+}
+
+function openPrintShow(s, fresh) {
+  document.getElementById('prShowTitle').textContent = fresh ? 'New code' : 'Print code';
+  document.getElementById('prShowFor').textContent   = `Code for ${s.client}`;
+  document.getElementById('prShowWords').textContent = s.code;
+  document.getElementById('prShowMeta').textContent  =
+    `Made ${_prDate(s.codeMadeAt)} · ${s.openedAt ? 'opened ' + _prDate(s.openedAt) : 'not opened yet'} · ${s.photos} photo${s.photos === 1 ? '' : 's'}`;
+  document.getElementById('prShowCard').innerHTML = _prCard(s.code);
+  document.getElementById('prShowView').href = `/share/${s.shareToken}`;
+  _prOpenModal('prShowModal');
+}
+
+function prCopy(text) {
+  try {
+    navigator.clipboard.writeText(text).then(() => toast(`Copied “${text}”`), () => toast(text));
+  } catch { toast(text); }
+}
+
+// ── New print set / add photos / resume ──
+function openPrintNew() { _prOpenUploader('new'); }
+
+function _prOpenUploader(mode, set = null) {
+  const $ = id => document.getElementById(id);
+  _prFlow = { mode, set, files: [], failed: [], busy: false, skipped: 0 };
+  $('prNewTitle').textContent      = mode === 'new' ? 'New print set' : mode === 'add' ? 'Add photos' : 'Resume upload';
+  $('prForm').style.display        = 'flex';
+  $('prUpload').style.display      = 'none';
+  $('prDone').style.display        = 'none';
+  $('prClientField').style.display = mode === 'new' ? '' : 'none';
+  $('prNoteField').style.display   = mode === 'new' ? '' : 'none';
+  $('prForWho').style.display      = mode === 'new' ? 'none' : '';
+  $('prForWho').textContent        = set ? set.client : '';
+  $('prResumeHint').style.display  = mode === 'resume' ? '' : 'none';
+  $('prClient').value = ''; $('prNote').value = '';
+  $('prSubmit').textContent = mode === 'new' ? 'Create print set' : mode === 'add' ? 'Upload photos' : 'Finish set';
+  $('prSubmit').disabled = false;
+  $('prFormErr').style.display = 'none';
+  $('prNewClose').disabled = false;
+  $('printUploadQueue').innerHTML = '';
+  _prUpdateFolderLine();
+  _prRenderFiles();
+  _prOpenModal('prNewModal');
+  if (mode === 'new') setTimeout(() => $('prClient').focus(), 30);
+}
+
+function _prUpdateFolderLine() {
+  const el = document.getElementById('prFolder');
+  if (_prFlow?.set) { el.textContent = _prFlow.set.folder; return; }
+  const name = document.getElementById('prClient').value.replace(/[\\/]+/g, '-').replace(/\s+/g, ' ').trim();
+  el.textContent = `Prints/${_PR_MONTH.format(new Date())} ${name || '…'}`;
+}
+
+const _prIsJpeg = f => /\.jpe?g$/i.test(f.name);
+
+function _prAddFiles(list) {
+  if (!_prFlow || _prFlow.busy) return;
+  for (const f of list) {
+    if (_prFlow.files.some(x => x.name === f.name && x.size === f.size)) continue;
+    _prFlow.files.push(f);
+  }
+  document.getElementById('prFormErr').style.display = 'none';
+  _prRenderFiles();
+}
+function _prRemoveFile(i) {
+  if (!_prFlow || _prFlow.busy) return;
+  _prFlow.files.splice(i, 1);
+  _prRenderFiles();
+}
+function _prRenderFiles() {
+  const files = _prFlow?.files || [];
+  const list  = document.getElementById('prFileList');
+  (list._urls || []).forEach(u => URL.revokeObjectURL(u));
+  list._urls = [];
+  list.style.display = files.length ? 'flex' : 'none';
+  list.innerHTML = files.map((f, i) => {
+    let thumb = `<span class="pr-fthumb">${esc((f.name.split('.').pop() || '').toUpperCase())}</span>`;
+    if (/^image\/(jpeg|png|webp|gif)$/.test(f.type) && f.size < 60e6) {
+      const u = URL.createObjectURL(f);
+      list._urls.push(u);
+      thumb = `<img class="pr-fthumb" src="${u}" alt="">`;
+    }
+    const sub = _prIsJpeg(f)
+      ? `<div class="pr-fsub">${fmtBytes(f.size)}</div>`
+      : `<div class="pr-fwarn">Not a JPEG, so it won't show in their gallery. Export it as a JPEG.</div>`;
+    return `<div class="pr-frow${_prIsJpeg(f) ? '' : ' is-warn'}">${thumb}
+      <div style="min-width:0"><div class="pr-fname">${esc(f.name)}</div>${sub}</div>
+      <button class="pr-frm" onclick="_prRemoveFile(${i})">Remove</button></div>`;
+  }).join('');
+  const total = files.reduce((a, f) => a + f.size, 0);
+  const warn  = files.filter(f => !_prIsJpeg(f)).length;
+  document.getElementById('prSum').textContent = files.length
+    ? `${files.length} photo${files.length > 1 ? 's' : ''} · ${fmtBytes(total)}${warn ? ` · ${warn} not JPEG` : ''}`
+    : 'No photos yet';
+}
+
+(function wirePrintDrop() {
+  const drop  = document.getElementById('prDrop');
+  const input = document.getElementById('prFiles');
+  if (!drop || !input) return;
+  input.addEventListener('change', () => { _prAddFiles(input.files); input.value = ''; });
+  ['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer?.files?.length) _prAddFiles(e.dataTransfer.files); });
+})();
+
+async function prSubmit() {
+  const flow = _prFlow;
+  if (!flow || flow.busy) return;
+  const $ = id => document.getElementById(id);
+  const err = msg => { $('prFormErr').textContent = msg; $('prFormErr').style.display = ''; };
+  if (flow.mode === 'new' && !$('prClient').value.trim()) { err("Type the client's name."); $('prClient').focus(); return; }
+  if (!flow.files.length && flow.mode !== 'resume') { err('Add at least one photo.'); return; }
+  $('prSubmit').disabled = true;
+  try {
+    if (flow.mode === 'new') {
+      const set = await api('/api/prints', { method: 'POST', body: JSON.stringify({ client: $('prClient').value, note: $('prNote').value }) });
+      if (!set) { $('prSubmit').disabled = false; return; }
+      flow.set = set;
+      loadPrints(); // shows as Unfinished until the code is made
+    }
+    // Adding or resuming: skip photos that are already in the folder
+    let files = flow.files;
+    flow.skipped = 0;
+    if (flow.mode !== 'new' && files.length) {
+      const r = await api('/api/files/check-existing', {
+        method: 'POST', body: JSON.stringify({ files: files.map(f => ({ name: f.name, folder: flow.set.folder })) }),
+      });
+      const have = new Set(r?.existing || []);
+      files = files.filter(f => !have.has(`${f.name}|${flow.set.folder}`));
+      flow.skipped = flow.files.length - files.length;
+    }
+    await _prRunUpload(files);
+  } catch (e) {
+    err(e.message);
+    $('prSubmit').disabled = false;
+  }
+}
+
+// Upload with the normal browser uploader, three at a time, then make the code
+async function _prRunUpload(files) {
+  const flow = _prFlow;
+  const $ = id => document.getElementById(id);
+  flow.busy = true; flow.failed = [];
+  $('prForm').style.display   = 'none';
+  $('prUpload').style.display = 'flex';
+  $('prDone').style.display   = 'none';
+  $('prUpFail').style.display = 'none';
+  $('prUpNotice').style.display = '';
+  $('prNewClose').disabled = true;
+  $('prUpClient').textContent = flow.set.client;
+  $('printUploadQueue').innerHTML = ''; // clear rows from a previous attempt
+
+  const total = files.length;
+  let done = 0;
+  const paint = () => {
+    $('prUpBar').style.width = (total ? done / total * 100 : 100) + '%';
+    $('prUpLine').textContent = `${done} of ${total} photo${total === 1 ? '' : 's'} uploaded` +
+      (flow.skipped ? ` · ${flow.skipped} already there` : '');
+  };
+  paint();
+
+  const ctx = { queueId: 'printUploadQueue', cancelAllId: 'printCancelAll', cancelClass: 'print-upload-cancel' };
+  let next = 0;
+  const worker = async () => {
+    while (next < files.length) {
+      const f = files[next++];
+      delete f._fdUploaded; delete f._fdFileId;
+      await uploadBrowserFile(f, flow.set.folder, ctx);
+      if (f._fdUploaded) done++;
+      else {
+        flow.failed.push(f);
+        // Clear its half-made record so it doesn't hold up the code
+        if (f._fdFileId) api(`/api/upload/browser/fail/${f._fdFileId}`, { method: 'POST' }).catch(() => {});
+      }
+      paint();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, files.length) }, worker));
+  flow.busy = false;
+  $('prNewClose').disabled = false;
+
+  if (flow.failed.length) {
+    const n = flow.failed.length;
+    const names = flow.failed.map(f => f.name).join(', ');
+    _prShowFail(done === 0
+      ? `None of the photos uploaded (${names}). Check your connection and try again.`
+      : `${n} photo${n > 1 ? 's' : ''} didn't upload (${names}). Check your connection and try again. ` +
+        `The other ${done} ${done > 1 ? 'are' : 'is'} safely up.`);
+    loadPrints();
+    return;
+  }
+  await _prFinish();
+}
+
+function _prShowFail(text) {
+  document.getElementById('prUpNotice').style.display = 'none';
+  document.getElementById('prUpFail').style.display   = 'flex';
+  document.getElementById('prUpFailText').textContent = text;
+}
+
+async function prRetry() {
+  const flow = _prFlow;
+  if (!flow || flow.busy) return;
+  if (flow.failed.length) { flow.skipped = 0; await _prRunUpload(flow.failed.slice()); }
+  else await _prFinish();
+}
+
+async function _prFinish() {
+  const flow = _prFlow;
+  const $ = id => document.getElementById(id);
+  flow.busy = true; $('prNewClose').disabled = true;
+  try {
+    if (flow.mode === 'add') {
+      await api(`/api/prints/${flow.set.id}/photos-added`, { method: 'POST' });
+      flow.busy = false;
+      toast(`Photos added to ${flow.set.client}. Their ZIP rebuilds in the background.`);
+      closePrintModal('prNewModal');
+      return;
+    }
+    let set = null;
+    for (let attempt = 1; ; attempt++) {
+      try { set = await api(`/api/prints/${flow.set.id}/finish`, { method: 'POST' }); break; }
+      catch (e) {
+        // The last upload can take a moment to be marked complete
+        if (/still uploading/i.test(e.message) && attempt < 4) { await new Promise(r => setTimeout(r, 3000)); continue; }
+        throw e;
+      }
+    }
+    if (!set) throw new Error('Your login expired. Log in again, then use Resume upload on this set.');
+    flow.set = set; flow.busy = false; $('prNewClose').disabled = false;
+    _prShowDone(set);
+    loadPrints();
+  } catch (e) {
+    flow.busy = false; $('prNewClose').disabled = false;
+    _prShowFail(e.message);
+  }
+}
+
+function _prShowDone(set) {
+  const $ = id => document.getElementById(id);
+  $('prNewTitle').textContent   = 'Print set ready';
+  $('prForm').style.display     = 'none';
+  $('prUpload').style.display   = 'none';
+  $('prDone').style.display     = 'flex';
+  $('prDoneFor').textContent    = `Code for ${set.client}`;
+  $('prDoneWords').textContent  = set.code;
+  $('prDoneCard').innerHTML     = _prCard(set.code);
+  $('prDoneView').href          = `/share/${set.shareToken}`;
+}
+
+async function prShuffle() {
+  const flow = _prFlow;
+  if (!flow?.set) return;
+  try {
+    const set = await api(`/api/prints/${flow.set.id}/shuffle`, { method: 'POST' });
+    if (set) { flow.set = set; _prShowDone(set); loadPrints(); }
+  } catch (e) { toast(e.message, 'error'); }
+}
+
 // ── Tab switching ─────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -4418,7 +5204,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     // Show/hide panels for the correct role
     const panels = role === 'owner'
-      ? ['library','browse','uploads','settings']
+      ? ['library','prints','browse','uploads','settings']
       : ['available','upload','request','history','prefs'];
     panels.forEach(p => {
       const el = document.getElementById('tab-'+p);
@@ -4428,6 +5214,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     if (active) { active.classList.add('active'); active.style.display='block'; }
     if (tab === 'prefs') renderDlPrefs();
     if (tab === 'settings') { loadUploadLinks(); loadRequests(); loadWatchDir(); }
+    if (tab === 'prints') loadPrints();
   });
 });
 

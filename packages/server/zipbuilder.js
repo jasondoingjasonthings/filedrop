@@ -180,4 +180,25 @@ async function deleteShareZip(zipKey) {
   try { await deleteObject(zipKey); } catch {}
 }
 
-module.exports = { queueZipBuild, resumePendingBuilds, deleteShareZip };
+// Debounced ZIP invalidation — batches rapid bulk deletes into one rebuild per folder
+const _zipInvalidateTimers = new Map();
+function scheduleZipInvalidation(db, folder) {
+  if (_zipInvalidateTimers.has(folder)) clearTimeout(_zipInvalidateTimers.get(folder));
+  _zipInvalidateTimers.set(folder, setTimeout(async () => {
+    _zipInvalidateTimers.delete(folder);
+    const links = db.prepare(`
+      SELECT * FROM share_links
+      WHERE (folder=? OR ? LIKE folder || '/%')
+        AND zip_status='ready' AND zip_key IS NOT NULL
+        AND expires_at > datetime('now')
+    `).all(folder, folder);
+    for (const link of links) {
+      try { await deleteShareZip(link.zip_key); } catch {}
+      db.prepare(`UPDATE share_links SET zip_key=NULL, zip_status='pending' WHERE id=?`).run(link.id);
+      queueZipBuild(db, link.token, link.folder, link.label);
+      console.log(`[zip] invalidated and re-queued after file delete: ${link.folder}`);
+    }
+  }, 3000));
+}
+
+module.exports = { queueZipBuild, resumePendingBuilds, deleteShareZip, scheduleZipInvalidation };

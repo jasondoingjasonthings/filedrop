@@ -159,6 +159,44 @@ function migrateAlter(db) {
       db.prepare(`CREATE INDEX idx_tj_status  ON transcode_jobs(status)`).run();
       db.prepare(`CREATE INDEX idx_tj_file_id ON transcode_jobs(file_id)`).run();
     }
+
+    // Phone-size copies of print set photos (the original is never touched)
+    if (!cols.includes('preview_key')) db.prepare(`ALTER TABLE files ADD COLUMN preview_key TEXT`).run();
+
+    // Print sets — one client, one folder, one two-word code for wttf.com.au/prints.
+    // The share link does the delivering; the print set is the code in front of it.
+    const hasPrintSets = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='print_sets'`).get();
+    if (!hasPrintSets) {
+      db.prepare(`
+        CREATE TABLE print_sets (
+          id           INTEGER PRIMARY KEY AUTOINCREMENT,
+          client       TEXT NOT NULL,
+          folder       TEXT NOT NULL,
+          note         TEXT,
+          status       TEXT NOT NULL DEFAULT 'uploading'
+                         CHECK(status IN ('uploading','live','revoked')),
+          code         TEXT,
+          code_compact TEXT UNIQUE,
+          share_token  TEXT,
+          created_at   TEXT DEFAULT (datetime('now')),
+          code_made_at TEXT,
+          opened_at    TEXT,
+          revoked_at   TEXT
+        )
+      `).run();
+    }
+    // Every code ever issued, so a revoked or shuffled code is never handed to another client
+    const hasPrintCodes = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='print_codes'`).get();
+    if (!hasPrintCodes) {
+      db.prepare(`
+        CREATE TABLE print_codes (
+          code_compact TEXT PRIMARY KEY,
+          code         TEXT NOT NULL,
+          set_id       INTEGER,
+          created_at   TEXT DEFAULT (datetime('now'))
+        )
+      `).run();
+    }
   })();
 }
 

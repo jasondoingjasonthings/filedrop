@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#05080f">
+<title>Your prints · Welcome to the Fold</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+/* The code screen at wttf.com.au/prints. Same dark world as the share page intro,
+   so a correct code flows straight into the typewriter animation. */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  color-scheme: dark;
+  --night:        #05080f;
+  --night-2:      #0d1220;
+  --teal:         #00A896;
+  --teal-hi:      #00bfab;
+  --ink:          oklch(0.972 0.012 210);
+  --muted:        oklch(0.745 0.032 214);
+  --line:         oklch(1 0 0 / 0.10);
+  --field:        oklch(1 0 0 / 0.06);
+  --field-line:   oklch(1 0 0 / 0.16);
+  --error:        oklch(0.76 0.14 30);
+  --font: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'Share Tech Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+html, body { min-height: 100%; }
+body {
+  background: radial-gradient(120% 70% at 50% 0%, var(--night-2) 0%, var(--night) 62%) var(--night);
+  background-attachment: fixed;
+  color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+[hidden] { display: none !important; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; }
+
+.gate {
+  min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center;
+  padding: calc(30px + env(safe-area-inset-top, 0px)) 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  transition: opacity 0.5s ease;
+}
+.gate::before {
+  content: ''; position: fixed; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--teal), transparent);
+}
+.gate.leaving { opacity: 0; }
+.brand { display: flex; flex-direction: column; align-items: center; gap: 11px; text-decoration: none; }
+.circles { display: flex; gap: 4px; }
+.circles span {
+  width: 30px; height: 30px; border-radius: 50%; background: #fff; color: var(--night);
+  display: flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 900;
+}
+.brand-name { font-size: 11px; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; color: oklch(1 0 0 / 0.55); }
+.main { flex: 1; width: 100%; display: flex; align-items: center; justify-content: center; padding-block: 36px; }
+.card { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 22px; }
+.copy { display: flex; flex-direction: column; gap: 12px; text-align: center; }
+.eyebrow { font-family: var(--mono); font-size: 12.5px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--teal); }
+h1 { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.15; text-wrap: balance; }
+.sub { font-size: 15px; color: var(--muted); line-height: 1.55; }
+form { display: flex; flex-direction: column; gap: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+input {
+  width: 100%; height: 62px; border-radius: 14px; padding: 0 18px;
+  background: var(--field); border: 1px solid var(--field-line); color: #fff;
+  font-family: var(--mono); font-size: 23px; letter-spacing: 0.12em; text-align: center; text-transform: lowercase;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+input::placeholder { color: oklch(1 0 0 / 0.28); }
+input:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 4px rgba(0,168,150,0.18); }
+input:disabled { opacity: 0.45; }
+form.is-error input { border-color: var(--error); box-shadow: 0 0 0 4px oklch(0.76 0.14 30 / 0.16); }
+form.shake input { animation: shake 0.38s ease; }
+@keyframes shake { 20% { transform: translateX(-7px); } 45% { transform: translateX(6px); } 70% { transform: translateX(-4px); } 90% { transform: translateX(2px); } }
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  width: 100%; height: 58px; border-radius: 14px; border: none; cursor: pointer;
+  background: var(--teal); color: var(--night); font-family: var(--font); font-size: 16.5px; font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), 0 12px 26px -12px rgba(0,168,150,0.45);
+  transition: background 0.15s;
+}
+.btn:hover { background: var(--teal-hi); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.hint { text-align: center; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.msg { text-align: center; font-size: 14px; font-weight: 500; color: var(--error); }
+.locked {
+  display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 12px; text-align: center;
+  background: oklch(1 0 0 / 0.06); border: 1px solid var(--line); font-size: 13.5px; color: var(--muted);
+}
+.locked strong { color: var(--ink); font-weight: 600; font-size: 14.5px; }
+.foot { font-size: 13px; color: var(--muted); text-align: center; }
+.foot a { color: var(--teal); text-decoration: none; font-weight: 600; }
+.foot a:hover { text-decoration: underline; }
+@media (max-width: 420px) { h1 { font-size: 24px; } }
+@media (prefers-reduced-motion: reduce) {
+  .gate { transition: none; }
+  form.shake input { animation: none; }
+}
+</style>
+</head>
+<body>
+<div class="gate" id="gate">
+  <a class="brand" href="https://wttf.com.au" rel="noopener">
+    <div class="circles" aria-hidden="true"><span>W</span><span>T</span><span>T</span><span>F</span></div>
+    <span class="brand-name">Welcome to the Fold</span>
+  </a>
+  <main class="main">
+    <div class="card">
+      <div class="copy">
+        <div class="eyebrow">Prints</div>
+        <h1>The digital copies of your prints</h1>
+        <p class="sub">Type the two words written on your card.</p>
+      </div>
+      <form id="form" novalidate>
+        <label class="sr-only" for="code">The two words from your card</label>
+        <input id="code" type="text" placeholder="two words" maxlength="60"
+               autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+               enterkeyhint="go">
+        <div class="msg" id="msg" role="alert" hidden></div>
+        <div class="locked" id="locked" hidden>
+          <strong>Too many tries</strong>
+          <span>Wait 15 minutes, then try again.</span>
+        </div>
+        <button class="btn" id="btn" type="submit">
+          <span id="btnLabel">Open my photos</span>
+          <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10h11m0 0l-4.5-4.5M15 10l-4.5 4.5"/></svg>
+        </button>
+        <p class="hint">Capitals, spaces and dashes don't matter.</p>
+      </form>
+    </div>
+  </main>
+  <p class="foot">Lost your card? Get in touch via <a href="https://wttf.com.au" rel="noopener">wttf.com.au</a></p>
+</div>
+
+<script>
+'use strict';
+(function () {
+  const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const gate = document.getElementById('gate');
+  const form = document.getElementById('form');
+  const input = document.getElementById('code');
+  const btn = document.getElementById('btn');
+  const btnLabel = document.getElementById('btnLabel');
+  const msg = document.getElementById('msg');
+  const locked = document.getElementById('locked');
+
+  function showMessage(text, isError) {
+    msg.textContent = text; msg.hidden = false;
+    form.classList.toggle('is-error', !!isError);
+    if (isError) { form.classList.remove('shake'); void form.offsetWidth; form.classList.add('shake'); }
+  }
+  function busy(on) {
+    btn.disabled = on; input.disabled = on;
+    btnLabel.textContent = on ? 'Opening…' : 'Open my photos';
+  }
+  function lock() {
+    input.disabled = true; btn.disabled = true; btnLabel.textContent = 'Open my photos';
+    msg.hidden = true; form.classList.remove('is-error'); locked.hidden = false;
+  }
+
+  input.addEventListener('input', () => { form.classList.remove('is-error'); msg.hidden = true; });
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!input.value.replace(/[^a-z]/gi, '')) { showMessage('Type the two words from your card.', false); input.focus(); return; }
+    busy(true);
+    let res;
+    try {
+      res = await fetch('/prints/open', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: input.value }),
+      });
+    } catch {
+      busy(false);
+      showMessage("Couldn't reach us just now. Check your connection and try again.", false);
+      return;
+    }
+    if (res.status === 429) { lock(); return; }
+    if (!res.ok) {
+      busy(false);
+      showMessage("Those words didn't match. Check your card and try again.", true);
+      input.select();
+      return;
+    }
+    const { url } = await res.json();
+    // Fade to the same dark the share page intro starts on, then go
+    gate.classList.add('leaving');
+    setTimeout(() => { location.assign(url); }, REDUCED ? 0 : 450);
+  });
+
+  // Coming back with the browser's Back button: show the form again
+  window.addEventListener('pageshow', () => { gate.classList.remove('leaving'); if (locked.hidden) busy(false); });
+
+  if (window.matchMedia('(pointer: fine)').matches) input.focus();
+})();
+</script>
+</body>
+</html>
