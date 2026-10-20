@@ -3362,7 +3362,7 @@ async function enqueueWithDedupe(fileList, folder, ctx) {
   try {
     const payload = fileList.map(f => ({ name: f.name, folder: folder || '' }));
     const data = await api('/api/files/check-existing', {
-      method: 'POST', body: JSON.stringify({ files: payload }),
+      method: 'POST', body: JSON.stringify({ files: payload, session: _uploadSession }),
     });
     if (data?.existing?.length) {
       const skip = new Set(data.existing); // "name|folder" keys
@@ -3442,7 +3442,7 @@ async function enqueueBatchWithDedupe(pairs, ctx) {
   try {
     const payload = pairs.map(p => ({ name: p.file.name, folder: p.folder || '' }));
     const data = await api('/api/files/check-existing', {
-      method: 'POST', body: JSON.stringify({ files: payload }),
+      method: 'POST', body: JSON.stringify({ files: payload, session: _uploadSession }),
     });
     if (data?.existing?.length) {
       const skip = new Set(data.existing);
@@ -3588,30 +3588,111 @@ function _loadResume(file)         { try { const s = localStorage.getItem(_resum
 function _saveResume(file, state)  { try { localStorage.setItem(_resumeKey(file), JSON.stringify(state)); } catch {} }
 function _clearResume(file)        { try { localStorage.removeItem(_resumeKey(file)); } catch {} }
 
-// ── Per-XHR upload helper with retry ─────────────────────────────────────────
+// ── Riding out connection drop-outs ──────────────────────────────────────────
+// A dropped connection shouldn't cost a 50 GB upload. When a request fails because
+// the network has gone, the upload waits here until FileDrop can be reached again,
+// then carries on from the last piece that finished. Real errors still fail fast.
 
-async function _xhrPut(url, body, onProgress, isCancelled, label, maxAttempts = 3) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+// One id per browser tab (kept across reloads) so the server can tell this tab's own
+// half-finished upload apart from one another window is still sending.
+const _uploadSession = (() => {
+  try {
+    let s = sessionStorage.getItem('fd_upload_session');
+    if (!s) { s = crypto.randomUUID(); sessionStorage.setItem('fd_upload_session', s); }
+    return s;
+  } catch { return crypto.randomUUID(); }
+})();
+
+class _NetworkDown extends Error {
+  constructor(msg) { super(msg || 'Network error'); this.networkDown = true; }
+}
+
+async function _canReachServer() {
+  if (navigator.onLine === false) return false;
+  try {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    const r = await fetch('/health', { cache: 'no-store', signal: ctrl.signal });
+    clearTimeout(timer);
+    return r.ok;
+  } catch { return false; }
+}
+
+// Resolves once FileDrop answers again — checked on the browser's 'online' event and every 10 s
+function _waitForConnection(isCancelled) {
+  return new Promise(resolve => {
+    let done = false, timer = null;
+    const finish = () => {
+      if (done) return;
+      done = true; clearInterval(timer); window.removeEventListener('online', check); resolve();
+    };
+    const check = async () => { if (!done && (isCancelled() || await _canReachServer())) finish(); };
+    window.addEventListener('online', check);
+    timer = setInterval(check, 10_000);
+    setTimeout(check, 3000);
+  });
+}
+
+// Run fn; if it fails because the connection dropped, wait for it and run it again.
+// onWait(true/false) shows and clears "Waiting for connection…" on the row.
+async function _withReconnect(fn, isCancelled, onWait) {
+  for (;;) {
     if (isCancelled()) throw new Error('Cancelled');
+    try { return await fn(); }
+    catch (err) {
+      if (err.message === 'Cancelled' || isCancelled()) throw new Error('Cancelled');
+      const network = err.networkDown || err instanceof TypeError; // fetch() throws TypeError when offline
+      if (!network || await _canReachServer()) throw err;
+      onWait?.(true);
+      await _waitForConnection(isCancelled);
+      onWait?.(false);
+    }
+  }
+}
+
+// One PUT of a file or part. No progress for 45 s counts as a dropped connection —
+// a dead Wi-Fi link can hang without ever raising an error.
+function _xhrPutOnce(url, body, onProgress, isCancelled, label) {
+  return new Promise((resolve, reject) => {
+    if (isCancelled()) { reject(new Error('Cancelled')); return; }
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', url);
+    let lastLoaded = 0, lastMove = Date.now(), stalled = false;
+    const watch = setInterval(() => {
+      if (isCancelled()) { xhr.abort(); return; }
+      if (Date.now() - lastMove > 45_000) { stalled = true; xhr.abort(); }
+    }, 5000);
+    const settle = fn => arg => { clearInterval(watch); fn(arg); };
+    xhr.upload.onprogress = e => {
+      const delta = e.loaded - lastLoaded;
+      lastLoaded = e.loaded;
+      if (delta > 0) { lastMove = Date.now(); _trackUploadDelta(delta); }
+      if (onProgress) onProgress(e);
+    };
+    xhr.onload  = settle(() => xhr.status < 300 ? resolve(xhr) : reject(new Error(`${label} failed: HTTP ${xhr.status}`)));
+    xhr.onerror = settle(() => reject(new _NetworkDown()));
+    xhr.onabort = settle(() => reject(stalled ? new _NetworkDown('Connection stalled') : new Error('Cancelled')));
+    xhr.send(body);
+  });
+}
+
+// PUT with retries. A drop-out waits for the connection without using up a try, then
+// asks for a fresh presigned URL (the old one may have expired while offline).
+async function _putWithRetry(getUrl, body, onProgress, isCancelled, label, onWait) {
+  for (let attempt = 1; ; attempt++) {
+    const url = await _withReconnect(getUrl, isCancelled, onWait);
     try {
-      return await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('PUT', url);
-        let _lastLoaded = 0;
-        xhr.upload.onprogress = e => {
-          const delta = e.loaded - _lastLoaded;
-          _lastLoaded = e.loaded;
-          if (delta > 0) _trackUploadDelta(delta);
-          if (onProgress) onProgress(e);
-        };
-        xhr.onload  = () => xhr.status < 300 ? resolve(xhr) : reject(new Error(`${label} failed: HTTP ${xhr.status}`));
-        xhr.onerror = () => reject(new Error('Network error'));
-        xhr.onabort = () => reject(new Error('Cancelled'));
-        xhr.send(body);
-      });
+      return await _xhrPutOnce(url, body, onProgress, isCancelled, label);
     } catch (err) {
       if (err.message === 'Cancelled' || isCancelled()) throw new Error('Cancelled');
-      if (attempt === maxAttempts) throw err;
+      if (err.networkDown && !(await _canReachServer())) {
+        onWait?.(true);
+        await _waitForConnection(isCancelled);
+        onWait?.(false);
+        attempt--; // a drop-out doesn't count as a failed try
+        continue;
+      }
+      if (attempt >= 3) throw err;
       const delay = 3000 * attempt;
       console.warn(`[upload] ${label} attempt ${attempt} failed: ${err.message} — retrying in ${delay/1000}s`);
       await new Promise(r => setTimeout(r, delay));
@@ -3619,13 +3700,19 @@ async function _xhrPut(url, body, onProgress, isCancelled, label, maxAttempts = 
   }
 }
 
+// Closing the tab stops an upload. Warn first — dropping the same file in again later
+// picks up where it stopped, but only while the half-finished pieces are kept (7 days).
+window.addEventListener('beforeunload', e => {
+  if (_activeUploadIds.size > 0) { e.preventDefault(); e.returnValue = ''; }
+});
+
 // ── Main upload function ──────────────────────────────────────────────────────
 
 async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', cancelAllId:'cancelAllUploads', cancelClass:'upload-cancel' }, existingRow = null) {
   const queue = document.getElementById(ctx.queueId);
   let row;
   if (existingRow) {
-    // Transition the queued placeholder into an active upload row
+    // Transition the queued placeholder (or a failed row being retried) into an active upload row
     row = existingRow;
     row.classList.remove('queued-item');
     row.innerHTML = `
@@ -3645,21 +3732,36 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
       <button class="btn-ghost ${ctx.cancelClass}" style="font-size:12px;padding:4px 10px">Cancel</button>
       <div class="progress-wrap" style="grid-column:1/-1"><div class="progress-bar" style="width:0%"></div></div>`;
     queue.prepend(row);
-    document.getElementById(ctx.cancelAllId).style.display = 'block';
   }
+  document.getElementById(ctx.cancelAllId).style.display = 'block';
   _updateQueueSummary(ctx);
 
   const bar       = row.querySelector('.progress-bar');
   const pctEl     = row.querySelector('.upload-pct');
+  const detailEl  = row.querySelector('.upload-detail');
   const cancelBtn = row.querySelector('.' + ctx.cancelClass);
 
   let fileId    = null;
   let cancelled = false;
   let r2Key     = null;
   let uploadId  = null;
+  let lastPct   = 0;
+  let waiting   = false;
+  let detailText = `${fmtBytes(file.size)}${folder ? ' · ' + folder : ''}`;
 
   const isCancelled = () => cancelled;
-  const setProgress = pct => { bar.style.width = pct + '%'; pctEl.textContent = pct + '%'; };
+  const setProgress = pct => {
+    lastPct = pct;
+    bar.style.width = pct + '%';
+    if (!waiting) pctEl.textContent = pct + '%';
+  };
+  // "Waiting for connection…" while the internet is down; back to the % when it returns
+  const onWait = on => {
+    waiting = on;
+    pctEl.textContent = on ? 'Waiting…' : lastPct + '%';
+    pctEl.style.color = on ? 'var(--warn)' : '';
+    detailEl.textContent = on ? 'Connection lost. Waiting for it to come back, then carrying on.' : detailText;
+  };
 
   cancelBtn.addEventListener('click', async () => {
     cancelled = true;
@@ -3676,15 +3778,19 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
   try {
     const resume = _loadResume(file);
 
-    // Register — pass saved r2Key if resuming so the same R2 object is reused.
+    // Register. If this same file (name, folder, size, modified time) has a half-finished
+    // upload, the server hands back that record and its R2 session instead of a new one.
     // Retry with backoff if rate-limited (429) so bulk drops don't permanently fail.
     let start;
     for (let attempt = 1; attempt <= 5; attempt++) {
       try {
-        start = await api('/api/upload/browser/start', {
+        start = await _withReconnect(() => api('/api/upload/browser/start', {
           method: 'POST',
-          body: JSON.stringify({ name: file.name, size: file.size, folder, r2Key: resume?.r2Key }),
-        });
+          body: JSON.stringify({
+            name: file.name, size: file.size, folder, r2Key: resume?.r2Key,
+            lastModified: file.lastModified, session: _uploadSession,
+          }),
+        }), isCancelled, onWait);
         break;
       } catch (err) {
         const is429 = err.message.includes('slow down') || err.message.includes('429') || err.message.toLowerCase().includes('too many');
@@ -3703,45 +3809,58 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
 
     if (file.size <= MULTIPART_THRESHOLD) {
       // ── Simple PUT ────────────────────────────────────────────────────────
-      // Small files: single PUT with retry. No resume needed.
+      // Small files: single PUT. After a drop-out, ask for a fresh URL for the same record.
       _clearResume(file);
-      const xhr = await _xhrPut(
-        start.url, file,
+      let firstUrl = start.url;
+      const getUrl = async () => {
+        if (firstUrl) { const u = firstUrl; firstUrl = null; return u; }
+        const r = await api(`/api/upload/browser/presign/${fileId}`, { method: 'POST' });
+        if (!r) throw new Error('Your login expired. Log in again, then click Retry.');
+        return r.url;
+      };
+      await _putWithRetry(
+        getUrl, file,
         e => { if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100)); },
-        isCancelled, file.name
+        isCancelled, file.name, onWait
       );
-      if (!xhr) return; // cancelled
 
     } else {
       // ── Multipart with resume ─────────────────────────────────────────────
       const numParts  = Math.ceil(file.size / PART_SIZE);
+      const partLen   = i => Math.min(PART_SIZE, file.size - i * PART_SIZE);
       let allParts    = new Array(numParts).fill(null);
       const partBytes = new Array(numParts).fill(0); // in-flight progress per part
 
-      if (resume?.uploadId) {
-        // Validate the saved session is still alive in R2 before committing to resume
-        const check = await api('/api/upload/browser/multipart/validate', {
-          method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId: resume.uploadId }),
-        }).catch(() => null);
-        if (check?.valid) {
-          // Resume: reuse existing multipart session — skip completed parts
-          uploadId = resume.uploadId;
-          for (const p of (resume.parts || [])) {
-            if (p?.PartNumber >= 1 && p.PartNumber <= numParts) allParts[p.PartNumber - 1] = p;
+      // Pick up where this file stopped: the server remembers the R2 session and R2
+      // reports exactly which pieces arrived. (Saved state in this browser is the fallback.)
+      const savedUploadId = start.uploadId || (resume?.r2Key === r2Key ? resume?.uploadId : null);
+      if (savedUploadId) {
+        const have = await _withReconnect(() => api('/api/upload/browser/multipart/parts', {
+          method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId: savedUploadId }),
+        }), isCancelled, onWait).catch(e => { if (e.message === 'Cancelled') throw e; return null; });
+        if (have?.valid) {
+          uploadId = savedUploadId;
+          for (const p of have.parts) {
+            const i = p.PartNumber - 1;
+            if (i >= 0 && i < numParts && p.Size === partLen(i)) allParts[i] = { PartNumber: p.PartNumber, ETag: p.ETag };
           }
-          const doneCount = allParts.filter(Boolean).length;
-          setProgress(Math.round(doneCount / numParts * 100));
-          console.log(`[upload] Resuming ${file.name}: ${doneCount}/${numParts} parts done`);
+          const doneBytes = allParts.reduce((a, p, i) => a + (p ? partLen(i) : 0), 0);
+          setProgress(Math.round(doneBytes / file.size * 100));
+          if (doneBytes > 0) {
+            detailText = `Resumed from ${fmtBytes(doneBytes)} · ${detailText}`;
+            detailEl.textContent = detailText;
+          }
+          console.log(`[upload] Resuming ${file.name}: ${allParts.filter(Boolean).length}/${numParts} parts already in R2`);
         } else {
-          // Session expired — discard and start fresh
-          console.warn(`[upload] Saved session for ${file.name} is expired — starting fresh`);
+          // Session gone (expired or aborted) — start this file's pieces again
+          console.warn(`[upload] Saved session for ${file.name} has expired — starting fresh`);
           _clearResume(file);
         }
       }
       if (!uploadId) {
-        const r = await api('/api/upload/browser/multipart/create', {
-          method: 'POST', body: JSON.stringify({ r2_key: r2Key }),
-        });
+        const r = await _withReconnect(() => api('/api/upload/browser/multipart/create', {
+          method: 'POST', body: JSON.stringify({ r2_key: r2Key, fileId }),
+        }), isCancelled, onWait);
         if (!r || cancelled) return;
         uploadId = r.uploadId;
         _saveResume(file, { r2Key, uploadId, parts: [] });
@@ -3750,11 +3869,11 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
       // Retry loop: on first run attempt; retry once if R2 session was expired
       for (let attempt = 0; attempt <= 1; attempt++) {
         let sessionExpired = false;
-        const doneBytesBase = allParts.filter(Boolean).length * PART_SIZE;
 
         const updateProgress = () => {
-          const inFlight = partBytes.reduce((a, b) => a + b, 0);
-          setProgress(Math.round(Math.min((doneBytesBase + inFlight) / file.size, 1) * 100));
+          const done     = allParts.reduce((a, p, i) => a + (p ? partLen(i) : 0), 0);
+          const inFlight = partBytes.reduce((a, b, i) => a + (allParts[i] ? 0 : b), 0);
+          setProgress(Math.round(Math.min((done + inFlight) / file.size, 1) * 100));
         };
 
         // Upload remaining parts in parallel batches
@@ -3772,19 +3891,22 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
                 if (cancelled) return;
                 const partNumber = i + 1;
                 const chunkStart = i * PART_SIZE;
-                const chunk      = file.slice(chunkStart, Math.min(chunkStart + PART_SIZE, file.size));
+                const chunk      = file.slice(chunkStart, chunkStart + partLen(i));
 
-                // Get fresh presigned URL (retries built into _xhrPut, URL is fresh each retry)
-                const { url } = await api('/api/upload/browser/multipart/part-url', {
-                  method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, partNumber }),
-                });
-
-                const xhr = await _xhrPut(
-                  url, chunk,
+                // A fresh presigned URL for every try, so a long drop-out can't leave us with an expired one
+                const getUrl = async () => {
+                  const r = await api('/api/upload/browser/multipart/part-url', {
+                    method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, partNumber }),
+                  });
+                  if (!r) throw new Error('Your login expired. Log in again, then click Retry.');
+                  return r.url;
+                };
+                partBytes[i] = 0;
+                const xhr = await _putWithRetry(
+                  getUrl, chunk,
                   e => { if (e.lengthComputable) { partBytes[i] = e.loaded; updateProgress(); } },
-                  isCancelled, `${file.name} part ${partNumber}`
+                  isCancelled, `${file.name} part ${partNumber}`, onWait
                 );
-                if (!xhr) return; // cancelled
 
                 allParts[i] = { PartNumber: partNumber, ETag: xhr.getResponseHeader('ETag') };
                 partBytes[i] = chunk.size; // mark fully done
@@ -3799,9 +3921,9 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
                 api('/api/upload/browser/multipart/abort', {
                   method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId }),
                 }).catch(() => {});
-                const nr = await api('/api/upload/browser/multipart/create', {
-                  method: 'POST', body: JSON.stringify({ r2_key: r2Key }),
-                });
+                const nr = await _withReconnect(() => api('/api/upload/browser/multipart/create', {
+                  method: 'POST', body: JSON.stringify({ r2_key: r2Key, fileId }),
+                }), isCancelled, onWait);
                 if (!nr || cancelled) return;
                 uploadId = nr.uploadId;
                 _saveResume(file, { r2Key, uploadId, parts: [] });
@@ -3813,10 +3935,10 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
           }
 
           if (!sessionExpired) {
-            // Save resume state after each batch — worst case: redo one batch on crash
+            // Save resume state after each batch — the server and R2 hold the real record
             const doneSoFar = allParts.filter(Boolean);
             _saveResume(file, { r2Key, uploadId, parts: doneSoFar });
-            setProgress(Math.round(doneSoFar.length / numParts * 100));
+            updateProgress();
           }
         }
 
@@ -3824,15 +3946,15 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
       }
 
       if (cancelled) return;
-      await api('/api/upload/browser/multipart/complete', {
+      await _withReconnect(() => api('/api/upload/browser/multipart/complete', {
         method: 'POST', body: JSON.stringify({ r2_key: r2Key, uploadId, parts: allParts }),
-      });
+      }), isCancelled, onWait);
     }
 
     if (cancelled) return;
-    await api(`/api/upload/browser/complete/${start.id}`, {
+    await _withReconnect(() => api(`/api/upload/browser/complete/${start.id}`, {
       method: 'POST', body: JSON.stringify({ size: file.size }),
-    });
+    }), isCancelled, onWait);
 
     // Verify the object landed in R2 with the right size
     try {
@@ -3862,10 +3984,31 @@ async function uploadBrowserFile(file, folder, ctx = { queueId:'uploadQueue', ca
     if (cancelled) return;
     pctEl.textContent = '✗';
     pctEl.style.color = 'var(--danger)';
-    row.querySelector('.upload-detail').textContent = err.message;
-    cancelBtn.textContent = 'Dismiss';
-    cancelBtn.addEventListener('click', () => row.remove(), { once: true });
-    // Keep resume state in localStorage so a page reload can continue the upload
+    detailEl.textContent = err.message;
+    // Dismiss only hides the row — the half-finished upload stays resumable for 7 days,
+    // so dropping the same file in later carries on. (Cancel, while running, discards it.)
+    const dismissBtn = document.createElement('button');
+    dismissBtn.className = `btn-ghost ${ctx.cancelClass}`;
+    dismissBtn.style.cssText = 'font-size:12px;padding:4px 10px';
+    dismissBtn.textContent = 'Dismiss';
+    dismissBtn.addEventListener('click', () => {
+      row.remove();
+      if (!document.querySelectorAll('.' + ctx.cancelClass).length)
+        document.getElementById(ctx.cancelAllId).style.display = 'none';
+    }, { once: true });
+    const actions = document.createElement('div');
+    actions.style.cssText = 'display:flex;gap:6px;align-items:center';
+    cancelBtn.replaceWith(actions);
+    // Retry carries on from the last finished piece with the same file — no need to pick it
+    // again. (The print set window has its own Try again, so it doesn't get one here.)
+    if (!ctx.noRetry) {
+      const retryBtn = document.createElement('button');
+      retryBtn.className = 'btn-sm btn-get';
+      retryBtn.textContent = 'Retry';
+      retryBtn.addEventListener('click', () => uploadBrowserFile(file, folder, ctx, row), { once: true });
+      actions.append(retryBtn);
+    }
+    actions.append(dismissBtn);
   }
 }
 
@@ -5097,7 +5240,7 @@ async function _prRunUpload(files) {
   };
   paint();
 
-  const ctx = { queueId: 'printUploadQueue', cancelAllId: 'printCancelAll', cancelClass: 'print-upload-cancel' };
+  const ctx = { queueId: 'printUploadQueue', cancelAllId: 'printCancelAll', cancelClass: 'print-upload-cancel', noRetry: true };
   let next = 0;
   const worker = async () => {
     while (next < files.length) {

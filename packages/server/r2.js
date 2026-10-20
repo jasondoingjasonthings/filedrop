@@ -112,8 +112,29 @@ async function validateMultipart(key, uploadId) {
   }
 }
 
+// Every part R2 already holds for a multipart session — what a resumed upload can skip.
+// Returns null if the session no longer exists (expired or aborted).
+async function listUploadedParts(key, uploadId) {
+  const parts = [];
+  let marker;
+  try {
+    for (;;) {
+      const r = await client.send(new ListPartsCommand({
+        Bucket: BUCKET, Key: key, UploadId: uploadId, MaxParts: 1000, PartNumberMarker: marker,
+      }));
+      for (const p of r.Parts || []) parts.push({ PartNumber: p.PartNumber, ETag: p.ETag, Size: p.Size });
+      if (!r.IsTruncated) break;
+      marker = r.NextPartNumberMarker;
+    }
+  } catch (err) {
+    if (err.name === 'NoSuchUpload' || err.$metadata?.httpStatusCode === 404) return null;
+    throw err;
+  }
+  return parts;
+}
+
 module.exports = {
   presignDownload, presignUpload, deleteObject, headObject, getObject, getObjectStream, putObject, putObjectStream, uploadLarge,
-  createMultipart, presignPart, completeMultipart, abortMultipart, validateMultipart,
+  createMultipart, presignPart, completeMultipart, abortMultipart, validateMultipart, listUploadedParts,
   BUCKET,
 };

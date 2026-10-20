@@ -5,7 +5,7 @@ const { v4: uuid } = require('uuid');
 const { requireOwner, makeAgentMiddleware, makeAuthMiddleware } = require('../auth');
 const { logAudit } = require('../audit');
 const { isBlockedFilename } = require('../filetype');
-const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject, validateMultipart } = require('../r2');
+const { presignUpload, createMultipart, presignPart, completeMultipart, abortMultipart, headObject, validateMultipart, listUploadedParts } = require('../r2');
 const { generateThumbnail } = require('../thumbnail');
 const { maybeQueueTranscode } = require('../transcode');
 
@@ -234,9 +234,39 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
 
   // Start a browser upload: register file + return presigned PUT URL
   router.post('/browser/start', jwtAuth, async (req, res) => {
-    const { name, size, folder, r2Key: resumeR2Key } = req.body || {};
+    const { name, size, folder, r2Key: resumeR2Key, lastModified, session } = req.body || {};
     if (!name) { res.status(400).json({ error: 'name required' }); return; }
     if (isBlockedFilename(name)) { res.status(422).json({ error: `File type not allowed: ${name}` }); return; }
+
+    // Resume: the same file (name + folder + size + modified time) has a half-finished
+    // multipart upload from the last 7 days — carry on with that record and R2 session
+    // instead of starting again from zero.
+    const fingerprint = lastModified ? `${size || 0}:${lastModified}` : null;
+    if (fingerprint) {
+      const prev = db.prepare(`
+        SELECT * FROM files
+        WHERE name=? AND folder=? AND fingerprint=? AND upload_id IS NOT NULL
+          AND status IN ('uploading','deleted')
+          AND COALESCE(last_seen_at, created_at) >= datetime('now', '-7 days')
+        ORDER BY created_at DESC LIMIT 1
+      `).get(name, folder || '', fingerprint);
+      if (prev) {
+        // Another tab still uploading this exact file? Don't let two run at once.
+        const live = db.prepare(`SELECT last_seen_at >= datetime('now', '-75 seconds') AS live FROM files WHERE id=?`).get(prev.id).live;
+        if (prev.status === 'uploading' && live && prev.upload_session && prev.upload_session !== session) {
+          res.status(409).json({ error: 'This file is already uploading in another window. If that window is closed, try again in a minute.' });
+          return;
+        }
+        db.prepare(`
+          UPDATE files SET status='uploading', last_seen_at=datetime('now'), deleted_at=NULL, upload_session=?
+          WHERE id=?
+        `).run(session || null, prev.id);
+        sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(prev.id));
+        console.log(`[upload] Resuming browser upload: ${name}`);
+        res.json({ id: prev.id, r2Key: prev.r2_key, uploadId: prev.upload_id, resumed: true });
+        return;
+      }
+    }
     const dotIdx = name.lastIndexOf('.');
     const ext    = dotIdx > 0 ? name.slice(dotIdx) : '';
     const base   = (dotIdx > 0 ? name.slice(0, dotIdx) : name).replace(/[^a-zA-Z0-9._-]/g, '_') || 'file';
@@ -248,9 +278,9 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         db.prepare(`
-          INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at)
-          VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'))
-        `).run(id, name, r2Key, size || 0, folder || '');
+          INSERT INTO files (id, name, r2_key, size, folder, status, upload_progress, last_seen_at, fingerprint, upload_session)
+          VALUES (?, ?, ?, ?, ?, 'uploading', 0, datetime('now'), ?, ?)
+        `).run(id, name, r2Key, size || 0, folder || '', fingerprint, session || null);
         break; // success
       } catch (err) {
         if (err.code === 'SQLITE_CONSTRAINT_UNIQUE' && attempt === 0 && resumeR2Key) {
@@ -281,7 +311,7 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     const { size, checksum } = req.body || {};
     db.prepare(`
       UPDATE files SET status='available', upload_progress=100, uploaded_at=datetime('now'),
-        size=COALESCE(?,size), checksum=COALESCE(?,checksum)
+        size=COALESCE(?,size), checksum=COALESCE(?,checksum), upload_id=NULL
       WHERE id=?
     `).run(size || null, checksum || null, req.params.id);
     const file = db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id);
@@ -313,11 +343,36 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     }
   });
 
-  // Browser multipart: create session
+  // Browser multipart: create session (remembered on the file record so it can be resumed)
   router.post('/browser/multipart/create', jwtAuth, async (req, res) => {
-    const { r2_key } = req.body || {};
+    const { r2_key, fileId } = req.body || {};
     if (!r2_key) { res.status(400).json({ error: 'r2_key required' }); return; }
-    try { res.json({ uploadId: await createMultipart(r2_key) }); }
+    try {
+      const uploadId = await createMultipart(r2_key);
+      if (fileId) db.prepare(`UPDATE files SET upload_id=? WHERE id=? AND r2_key=?`).run(uploadId, fileId, r2_key);
+      res.json({ uploadId });
+    }
+    catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // Browser multipart: which parts R2 already holds — a resumed upload skips these
+  router.post('/browser/multipart/parts', jwtAuth, async (req, res) => {
+    const { r2_key, uploadId } = req.body || {};
+    if (!r2_key || !uploadId) { res.status(400).json({ error: 'r2_key and uploadId required' }); return; }
+    try {
+      const parts = await listUploadedParts(r2_key, uploadId);
+      res.json(parts ? { valid: true, parts } : { valid: false, parts: [] });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Browser single PUT: a fresh presigned URL for an existing upload (the first one
+  // may have expired while the connection was down)
+  router.post('/browser/presign/:id', jwtAuth, async (req, res) => {
+    const file = db.prepare(`SELECT r2_key FROM files WHERE id=? AND status='uploading'`).get(req.params.id);
+    if (!file) { res.status(404).json({ error: 'Upload not found' }); return; }
+    try { res.json({ url: await presignUpload(file.r2_key, 3600) }); }
     catch (err) { res.status(500).json({ error: err.message }); }
   });
 
@@ -342,9 +397,9 @@ function makeUploadRouter(db, sseBus, jwtSecret) {
     catch (err) { res.status(500).json({ error: err.message }); }
   });
 
-  // Browser upload failed
+  // Browser upload cancelled — deliberately stopped, so it is not resumable
   router.post('/browser/fail/:id', jwtAuth, (req, res) => {
-    db.prepare(`UPDATE files SET status='deleted' WHERE id=?`).run(req.params.id);
+    db.prepare(`UPDATE files SET status='deleted', upload_id=NULL WHERE id=?`).run(req.params.id);
     sseBus.broadcast('file', db.prepare(`SELECT * FROM files WHERE id=?`).get(req.params.id));
     res.json({ ok: true });
   });

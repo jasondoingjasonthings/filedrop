@@ -163,6 +163,13 @@ function migrateAlter(db) {
     // Phone-size copies of print set photos (the original is never touched)
     if (!cols.includes('preview_key')) db.prepare(`ALTER TABLE files ADD COLUMN preview_key TEXT`).run();
 
+    // Resumable browser uploads: the R2 multipart session, a fingerprint of the file
+    // (size:lastModified) so the same file can pick up where it stopped, and which
+    // browser tab owns the upload (so two tabs can't upload the same file at once)
+    if (!cols.includes('upload_id'))      db.prepare(`ALTER TABLE files ADD COLUMN upload_id TEXT`).run();
+    if (!cols.includes('fingerprint'))    db.prepare(`ALTER TABLE files ADD COLUMN fingerprint TEXT`).run();
+    if (!cols.includes('upload_session')) db.prepare(`ALTER TABLE files ADD COLUMN upload_session TEXT`).run();
+
     // Print sets — one client, one folder, one two-word code for wttf.com.au/prints.
     // The share link does the delivering; the print set is the code in front of it.
     const hasPrintSets = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='print_sets'`).get();

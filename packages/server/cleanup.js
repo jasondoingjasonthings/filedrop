@@ -1,6 +1,6 @@
 'use strict';
 
-const { deleteObject } = require('./r2');
+const { deleteObject, abortMultipart } = require('./r2');
 const { deleteShareZip } = require('./zipbuilder');
 
 const CHECK_INTERVAL_MS = 60_000; // check every minute
@@ -46,6 +46,20 @@ async function _doCleanup(db, sseBus) {
     console.log(`[cleanup] Cleared stale upload (no heartbeat): ${f.id}`);
   }
 
+  // ── Give up on half-finished browser uploads after 7 days ───────────────────
+  // Until then the record keeps its multipart session so dropping the same file
+  // again resumes it. After that, abort the session so the pieces stop using storage.
+  const abandoned = db.prepare(`
+    SELECT id, name, r2_key, upload_id FROM files
+    WHERE upload_id IS NOT NULL AND status != 'available'
+      AND COALESCE(last_seen_at, created_at) < datetime('now', '-7 days')
+  `).all();
+  for (const f of abandoned) {
+    try { await abortMultipart(f.r2_key, f.upload_id); } catch {}
+    db.prepare(`UPDATE files SET upload_id=NULL, status='deleted', deleted_at=COALESCE(deleted_at, datetime('now')) WHERE id=?`).run(f.id);
+    console.log(`[cleanup] Gave up on unfinished upload after 7 days: ${f.name}`);
+  }
+
   // ── Delete R2 ZIPs for expired share links, then remove the link row ────────
   // Only delete the ZIP from R2 if no other non-expired token shares the same
   // zip_key — sibling tokens reuse the same ZIP file.
@@ -67,8 +81,9 @@ async function _doCleanup(db, sseBus) {
   db.prepare(`DELETE FROM revoked_tokens WHERE expires_at <= datetime('now')`).run();
 
   // ── Prune deleted records — keep only the 100 most recent ───────────────────
+  // (never a half-finished upload that can still be resumed)
   db.prepare(`
-    DELETE FROM files WHERE status = 'deleted'
+    DELETE FROM files WHERE status = 'deleted' AND upload_id IS NULL
       AND id NOT IN (
         SELECT id FROM files WHERE status = 'deleted'
         ORDER BY COALESCE(deleted_at, created_at) DESC LIMIT 100

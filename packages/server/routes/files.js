@@ -64,13 +64,21 @@ function makeFilesRouter(db, sseBus) {
 
   // Check which files already exist as 'available' — used by browser upload to skip duplicates
   // Body: { files: [{name, folder}] }  Response: { existing: Set<"name|folder"> as array }
+  // A half-finished upload doesn't count (dropping the file again resumes it); one that
+  // another window is actively uploading (heartbeat in the last 75 s) does, so it isn't
+  // sent twice. `session` identifies the asking browser tab — its own uploads never block it.
   router.post('/check-existing', (req, res) => {
-    const { files: list } = req.body || {};
+    const { files: list, session } = req.body || {};
     if (!Array.isArray(list) || !list.length) { res.json({ existing: [] }); return; }
-    const stmt = db.prepare(`SELECT 1 FROM files WHERE name=? AND folder=? AND status IN ('available','uploading') LIMIT 1`);
+    const stmt = db.prepare(`
+      SELECT 1 FROM files WHERE name=? AND folder=?
+        AND (status='available' OR (status='uploading' AND last_seen_at >= datetime('now', '-75 seconds')
+                                    AND (upload_session IS NULL OR upload_session != ?)))
+      LIMIT 1
+    `);
     const existing = list
       .filter(f => f && f.name)
-      .filter(f => stmt.get(f.name, f.folder ?? '') !== undefined)
+      .filter(f => stmt.get(f.name, f.folder ?? '', session || '-') !== undefined)
       .map(f => `${f.name}|${f.folder ?? ''}`);
     res.json({ existing });
   });
