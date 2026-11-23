@@ -1944,7 +1944,7 @@ function renderLibrary() {
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
             <span class="status-badge ${gStatus}" style="font-family:var(--mono);font-size:10px">${gStatus}</span>
             ${hasUploading ? `<button class="btn-sm btn-delete" onclick="cancelFolderUploads('${safeKey}')">Cancel</button>` : ''}
-            ${summary.available_count > 0 ? `<button class="btn-sm" style="background:var(--bg);border:1.5px solid var(--border2);color:var(--muted)" onclick="downloadZip('${safeKey}')">↓ ZIP</button>` : ''}
+            ${summary.available_count > 0 ? `<button class="btn-sm" style="background:var(--bg);border:1.5px solid var(--border2);color:var(--muted)" onclick="downloadFolderTree('${safeKey}',this)">↓ Download</button>` : ''}
             <button class="btn-sm" style="background:var(--accent);color:#0b1f2a;border-color:var(--accent);font-weight:700" onclick="shareFolder('${safeKey}')">Share</button>
             ${(() => {
               const topK     = key.indexOf('/') >= 0 ? key.slice(0, key.indexOf('/')) : key;
@@ -2009,7 +2009,7 @@ function renderLibrary() {
             <div class="folder-group-meta" style="font-family:var(--mono);font-size:11px">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)}${combined.uploading_count?' · <span style="opacity:0.8">uploading…</span>':''}</div>
           </div>
           <div style="display:flex;align-items:center;gap:6px;flex-shrink:0" onclick="event.stopPropagation()">
-            ${!combined.uploading_count ? `<button class="btn-sm" style="background:oklch(1 0 0/.10);color:var(--header-ink);border-color:var(--header-line)" onclick="downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
+            ${!combined.uploading_count ? `<button class="btn-sm" style="background:oklch(1 0 0/.10);color:var(--header-ink);border-color:var(--header-line)" onclick="downloadFolderTree('${safeTopKey}',this)">↓ Download</button>` : ''}
             <button class="btn-sm" style="background:var(--accent);color:#0b1f2a;border-color:var(--accent);font-weight:700" onclick="shareFolder('${safeTopKey}')">Share</button>
             ${(() => {
               const pe   = !!folderProxySettings[topKey];
@@ -2199,6 +2199,130 @@ function downloadZip(folder) {
     .catch(e => toast(e.message, 'error'));
 }
 
+// ── Download a whole folder (with subfolders) straight to disk ───────────────
+// Asks where to save, rebuilds the folder tree there and streams each file from R2.
+// Files already on disk at full size are skipped, so re-running resumes a big folder.
+const ZIP_FALLBACK_MAX = 4e9; // browsers without folder access fall back to ZIP below this size
+
+function _safeFsName(s) {
+  const n = String(s || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '_').replace(/[. ]+$/, '');
+  return n && n !== '.' && n !== '..' ? n : '_';
+}
+
+async function downloadFolderTree(folder, btn) {
+  if (dlQueueRunning) { toast('A download is already in progress — wait for it to finish', 'error'); return; }
+
+  const inTree = k => folder === '' ? k === '' : (k === folder || k.startsWith(folder + '/'));
+  const keys   = folderSummaries.map(s => s.folder ?? '').filter(inTree);
+
+  if (!('showDirectoryPicker' in window)) {
+    const size = folderSummaries.filter(s => inTree(s.folder ?? '')).reduce((t, s) => t + (s.total_size || 0), 0);
+    if (size < ZIP_FALLBACK_MAX) { downloadZip(folder); return; }
+    toast('Downloading big folders needs Chrome or Edge', 'error');
+    return;
+  }
+
+  let root;
+  try {
+    root = await window.showDirectoryPicker({ id: 'fd-folder-dl', mode: 'readwrite', startIn: 'downloads' });
+  } catch (e) {
+    if (e.name !== 'AbortError') toast('Could not open that folder: ' + e.message, 'error');
+    return;
+  }
+
+  const orig = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Listing…'; }
+  try {
+    const list = [];
+    for (const k of keys) {
+      for (let offset = 0; ;) {
+        const data = await api(`/api/files/in?folder=${encodeURIComponent(k)}&limit=1000&offset=${offset}`);
+        if (!data) return;
+        list.push(...data.files.filter(f => f.status === 'available'));
+        offset += data.files.length;
+        if (!data.files.length || offset >= data.total) break;
+      }
+    }
+    if (!list.length) { toast('Nothing to download in this folder yet', 'warn'); return; }
+
+    const topName = _safeFsName(folder.split('/').pop() || 'FileDrop');
+    const base    = await root.getDirectoryHandle(topName, { create: true });
+    const dirs    = new Map([['', base]]);
+    const used    = new Map(); // dir path → Set of names, so same-named files don't overwrite each other
+    async function dirFor(rel) {
+      if (dirs.has(rel)) return dirs.get(rel);
+      const cut    = rel.lastIndexOf('/');
+      const parent = await dirFor(cut < 0 ? '' : rel.slice(0, cut));
+      const h      = await parent.getDirectoryHandle(_safeFsName(rel.slice(cut + 1)), { create: true });
+      dirs.set(rel, h);
+      return h;
+    }
+
+    const items = [];
+    for (const f of list) {
+      const fFolder = f.folder || '';
+      const rel = fFolder === folder ? '' : fFolder.slice(folder ? folder.length + 1 : 0);
+      if (!used.has(rel)) used.set(rel, new Set());
+      const taken = used.get(rel);
+      let name = _safeFsName(f.name);
+      if (taken.has(name.toLowerCase())) {
+        const dot = name.lastIndexOf('.');
+        const stem = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
+        let n = 2; while (taken.has(`${stem} (${n})${ext}`.toLowerCase())) n++;
+        name = `${stem} (${n})${ext}`;
+      }
+      taken.add(name.toLowerCase());
+      items.push({
+        id: f.id, name, size: f.size || 0, dir: await dirFor(rel),
+        label: rel ? `${rel}/${name}` : name,
+        status: 'waiting', progress: 0, attempts: 0, error: '',
+      });
+    }
+
+    dlQueueItems = items;
+    showDlQueuePanel(folder);
+    document.getElementById('dlQueueSub').textContent =
+      `${items.length} files · ${fmtBytes(items.reduce((t, i) => t + i.size, 0))} → ${root.name}/${topName}`;
+    if (btn) btn.textContent = 'Downloading…';
+
+    let wakeLock = null;
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch {}
+    try { await runDlQueue(); }
+    finally { try { await wakeLock?.release(); } catch {} }
+
+    const failed = dlQueueItems.filter(i => i.status === 'failed').length;
+    if (btn) btn.textContent = failed ? `↓ Download (${failed} failed)` : '✓ Done';
+  } catch (e) {
+    toast('Folder download failed: ' + e.message, 'error');
+    if (btn) btn.textContent = orig;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Save one queued file into its folder on disk. Skips files already there at full size.
+async function saveItemToDir(item, idx) {
+  try {
+    const existing = await (await item.dir.getFileHandle(item.name)).getFile();
+    if (existing.size === item.size) return;
+  } catch {}
+
+  const fh       = await item.dir.getFileHandle(item.name, { create: true });
+  const writable = await fh.createWritable();
+  if (!item.size) { await writable.close(); return; }
+
+  const getUrl = role === 'owner'
+    ? id => api(`/api/files/${id}/presign`, { method: 'POST' }).then(d => d?.url || null)
+    : _getFreshDlUrl;
+  const onProgress = pct => { item.progress = pct; updateDlQueueItem(idx); updateDlQueueOverall(); };
+  try {
+    await _chunkedDownload(item.id, item.size, writable, 0, onProgress, item.name, { getUrl, persist: false });
+  } catch (err) {
+    try { await writable.abort(); } catch {}
+    throw err;
+  }
+}
+
 async function cancelFolderUploads(folder) {
   const uploading = Object.values(files).filter(f => (f.folder || '') === folder && f.status === 'uploading');
   const queued    = _uploadQueue.filter(t => (t.folder || '') === folder);
@@ -2366,7 +2490,7 @@ function renderEditor() {
             <div class="folder-group-name">${esc(topKey || '(root)')}<span class="folder-count-pill">${summaries.length}</span></div>
             <div class="folder-group-meta" style="font-family:var(--mono);font-size:11px">${combined.file_count} file${combined.file_count!==1?'s':''} · ${fmtBytes(combined.total_size||0)}${combined.uploading_count?' · <span style="opacity:0.8">uploading…</span>':''}</div>
           </div>
-          ${!combined.uploading_count ? `<button class="btn-sm" style="background:oklch(1 0 0/.10);color:var(--header-ink);border-color:var(--header-line)" onclick="event.stopPropagation();downloadZip('${safeTopKey}')">↓ ZIP</button>` : ''}
+          ${!combined.uploading_count ? `<button class="btn-sm" style="background:oklch(1 0 0/.10);color:var(--header-ink);border-color:var(--header-line)" onclick="event.stopPropagation();downloadFolderTree('${safeTopKey}',this)">↓ Download</button>` : ''}
           <span class="folder-chevron">${isCollapsed?'▼':'▲'}</span>
         </div>
         ${isCollapsed ? '' : `
@@ -2600,7 +2724,7 @@ function renderDlQueueList() {
     return `<div id="dlqi-${i}" style="padding:8px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:10px">
       <div style="width:32px;text-align:center;padding-top:2px;flex-shrink:0">${icon}</div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.name)}</div>
+        <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(item.label || item.name)}</div>
         <div style="font-size:11px;color:var(--muted)">${fmtBytes(item.size)}</div>
         ${bar}${errMsg}
       </div>
@@ -2694,9 +2818,13 @@ async function downloadQueueItem(item, idx) {
     if (attempt > 1) await new Promise(r => setTimeout(r, DL_RETRY_DELAY));
 
     try {
-      const data = await api(`/api/files/${item.id}/download`, { method: 'POST' });
-      if (!data?.url) throw new Error('No download URL');
-      await streamFile(item, idx, data.url);
+      if (item.dir) {
+        await saveItemToDir(item, idx);
+      } else {
+        const data = await api(`/api/files/${item.id}/download`, { method: 'POST' });
+        if (!data?.url) throw new Error('No download URL');
+        await streamFile(item, idx, data.url);
+      }
       item.status = 'done';
       item.progress = 100;
       updateDlQueueItem(idx);
@@ -2767,8 +2895,11 @@ async function _getFreshDlUrl(id) {
 
 // Core: fetches file in DL_CHUNK_SIZE chunks using Range headers, writes to writable.
 // Refreshes presigned URL automatically if it expires (403/401).
-async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, name) {
-  let url = await _getFreshDlUrl(id);
+// opts.getUrl overrides how the URL is fetched; opts.persist=false skips the resume banner state.
+async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, name, opts = {}) {
+  const getUrl  = opts.getUrl || _getFreshDlUrl;
+  const persist = opts.persist !== false;
+  let url = await getUrl(id);
   if (!url) throw new Error('Could not get download URL');
   let bytesReceived = startByte;
 
@@ -2778,7 +2909,7 @@ async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, 
 
     // URL expired — refresh and retry this chunk once
     if (res.status === 403 || res.status === 401) {
-      url = await _getFreshDlUrl(id);
+      url = await getUrl(id);
       if (!url) throw new Error('Session expired — please log in again');
       res = await fetch(url, { headers: { Range: `bytes=${bytesReceived}-${end}` } });
     }
@@ -2789,7 +2920,7 @@ async function _chunkedDownload(id, totalSize, writable, startByte, onProgress, 
     await writable.write(chunk);
     bytesReceived += chunk.byteLength;
 
-    _saveDlState(id, { totalSize, bytesReceived, name });
+    if (persist) _saveDlState(id, { totalSize, bytesReceived, name });
     onProgress(Math.round(bytesReceived / totalSize * 100));
   }
 
@@ -3703,7 +3834,7 @@ async function _putWithRetry(getUrl, body, onProgress, isCancelled, label, onWai
 // Closing the tab stops an upload. Warn first — dropping the same file in again later
 // picks up where it stopped, but only while the half-finished pieces are kept (7 days).
 window.addEventListener('beforeunload', e => {
-  if (_activeUploadIds.size > 0) { e.preventDefault(); e.returnValue = ''; }
+  if (_activeUploadIds.size > 0 || dlQueueRunning) { e.preventDefault(); e.returnValue = ''; }
 });
 
 // ── Main upload function ──────────────────────────────────────────────────────
